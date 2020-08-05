@@ -1,0 +1,19 @@
+Package: stringshaper
+Title: Bindings to the HarfBuzz library for Text Shaping
+Version: 0.0.0.9000
+Authors@R: c(
+    person("Thomas Lin", "Pedersen", , "thomas.pedersen@rstudio.com", c("cre", "aut"), comment = c(ORCID = "0000-0002-5147-4711")),
+    person("RStudio", role = "cph")
+    )
+Description: Provides access to the text shaping functionality in the HarfBuzz
+    library. 'stringshaper' is a low-level utility package mainly for graphic 
+    devices that expands upon the font toolset provided by the 'systemfonts'
+    package.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.0.9000
+LinkingTo: 
+    cpp11
+SystemRequirements: C++11
