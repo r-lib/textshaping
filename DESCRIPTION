@@ -20,7 +20,10 @@ Imports:
 LinkingTo: 
     cpp11,
     systemfonts
-SystemRequirements: C++11
+SystemRequirements: 
+    C++11,
+    freetype2,
+    harfbuzz
 URL: https://github.com/r-lib/stringshaper
 BugReports: https://github.com/r-lib/stringshaper/issues
 Suggests: 
