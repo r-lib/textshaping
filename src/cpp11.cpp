@@ -5,7 +5,7 @@
 
 // shaping.cpp
 void test();
-extern "C" SEXP _stringshaper_test() {
+extern "C" SEXP _textshaper_test() {
   BEGIN_CPP11
     test();
     return R_NilValue;
@@ -14,15 +14,15 @@ extern "C" SEXP _stringshaper_test() {
 
 extern "C" {
 /* .Call calls */
-extern SEXP _stringshaper_test();
+extern SEXP _textshaper_test();
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_stringshaper_test", (DL_FUNC) &_stringshaper_test, 0},
+    {"_textshaper_test", (DL_FUNC) &_textshaper_test, 0},
     {NULL, NULL, 0}
 };
 }
 
-extern "C" void R_init_stringshaper(DllInfo* dll){
+extern "C" void R_init_textshaper(DllInfo* dll){
   R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
   R_useDynamicSymbols(dll, FALSE);
 }

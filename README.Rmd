@@ -13,12 +13,12 @@ knitr::opts_chunk$set(
 )
 ```
 
-# stringshaper
+# textshaper
 
 <!-- badges: start -->
-[![Codecov test coverage](https://codecov.io/gh/r-lib/stringshaper/branch/master/graph/badge.svg)](https://codecov.io/gh/r-lib/stringshaper?branch=master)
-[![R build status](https://github.com/r-lib/stringshaper/workflows/R-CMD-check/badge.svg)](https://github.com/r-lib/stringshaper/actions)
+[![Codecov test coverage](https://codecov.io/gh/r-lib/textshaper/branch/master/graph/badge.svg)](https://codecov.io/gh/r-lib/textshaper?branch=master)
+[![R build status](https://github.com/r-lib/textshaper/workflows/R-CMD-check/badge.svg)](https://github.com/r-lib/textshaper/actions)
 <!-- badges: end -->
 
 ## Code of Conduct
-Please note that the stringshaper project is released with a [Contributor Code of Conduct](https://contributor-covenant.org/version/2/0/CODE_OF_CONDUCT.html). By contributing to this project, you agree to abide by its terms.
+Please note that the textshaper project is released with a [Contributor Code of Conduct](https://contributor-covenant.org/version/2/0/CODE_OF_CONDUCT.html). By contributing to this project, you agree to abide by its terms.
