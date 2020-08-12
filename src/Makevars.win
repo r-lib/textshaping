@@ -1,0 +1,20 @@
+VERSION = 1.16.0
+RWINLIB = ../windows/cairo-${VERSION}
+
+CXX_STD = CXX11
+
+PKG_CPPFLAGS = \
+	-I${RWINLIB}/include/harfbuzz \
+	-I${RWINLIB}/include/freetype2
+
+PKG_LIBS = -L${RWINLIB}/lib${R_ARCH} \
+	-lfreetype -lharfbuzz -lfreetype -lpng -lbz2 -lz -ldwrite
+
+all: clean winlibs
+
+winlibs:
+	"${R_HOME}/bin${R_ARCH_BIN}/Rscript.exe" "../tools/winlibs.R" ${VERSION}
+
+clean:
+	rm -f $(OBJECTS) $(SHLIB)
+
