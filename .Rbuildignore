@@ -6,4 +6,5 @@
 ^codecov\.yml$
 ^\.github$
 ^windows$
-
+^src/Makevars$
+^autobrew$

@@ -2,3 +2,6 @@
 .Rhistory
 .RData
 windows
+src/Makevars
+autobrew
+.autobrew

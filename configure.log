@@ -1,5 +1,0 @@
-<stdin>:1:22: warning: extra tokens at end of #include directive [-Wextra-tokens]
-#include <ft2build.h>\n#include <hb.h>
-                     ^
-                     //
-1 warning generated.

@@ -6,22 +6,13 @@
 # R CMD INSTALL --configure-vars='INCLUDE_DIR=/.../include LIB_DIR=/.../lib'
 
 # Library settings
-SYS="UNIX"
-PKG_CONFIG_NAME="freetype2 harfbuzz"
-PKG_DEB_NAME="libfreetype6-dev, libharfbuzz-dev"
-PKG_RPM_NAME="freetype-devel, harfbuzz-devel"
-PKG_CSW_NAME="libfreetype_dev, libharfbuzz_dev"
-PKG_BREW_NAME="freetype, harfbuzz"
-PKG_TEST_HEADER="#include <ft2build.h>\n#include <hb.h>"
+PKG_CONFIG_NAME="harfbuzz freetype2"
+PKG_DEB_NAME="libharfbuzz-dev"
+PKG_RPM_NAME="harfbuzz-devel"
+PKG_CSW_NAME="libharfbuzz_dev"
+PKG_BREW_NAME="harfbuzz"
+PKG_TEST_HEADER="#include <hb-ft.h>"
 PKG_LIBS="-lfreetype -lharfbuzz"
-PKG_OBJCXXFLAGS=""
-
-# Alternative config on MacOS for native APIs
-if [[ "$OSTYPE" == "darwin"* ]]; then
-SYS="DARWIN"
-PKG_CONFIG_NAME="--static freetype2 harfbuzz"
-PKG_OBJCXXFLAGS="-fobjc-arc"
-fi
 
 # Use pkg-config if available
 if [ $(command -v pkg-config) ]; then
@@ -38,6 +29,15 @@ elif [ "$PKGCONFIG_CFLAGS" ] || [ "$PKGCONFIG_LIBS" ]; then
   echo "Found pkg-config cflags and libs!"
   PKG_CFLAGS=${PKGCONFIG_CFLAGS}
   PKG_LIBS=${PKGCONFIG_LIBS}
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+  brew --version 2>/dev/null
+  if [ $? -eq 0 ]; then
+    BREWDIR=$(brew --prefix)
+    PKG_CFLAGS="-I$BREWDIR/include/freetype2 -I$BREWDIR/include/harfbuzz -I$BREWDIR/include/glib-2.0"
+  else
+    curl -sfL "https://autobrew.github.io/scripts/$PKG_BREW_NAME" > autobrew
+    source autobrew
+  fi
 fi
 
 # For debugging
@@ -71,7 +71,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Write to Makevars
-sed -e "s|@cflags@|$PKG_CFLAGS|" -e "s|@libs@|$PKG_LIBS|" -e "s|@SYS@|$SYS|g" -e "s|@objcflags@|$PKG_OBJCXXFLAGS|" src/Makevars.in > src/Makevars
+sed -e "s|@cflags@|$PKG_CFLAGS|" -e "s|@libs@|$PKG_LIBS|" src/Makevars.in > src/Makevars
 
 # Success
 exit 0
