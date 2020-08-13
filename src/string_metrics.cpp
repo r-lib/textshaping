@@ -209,8 +209,8 @@ int string_width(const char* string, const char* fontfile, int index,
 }
 
 int string_shape(const char* string, const char* fontfile, int index,
-                 double size, double res, double* x, double* y, int* id, unsigned int max_length) {
-
+                 double size, double res, double* x, double* y, int* id, int* n_glyphs,
+                 unsigned int max_length) {
   BEGIN_CPP11
   HarfBuzzShaper shaper;
   bool success = shaper.shape_string(string, fontfile, index, size, res, 0.0, 0,
@@ -222,10 +222,10 @@ int string_shape(const char* string, const char* fontfile, int index,
   if (!success) {
     return shaper.error_code;
   }
-  max_length = max_length < shaper.x_pos.size() ? max_length : shaper.x_pos.size();
-  for (unsigned int i = 0; i < max_length; ++i) {
-    x[i] = shaper.x_pos[i];
-    y[i] = shaper.y_pos[i];
+  *n_glyphs = max_length < shaper.x_pos.size() ? max_length : shaper.x_pos.size();
+  for (unsigned int i = 0; i < *n_glyphs; ++i) {
+    x[i] = double(shaper.x_pos[i]) / 64.0;
+    y[i] = double(shaper.y_pos[i]) / 64.0;
     id[i] = shaper.glyph_id[i];
   }
 

@@ -20,7 +20,7 @@ doubles get_line_width_c(strings string, strings path, integers index, doubles s
 int string_width(const char* string, const char* fontfile, int index,
                  double size, double res, int include_bearing, double* width);
 int string_shape(const char* string, const char* fontfile, int index,
-                 double size, double res, double* x, double* y, int* id, unsigned int max_length);
+                 double size, double res, double* x, double* y, int* id, int* n_glyphs, unsigned int max_length);
 [[cpp11::init]]
 void export_string_metrics(DllInfo* dll);
 #endif

@@ -24,6 +24,7 @@ SystemRequirements:
     C++11,
     freetype2,
     harfbuzz
+Remotes: r-lib/systemfonts
 URL: https://github.com/r-lib/textshaper
 BugReports: https://github.com/r-lib/textshaper/issues
 Suggests: 

@@ -126,11 +126,6 @@ bool HarfBuzzShaper::finish_string() {
     }
     no_break_last = !might_break;
 
-    // Apply kerning if not the first glyph on the line
-    if (!first_char) {
-      pen_x += x_offset[i];
-    }
-
     // Calculate top and bottom extend and ascender/descender
 
 
@@ -145,7 +140,7 @@ bool HarfBuzzShaper::finish_string() {
       last = false;
     } else {
       // No soft wrap, record pen position
-      x_pos.push_back(pen_x);
+      x_pos.push_back(pen_x + x_offset[i]);
       x_mid.push_back(x_advance[i] / 2);
       line_id.push_back(cur_line);
     }
@@ -297,9 +292,7 @@ bool HarfBuzzShaper::single_line_width(const char* string, const char* fontfile,
   hb_glyph_extents_t extent;
 
   for (int i = 0; i < n_glyphs; ++i) {
-    if (i != 0) {
-      x += glyph_pos[i].x_offset;
-    } else {
+    if (i == 0)  {
       hb_font_get_glyph_extents(font, glyph_info[i].codepoint, &extent);
       left_bear = extent.x_bearing;
     }
