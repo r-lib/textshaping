@@ -2,8 +2,12 @@
 
 #include "string_metrics.h"
 #include "string_shape.h"
+#include "hb_shaper.h"
 
 #include <cpp11/declarations.hpp>
+#include <cpp11/data_frame.hpp>
+#include <cpp11/named_arg.hpp>
+
 #include "utils.h"
 
 using namespace cpp11;
@@ -51,7 +55,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
   int cur_id = id[0] - 1; // make sure it differs from first
   bool success = false;
 
-  HarfBuzzShaper shaper;
+  HarfBuzzShaper& shaper = get_hb_shaper();
   for (int i = 0; i < n_strings; ++i) {
     const char* this_string = Rf_translateCharUTF8(string[i]);
     int this_id = id[i];
@@ -189,7 +193,7 @@ doubles get_line_width_c(strings string, strings path, integers index, doubles s
 int string_width(const char* string, const char* fontfile, int index,
                  double size, double res, int include_bearing, double* width) {
   BEGIN_CPP11
-  HarfBuzzShaper shaper;
+  HarfBuzzShaper& shaper = get_hb_shaper();
   bool success = shaper.single_line_shape(
     string, fontfile, index, size, res
   );
@@ -213,7 +217,7 @@ int string_shape(const char* string, const char* fontfile, int index,
                  double size, double res, double* x, double* y, int* id, int* n_glyphs,
                  unsigned int max_length) {
   BEGIN_CPP11
-  HarfBuzzShaper shaper;
+  HarfBuzzShaper& shaper = get_hb_shaper();
   bool success = shaper.single_line_shape(
     string, fontfile, index, size, res
   );

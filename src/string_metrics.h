@@ -2,7 +2,11 @@
 
 #define R_NO_REMAP
 
-#include <cpp11.hpp>
+#include <cpp11/doubles.hpp>
+#include <cpp11/strings.hpp>
+#include <cpp11/integers.hpp>
+#include <cpp11/list.hpp>
+#include <cpp11/logicals.hpp>
 
 using namespace cpp11;
 
