@@ -75,7 +75,7 @@ jobs:
 
       - name: Install system dependencies
         if: runner.os == 'MacOS'
-        run: brew install harfbuzz
+        run: brew install harfbuzz fribidi
 
       - name: Install dependencies
         run: |

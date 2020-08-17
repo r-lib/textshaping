@@ -23,7 +23,8 @@ LinkingTo:
 SystemRequirements: 
     C++11,
     freetype2,
-    harfbuzz
+    harfbuzz,
+    fribidi
 Remotes: r-lib/systemfonts
 URL: https://github.com/r-lib/textshaping
 BugReports: https://github.com/r-lib/textshaping/issues
