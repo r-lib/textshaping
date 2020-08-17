@@ -1,14 +1,14 @@
-Package: textshaper
-Title: Bindings to the HarfBuzz library for Text Shaping
+Package: textshaping
+Title: Bindings to the HarfBuzz and Fribidi libraries for Text Shaping
 Version: 0.0.0.9000
 Authors@R: c(
     person("Thomas Lin", "Pedersen", , "thomas.pedersen@rstudio.com", c("cre", "aut"), comment = c(ORCID = "0000-0002-5147-4711")),
     person("RStudio", role = "cph")
     )
 Description: Provides access to the text shaping functionality in the HarfBuzz
-    library. 'textshaper' is a low-level utility package mainly for graphic 
-    devices that expands upon the font toolset provided by the 'systemfonts'
-    package.
+    library and the bidirectional algorithm in the Fribidi libary. 'textshaping' 
+    is a low-level utility package mainly for graphic devices that expands upon 
+    the font toolset provided by the 'systemfonts' package.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
@@ -25,7 +25,7 @@ SystemRequirements:
     freetype2,
     harfbuzz
 Remotes: r-lib/systemfonts
-URL: https://github.com/r-lib/textshaper
-BugReports: https://github.com/r-lib/textshaper/issues
+URL: https://github.com/r-lib/textshaping
+BugReports: https://github.com/r-lib/textshaping/issues
 Suggests: 
     covr

@@ -234,6 +234,6 @@ int string_shape(const char* string, const char* fontfile, int index,
 }
 
 void export_string_metrics(DllInfo* dll) {
-  R_RegisterCCallable("textshaper", "string_width", (DL_FUNC)string_width);
-  R_RegisterCCallable("textshaper", "string_shape", (DL_FUNC)string_shape);
+  R_RegisterCCallable("textshaping", "string_width", (DL_FUNC)string_width);
+  R_RegisterCCallable("textshaping", "string_shape", (DL_FUNC)string_shape);
 }
