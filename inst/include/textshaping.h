@@ -16,7 +16,7 @@ static inline int ts_string_width(const char* string, const char* fontfile, int 
                                   double* width) {
   static int (*p_string_width)(const char*, const char*, int, double, double, int, double*) = NULL;
   if (p_string_width == NULL) {
-    p_string_width = (int (*)(const char*, const char*, int, double, double, int, double*)) R_GetCCallable("textshaper", "string_width");
+    p_string_width = (int (*)(const char*, const char*, int, double, double, int, double*)) R_GetCCallable("textshaping", "string_width");
   }
   return p_string_width(string, fontfile, index, size, res, include_bearing, width);
 }
@@ -28,7 +28,7 @@ static inline int ts_string_shape(const char* string, const char* fontfile, int 
                                   int* id, int* n_glyphs, unsigned int max_length) {
   static int (*p_string_shape)(const char*, const char*, int, double, double, double*, double*, int*, int*, unsigned int) = NULL;
   if (p_string_shape == NULL) {
-    p_string_shape = (int (*)(const char*, const char*, int, double, double, double*, double*, int*, int*, unsigned int)) R_GetCCallable("textshaper", "string_shape");
+    p_string_shape = (int (*)(const char*, const char*, int, double, double, double*, double*, int*, int*, unsigned int)) R_GetCCallable("textshaping", "string_shape");
   }
   return p_string_shape(string, fontfile, index, size, res, x, y, id, n_glyphs, max_length);
 }

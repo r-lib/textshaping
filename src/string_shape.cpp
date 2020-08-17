@@ -1,8 +1,10 @@
 #include <systemfonts.h>
-#include "string_shape.h"
 #include <hb-ft.h>
+#include "string_shape.h"
+#include "string_bidi.h"
 
 UTF_UCS HarfBuzzShaper::utf_converter = UTF_UCS();
+std::unordered_map<std::string, std::vector<int> > HarfBuzzShaper::bidi_cache = {};
 std::vector<unsigned int> HarfBuzzShaper::glyph_id = {};
 std::vector<unsigned int> HarfBuzzShaper::glyph_cluster = {};
 std::vector<unsigned int> HarfBuzzShaper::string_id = {};
@@ -39,9 +41,20 @@ bool HarfBuzzShaper::shape_string(const char* string, const char* fontfile,
   int n_chars = 0;
   const uint32_t* utc_string = utf_converter.convert_to_ucs(string, n_chars);
 
-  hb_buffer_reset(buffer);
-  hb_buffer_add_utf32(buffer, utc_string, n_chars, 0, -1);
-  hb_buffer_guess_segment_properties(buffer);
+  std::vector<int> embeddings = {};
+
+  if (n_chars > 1) {
+    std::string key(string);
+    auto cached_bidi = bidi_cache.find(key);
+    if (cached_bidi == bidi_cache.end()) {
+      embeddings = get_bidi_embeddings(utc_string, n_chars);
+      bidi_cache[key] = embeddings;
+    } else {
+      embeddings = cached_bidi->second;
+    }
+  } else {
+    embeddings.push_back(0);
+  }
 
   max_width = width;
   indent = ind;
@@ -57,10 +70,25 @@ bool HarfBuzzShaper::shape_string(const char* string, const char* fontfile,
   cur_hjust = hjust;
   cur_vjust = vjust;
 
-  bool success = shape_glyphs(font, utc_string, n_chars);
+  int start = 0;
+  for (int i = 0; i < embeddings.size(); ++i) {
+    if (i == embeddings.size() - 1 || embeddings[i] != embeddings[i + 1]) {
+      hb_buffer_reset(buffer);
+      hb_buffer_add_utf32(buffer, utc_string, n_chars, start, i - start + 1);
+      hb_buffer_guess_segment_properties(buffer);
+
+      bool success = shape_glyphs(font, utc_string + start, i - start + 1);
+      if (!success) {
+        return false;
+      }
+
+      start = i + 1;
+    }
+  }
+
   hb_font_destroy(font);
   //FT_Done_Face(face);
-  return success;
+  return true;
 }
 
 bool HarfBuzzShaper::add_string(const char* string, const char* fontfile,
@@ -78,16 +106,42 @@ bool HarfBuzzShaper::add_string(const char* string, const char* fontfile,
   int n_chars = 0;
   const uint32_t* utc_string = utf_converter.convert_to_ucs(string, n_chars);
 
-  hb_buffer_reset(buffer);
-  hb_buffer_add_utf32(buffer, utc_string, n_chars, 0, -1);
-  hb_buffer_guess_segment_properties(buffer);
+  std::vector<int> embeddings = {};
+
+  if (n_chars > 1) {
+    std::string key(string);
+    auto cached_bidi = bidi_cache.find(key);
+    if (cached_bidi == bidi_cache.end()) {
+      embeddings = get_bidi_embeddings(utc_string, n_chars);
+      bidi_cache[key] = embeddings;
+    } else {
+      embeddings = cached_bidi->second;
+    }
+  } else {
+    embeddings.push_back(0);
+  }
 
   cur_tracking = tracking;
 
-  bool success = shape_glyphs(font, utc_string, n_chars);
+  int start = 0;
+  for (int i = 0; i < embeddings.size(); ++i) {
+    if (i == embeddings.size() - 1 || embeddings[i] != embeddings[i + 1]) {
+      hb_buffer_reset(buffer);
+      hb_buffer_add_utf32(buffer, utc_string, n_chars, start, i - start + 1);
+      hb_buffer_guess_segment_properties(buffer);
+
+      bool success = shape_glyphs(font, utc_string + start, i - start + 1);
+      if (!success) {
+        return false;
+      }
+
+      start = i + 1;
+    }
+  }
+
   hb_font_destroy(font);
   //FT_Done_Face(face);
-  return success;
+  return true;
 }
 
 bool HarfBuzzShaper::finish_string() {
@@ -274,36 +328,58 @@ bool HarfBuzzShaper::single_line_width(const char* string, const char* fontfile,
   FT_Face face = *((FT_Face*) face_p);
   hb_font_t *font = hb_ft_font_create(face, {});
 
-  hb_buffer_reset(buffer);
-  hb_buffer_add_utf8(buffer, string, -1, 0, -1);
-  hb_buffer_guess_segment_properties(buffer);
+  int n_chars = 0;
+  const uint32_t* utc_string = utf_converter.convert_to_ucs(string, n_chars);
 
-  hb_shape(font, buffer, NULL, 0);
+  std::vector<int> embeddings = {};
 
-  unsigned int n_glyphs = 0;
-  hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
-  hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
-
-  if (n_glyphs == 0) {
-    width = x;
-    return true;
-  }
-
-  hb_glyph_extents_t extent;
-
-  for (int i = 0; i < n_glyphs; ++i) {
-    if (i == 0)  {
-      hb_font_get_glyph_extents(font, glyph_info[i].codepoint, &extent);
-      left_bear = extent.x_bearing;
+  if (n_chars > 1) {
+    std::string key(string);
+    auto cached_bidi = bidi_cache.find(key);
+    if (cached_bidi == bidi_cache.end()) {
+      embeddings = get_bidi_embeddings(utc_string, n_chars);
+      bidi_cache[key] = embeddings;
+    } else {
+      embeddings = cached_bidi->second;
     }
-    x += glyph_pos[i].x_advance;
+  } else {
+    embeddings.push_back(0);
   }
 
-  if (!include_bearing) {
+  int start = 0;
+  hb_glyph_extents_t extent;
+  hb_glyph_info_t *glyph_info;
+  hb_glyph_position_t *glyph_pos;
+  unsigned int n_glyphs = 0;
+
+  for (int i = 0; i < embeddings.size(); ++i) {
+    if (i == embeddings.size() - 1 || embeddings[i] != embeddings[i + 1]) {
+      hb_buffer_reset(buffer);
+      hb_buffer_add_utf32(buffer, utc_string, n_chars, start, i - start + 1);
+      hb_buffer_guess_segment_properties(buffer);
+
+      hb_shape(font, buffer, NULL, 0);
+      glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
+      glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
+
+      for (int i = 0; i < n_glyphs; ++i) {
+        if (i == 0 && start == 0)  {
+          hb_font_get_glyph_extents(font, glyph_info[i].codepoint, &extent);
+          left_bear = extent.x_bearing;
+        }
+        x += glyph_pos[i].x_advance;
+      }
+
+      start = i + 1;
+    }
+  }
+
+  if (!include_bearing && n_glyphs != 0) {
     x -= left_bear;
     hb_font_get_glyph_extents(font, glyph_info[n_glyphs - 1].codepoint, &extent);
     x -= glyph_pos[n_glyphs - 1].x_advance - (extent.x_bearing + extent.width);
   }
+
   width = x;
   hb_font_destroy(font);
   //FT_Done_Face(face);

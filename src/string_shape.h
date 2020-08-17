@@ -4,6 +4,7 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include <vector>
+#include <unordered_map>
 #include <cstdint>
 #include <hb.h>
 #include "utils.h"
@@ -81,6 +82,7 @@ public:
 
 private:
   static UTF_UCS utf_converter;
+  static std::unordered_map<std::string, std::vector<int> > bidi_cache;
   hb_buffer_t *buffer;
   double cur_lineheight;
   int cur_align;

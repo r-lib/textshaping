@@ -6,13 +6,13 @@
 # R CMD INSTALL --configure-vars='INCLUDE_DIR=/.../include LIB_DIR=/.../lib'
 
 # Library settings
-PKG_CONFIG_NAME="harfbuzz freetype2"
-PKG_DEB_NAME="libharfbuzz-dev"
-PKG_RPM_NAME="harfbuzz-devel"
-PKG_CSW_NAME="libharfbuzz_dev"
-PKG_BREW_NAME="harfbuzz"
+PKG_CONFIG_NAME="harfbuzz freetype2 fribidi"
+PKG_DEB_NAME="libharfbuzz-dev libfribidi-dev"
+PKG_RPM_NAME="harfbuzz-devel fribidi-devel"
+PKG_CSW_NAME="libharfbuzz_dev libfribidi_dev"
+PKG_BREW_NAME="harfbuzz fribidi"
 PKG_TEST_HEADER="#include <hb-ft.h>"
-PKG_LIBS="-lfreetype -lharfbuzz"
+PKG_LIBS="-lfreetype -lharfbuzz -lfribidi"
 
 # Use pkg-config if available
 if [ $(command -v pkg-config) ]; then
@@ -33,7 +33,7 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
   brew --version 2>/dev/null
   if [ $? -eq 0 ]; then
     BREWDIR=$(brew --prefix)
-    PKG_CFLAGS="-I$BREWDIR/include/freetype2 -I$BREWDIR/include/harfbuzz -I$BREWDIR/include/glib-2.0"
+    PKG_CFLAGS="-I$BREWDIR/include/freetype2 -I$BREWDIR/include/harfbuzz -I$BREWDIR/include/glib-2.0  -I$BREWDIR/include/fribidi"
   else
     curl -sfL "https://autobrew.github.io/scripts/$PKG_BREW_NAME" > autobrew
     source autobrew
