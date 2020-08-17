@@ -1,5 +1,4 @@
-#ifndef HBSHAPE_INCLUDED
-#define HBSHAPE_INCLUDED
+#pragma once
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -206,5 +205,3 @@ private:
     return false;
   }
 };
-
-#endif

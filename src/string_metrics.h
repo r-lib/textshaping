@@ -1,5 +1,4 @@
-#ifndef STRING_METRICS_INCLUDED
-#define STRING_METRICS_INCLUDED
+#pragma once
 
 #define R_NO_REMAP
 
@@ -23,4 +22,3 @@ int string_shape(const char* string, const char* fontfile, int index,
                  double size, double res, double* x, double* y, int* id, int* n_glyphs, unsigned int max_length);
 [[cpp11::init]]
 void export_string_metrics(DllInfo* dll);
-#endif
