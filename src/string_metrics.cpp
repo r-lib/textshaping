@@ -160,28 +160,26 @@ doubles get_line_width_c(strings string, strings path, integers index, doubles s
   bool one_res = res.size() == 1;
   double first_res = res[0];
   bool one_bear = include_bearing.size() == 1;
-  bool first_bear = include_bearing[0];
+  int first_bear = include_bearing[0];
 
   writable::doubles widths;
-  bool success = false;
-  int32_t width = 0;
-
-  HarfBuzzShaper shaper;
+  int error = 1;
+  double width = 0;
 
   for (int i = 0; i < n_strings; ++i) {
-    success = shaper.single_line_width(
+    error = string_width(
       Rf_translateCharUTF8(string[i]),
       one_path ? first_path : Rf_translateCharUTF8(path[i]),
       one_path ? first_index : index[i],
       one_size ? first_size : size[i],
       one_res ? first_res : res[i],
       one_bear ? first_bear : include_bearing[0],
-      width
+      &width
     );
-    if (!success) {
-      Rf_error("Failed to calculate width of string (%s) with font file (%s) with freetype error %i", Rf_translateCharUTF8(string[i]), Rf_translateCharUTF8(path[i]), shaper.error_code);
+    if (error) {
+      Rf_error("Failed to calculate width of string (%s) with font file (%s) with freetype error %i", Rf_translateCharUTF8(string[i]), Rf_translateCharUTF8(path[i]), error);
     }
-    widths.push_back(double(width) / 64.0);
+    widths.push_back(width);
   }
 
   return widths;
@@ -190,22 +188,25 @@ doubles get_line_width_c(strings string, strings path, integers index, doubles s
 
 int string_width(const char* string, const char* fontfile, int index,
                  double size, double res, int include_bearing, double* width) {
-  int error = 0;
-
   BEGIN_CPP11
   HarfBuzzShaper shaper;
-  int32_t width_tmp = 0;
-  bool success = shaper.single_line_width(
-    string, fontfile, index, size, res, (bool) include_bearing, width_tmp
+  bool success = shaper.single_line_shape(
+    string, fontfile, index, size, res
   );
-  if (success) {
-    *width = double(width_tmp) / 64.0;
-    return 0;
+
+  if (!success) {
+    return shaper.error_code;
   }
 
-  error = shaper.error_code;
+  int32_t width_tmp = shaper.last_shape_info.width;
+  if (!include_bearing) {
+    width_tmp -= shaper.last_shape_info.left_bearing;
+    width_tmp -= shaper.last_shape_info.right_bearing;
+  }
+  *width = double(width_tmp) / 64.0;
+
   END_CPP11_NO_RETURN
-  return error;
+  return 0;
 }
 
 int string_shape(const char* string, const char* fontfile, int index,
@@ -213,20 +214,17 @@ int string_shape(const char* string, const char* fontfile, int index,
                  unsigned int max_length) {
   BEGIN_CPP11
   HarfBuzzShaper shaper;
-  bool success = shaper.shape_string(string, fontfile, index, size, res, 0.0, 0,
-                                     0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+  bool success = shaper.single_line_shape(
+    string, fontfile, index, size, res
+  );
   if (!success) {
     return shaper.error_code;
   }
-  success = shaper.finish_string();
-  if (!success) {
-    return shaper.error_code;
-  }
-  *n_glyphs = max_length < shaper.x_pos.size() ? max_length : shaper.x_pos.size();
+  *n_glyphs = max_length < shaper.last_shape_info.x_pos.size() ? max_length : shaper.last_shape_info.x_pos.size();
   for (unsigned int i = 0; i < *n_glyphs; ++i) {
-    x[i] = double(shaper.x_pos[i]) / 64.0;
-    y[i] = double(shaper.y_pos[i]) / 64.0;
-    id[i] = shaper.glyph_id[i];
+    x[i] = double(shaper.last_shape_info.x_pos[i]) / 64.0;
+    y[i] = 0.0;
+    id[i] = shaper.last_shape_info.glyph_id[i];
   }
 
   END_CPP11_NO_RETURN

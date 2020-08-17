@@ -4,7 +4,8 @@
 #include "string_bidi.h"
 
 UTF_UCS HarfBuzzShaper::utf_converter = UTF_UCS();
-std::unordered_map<std::string, std::vector<int> > HarfBuzzShaper::bidi_cache = {};
+LRU_Cache<std::string, std::vector<int> > HarfBuzzShaper::bidi_cache = {1000};
+LRU_Cache<ShapeID, ShapeInfo> HarfBuzzShaper::shape_cache = {1000};
 std::vector<unsigned int> HarfBuzzShaper::glyph_id = {};
 std::vector<unsigned int> HarfBuzzShaper::glyph_cluster = {};
 std::vector<unsigned int> HarfBuzzShaper::string_id = {};
@@ -21,6 +22,9 @@ std::vector<int32_t> HarfBuzzShaper::ascenders = {};
 std::vector<int32_t> HarfBuzzShaper::descenders = {};
 std::vector<bool> HarfBuzzShaper::may_break = {};
 std::vector<bool> HarfBuzzShaper::must_break = {};
+ShapeID HarfBuzzShaper::last_shape_id = {};
+ShapeID HarfBuzzShaper::temp_shape_id = {};
+ShapeInfo HarfBuzzShaper::last_shape_info = {};
 
 bool HarfBuzzShaper::shape_string(const char* string, const char* fontfile,
                                   int index, double size, double res, double lineheight,
@@ -45,12 +49,9 @@ bool HarfBuzzShaper::shape_string(const char* string, const char* fontfile,
 
   if (n_chars > 1) {
     std::string key(string);
-    auto cached_bidi = bidi_cache.find(key);
-    if (cached_bidi == bidi_cache.end()) {
+    if (!bidi_cache.get(key, embeddings)) {
       embeddings = get_bidi_embeddings(utc_string, n_chars);
-      bidi_cache[key] = embeddings;
-    } else {
-      embeddings = cached_bidi->second;
+      bidi_cache.add(key, embeddings);
     }
   } else {
     embeddings.push_back(0);
@@ -110,12 +111,9 @@ bool HarfBuzzShaper::add_string(const char* string, const char* fontfile,
 
   if (n_chars > 1) {
     std::string key(string);
-    auto cached_bidi = bidi_cache.find(key);
-    if (cached_bidi == bidi_cache.end()) {
+    if (!bidi_cache.get(key, embeddings)) {
       embeddings = get_bidi_embeddings(utc_string, n_chars);
-      bidi_cache[key] = embeddings;
-    } else {
-      embeddings = cached_bidi->second;
+      bidi_cache.add(key, embeddings);
     }
   } else {
     embeddings.push_back(0);
@@ -313,11 +311,23 @@ bool HarfBuzzShaper::finish_string() {
   return true;
 }
 
-bool HarfBuzzShaper::single_line_width(const char* string, const char* fontfile,
-                                       int index, double size, double res,
-                                       bool include_bearing, int32_t& width) {
+bool HarfBuzzShaper::single_line_shape(const char* string, const char* fontfile,
+                                       int index, double size, double res) {
+  temp_shape_id.string.assign(string);
+  temp_shape_id.font.assign(fontfile);
+  temp_shape_id.index = index;
+  temp_shape_id.size = size * res;
+  if (temp_shape_id == last_shape_id) {
+    return true;
+  }
+  if (shape_cache.get(temp_shape_id, last_shape_info)) {
+    last_shape_id.string.swap(temp_shape_id.string);
+    last_shape_id.font.swap(temp_shape_id.font);
+    last_shape_id.index = temp_shape_id.index;
+    last_shape_id.size = temp_shape_id.size;
+    return true;
+  }
   int32_t x = 0;
-  int32_t left_bear = 0;
 
   void * face_p = NULL;
   int error = get_cached_face(fontfile, index, size, res, face_p);
@@ -335,12 +345,9 @@ bool HarfBuzzShaper::single_line_width(const char* string, const char* fontfile,
 
   if (n_chars > 1) {
     std::string key(string);
-    auto cached_bidi = bidi_cache.find(key);
-    if (cached_bidi == bidi_cache.end()) {
+    if (!bidi_cache.get(key, embeddings)) {
       embeddings = get_bidi_embeddings(utc_string, n_chars);
-      bidi_cache[key] = embeddings;
-    } else {
-      embeddings = cached_bidi->second;
+      bidi_cache.add(key, embeddings);
     }
   } else {
     embeddings.push_back(0);
@@ -351,6 +358,8 @@ bool HarfBuzzShaper::single_line_width(const char* string, const char* fontfile,
   hb_glyph_info_t *glyph_info;
   hb_glyph_position_t *glyph_pos;
   unsigned int n_glyphs = 0;
+  last_shape_info.x_pos.clear();
+  last_shape_info.glyph_id.clear();
 
   for (int i = 0; i < embeddings.size(); ++i) {
     if (i == embeddings.size() - 1 || embeddings[i] != embeddings[i + 1]) {
@@ -365,22 +374,26 @@ bool HarfBuzzShaper::single_line_width(const char* string, const char* fontfile,
       for (int i = 0; i < n_glyphs; ++i) {
         if (i == 0 && start == 0)  {
           hb_font_get_glyph_extents(font, glyph_info[i].codepoint, &extent);
-          left_bear = extent.x_bearing;
+          last_shape_info.left_bearing = extent.x_bearing;
         }
+        last_shape_info.x_pos.push_back(x + glyph_pos[i].x_offset);
+        last_shape_info.glyph_id.push_back(glyph_info[i].codepoint);
         x += glyph_pos[i].x_advance;
       }
 
       start = i + 1;
     }
   }
+  last_shape_info.width = x;
+  hb_font_get_glyph_extents(font, glyph_info[n_glyphs - 1].codepoint, &extent);
+  last_shape_info.right_bearing = glyph_pos[n_glyphs - 1].x_advance - (extent.x_bearing + extent.width);
 
-  if (!include_bearing && n_glyphs != 0) {
-    x -= left_bear;
-    hb_font_get_glyph_extents(font, glyph_info[n_glyphs - 1].codepoint, &extent);
-    x -= glyph_pos[n_glyphs - 1].x_advance - (extent.x_bearing + extent.width);
-  }
+  shape_cache.add(temp_shape_id, last_shape_info);
+  last_shape_id.string.swap(temp_shape_id.string);
+  last_shape_id.font.swap(temp_shape_id.font);
+  last_shape_id.index = temp_shape_id.index;
+  last_shape_id.size = temp_shape_id.size;
 
-  width = x;
   hb_font_destroy(font);
   //FT_Done_Face(face);
   return true;

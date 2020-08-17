@@ -4,10 +4,54 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include <vector>
-#include <unordered_map>
 #include <cstdint>
 #include <hb.h>
 #include "utils.h"
+#include "cache_lru.h"
+
+struct ShapeID {
+  std::string string;
+  std::string font;
+  unsigned int index;
+  double size;
+
+  inline ShapeID() : string(""), font(""), index(0), size(0.0) {}
+  inline ShapeID(std::string _string, std::string _font, unsigned int _index, double _size) :
+    string(_string),
+    font(_font),
+    index(_index),
+    size(_size) {}
+  inline ShapeID(const ShapeID& shape) :
+    string(shape.string),
+    font(shape.font),
+    index(shape.index),
+    size(shape.size) {}
+
+  inline bool operator==(const ShapeID &other) const {
+    return (index == other.index &&
+            size == other.size &&
+            string == other.string &&
+            font == other.font);
+  }
+};
+struct ShapeInfo {
+  std::vector<unsigned int> glyph_id;
+  std::vector<int32_t> x_pos;
+  int32_t width;
+  int32_t left_bearing;
+  int32_t right_bearing;
+};
+namespace std {
+template <>
+struct hash<ShapeID> {
+  size_t operator()(const ShapeID & x) const {
+    return std::hash<std::string>()(x.string) ^
+      std::hash<std::string>()(x.font) ^
+      std::hash<unsigned int>()(x.index) ^
+      std::hash<double>()(x.size);
+  }
+};
+}
 
 class HarfBuzzShaper {
 public:
@@ -65,6 +109,7 @@ public:
   int32_t left_border;
   int32_t pen_x;
   int32_t pen_y;
+  static ShapeInfo last_shape_info;
 
   int error_code;
 
@@ -77,12 +122,16 @@ public:
                   double size, double tracking);
   bool finish_string();
 
-  bool single_line_width(const char* string, const char* fontfile, int index,
-                         double size, double res, bool include_bearing, int32_t& width);
+
+  bool single_line_shape(const char* string, const char* fontfile, int index,
+                         double size, double res);
 
 private:
   static UTF_UCS utf_converter;
-  static std::unordered_map<std::string, std::vector<int> > bidi_cache;
+  static LRU_Cache<std::string, std::vector<int> > bidi_cache;
+  static LRU_Cache<ShapeID, ShapeInfo> shape_cache;
+  static ShapeID last_shape_id;
+  static ShapeID temp_shape_id;
   hb_buffer_t *buffer;
   double cur_lineheight;
   int cur_align;
