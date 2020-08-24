@@ -1,6 +1,6 @@
 #pragma once
 
-#include <fribidi/fribidi.h>
+#include <fribidi.h>
 #include <vector>
 #include <cstdint>
 
