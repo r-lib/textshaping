@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Calculate the width of a string, ignoring new-lines — string_width • textshaping</title>
+<title>Get available OpenType features in a font — get_font_features • textshaping</title>
 
 
 <!-- jquery -->
@@ -39,11 +39,10 @@
 
 
 
-<meta property="og:title" content="Calculate the width of a string, ignoring new-lines — string_width" />
-<meta property="og:description" content="This is a very simple alternative to shape_string() that simply calculates
-the width of strings without taking any newline into account. As such it is
-suitable to calculate the width of words or lines that has already been
-splitted by \n. Input is recycled to the length of strings." />
+<meta property="og:title" content="Get available OpenType features in a font — get_font_features" />
+<meta property="og:description" content="This is a simply functions that returns the available OpenType feature tags
+for one or more fonts. See font_feature() for
+more information on how to use the different feature with a font." />
 
 
 
@@ -111,26 +110,21 @@ splitted by \n. Input is recycled to the length of strings." />
 <div class="row">
   <div class="col-md-9 contents">
     <div class="page-header">
-    <h1>Calculate the width of a string, ignoring new-lines</h1>
-    <small class="dont-index">Source: <a href='https://github.com/r-lib/textshaping/blob/master/R/shape_string.R'><code>R/shape_string.R</code></a></small>
-    <div class="hidden name"><code>string_width.Rd</code></div>
+    <h1>Get available OpenType features in a font</h1>
+    <small class="dont-index">Source: <a href='https://github.com/r-lib/textshaping/blob/master/R/font_features.R'><code>R/font_features.R</code></a></small>
+    <div class="hidden name"><code>get_font_features.Rd</code></div>
     </div>
 
     <div class="ref-description">
-    <p>This is a very simple alternative to <code><a href='shape_string.html'>shape_string()</a></code> that simply calculates
-the width of strings without taking any newline into account. As such it is
-suitable to calculate the width of words or lines that has already been
-splitted by <code>\n</code>. Input is recycled to the length of <code>strings</code>.</p>
+    <p>This is a simply functions that returns the available OpenType feature tags
+for one or more fonts. See <code><a href='https://rdrr.io/pkg/systemfonts/man/font_feature.html'>font_feature()</a></code> for
+more information on how to use the different feature with a font.</p>
     </div>
 
-    <pre class="usage"><span class='fu'>string_width</span>(
-  <span class='no'>strings</span>,
+    <pre class="usage"><span class='fu'>get_font_features</span>(
   <span class='kw'>family</span> <span class='kw'>=</span> <span class='st'>""</span>,
   <span class='kw'>italic</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
   <span class='kw'>bold</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
-  <span class='kw'>size</span> <span class='kw'>=</span> <span class='fl'>12</span>,
-  <span class='kw'>res</span> <span class='kw'>=</span> <span class='fl'>72</span>,
-  <span class='kw'>include_bearing</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>,
   <span class='kw'>path</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
   <span class='kw'>index</span> <span class='kw'>=</span> <span class='fl'>0</span>
 )</pre>
@@ -138,10 +132,6 @@ splitted by <code>\n</code>. Input is recycled to the length of <code>strings</c
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
     <colgroup><col class="name" /><col class="desc" /></colgroup>
-    <tr>
-      <th>strings</th>
-      <td><p>A character vector of strings</p></td>
-    </tr>
     <tr>
       <th>family</th>
       <td><p>The name of the font family</p></td>
@@ -153,19 +143,6 @@ splitted by <code>\n</code>. Input is recycled to the length of <code>strings</c
     <tr>
       <th>bold</th>
       <td><p>logicals indicating the font style</p></td>
-    </tr>
-    <tr>
-      <th>size</th>
-      <td><p>The pointsize of the font to use for size related measures</p></td>
-    </tr>
-    <tr>
-      <th>res</th>
-      <td><p>The ppi of the size related mesures</p></td>
-    </tr>
-    <tr>
-      <th>include_bearing</th>
-      <td><p>Logical, should left and right bearing be included in
-the string width?</p></td>
     </tr>
     <tr>
       <th>path</th>
@@ -181,13 +158,19 @@ family and style</p></td>
 
     <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
 
-    <p>A numeric vector giving the width of the strings in pixels. Use the
-provided <code>res</code> value to convert it into absolute values.</p>
+    <p>A list with an element for each of the input fonts containing the
+supported feature tags for that font.</p>
 
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
-    <pre class="examples"><div class='input'><span class='no'>strings</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='st'>'A short string'</span>, <span class='st'>'A very very looong string'</span>)
-<span class='fu'>string_width</span>(<span class='no'>strings</span>)</div><div class='output co'>#&gt; [1]  71 134</div><div class='input'>
-</div></pre>
+    <pre class="examples"><div class='input'><span class='co'># Select a random font on the system</span>
+<span class='no'>sys_fonts</span> <span class='kw'>&lt;-</span> <span class='kw pkg'>systemfonts</span><span class='kw ns'>::</span><span class='fu'><a href='https://rdrr.io/pkg/systemfonts/man/system_fonts.html'>system_fonts</a></span>()
+<span class='no'>random_font</span> <span class='kw'>&lt;-</span> <span class='no'>sys_fonts</span>$<span class='no'>family</span>[<span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span>(<span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span>(<span class='no'>sys_fonts</span>), <span class='fl'>1</span>)]
+
+<span class='co'># Get the features</span>
+<span class='fu'>get_font_features</span>(<span class='no'>random_font</span>)</div><div class='output co'>#&gt; [[1]]
+#&gt;  [1] "abvm" "blwm" "abvs" "akhn" "blwf" "blws" "cjct" "half" "nukt" "pres"
+#&gt; [11] "psts" "rkrf" "rphf" "ss01" "ss02" "ss03" "vatu"
+#&gt; </div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
     <nav id="toc" data-toggle="toc" class="sticky-top">
