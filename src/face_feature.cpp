@@ -1,5 +1,7 @@
 #include "face_feature.h"
 #include <hb.h>
+#include <hb-blob.h>
+#include <hb-face.h>
 #include <hb-ot.h>
 #include <vector>
 #include <cpp11/r_string.hpp>
