@@ -34,11 +34,12 @@ bool HarfBuzzShaper::shape_string(const char* string, const char* fontfile,
                                   double after) {
   reset();
 
-  FT_Face face = get_cached_face(fontfile, index, size, res);
-  //if (error != 0) {
-  //  error_code = error;
-  //  return false;
-  //}
+  int error = 0;
+  FT_Face face = get_cached_face(fontfile, index, size, res, &error);
+  if (error != 0) {
+    error_code = error;
+    return false;
+  }
   hb_font_t *font = hb_ft_font_create_referenced(face);
 
   int n_chars = 0;
@@ -94,11 +95,12 @@ bool HarfBuzzShaper::shape_string(const char* string, const char* fontfile,
 bool HarfBuzzShaper::add_string(const char* string, const char* fontfile,
                                 int index, double size, double tracking) {
   cur_string++;
-  FT_Face face = get_cached_face(fontfile, index, size, cur_res);
-  //if (error != 0) {
-  //  error_code = error;
-  //  return false;
-  //}
+  int error = 0;
+  FT_Face face = get_cached_face(fontfile, index, size, cur_res, &error);
+  if (error != 0) {
+    error_code = error;
+    return false;
+  }
   hb_font_t *font = hb_ft_font_create_referenced(face);
 
   int n_chars = 0;
@@ -344,11 +346,12 @@ bool HarfBuzzShaper::single_line_shape(const char* string, FontSettings font_inf
 
   int32_t x = 0;
 
-  FT_Face face = get_cached_face(font_info.file, font_info.index, size, res);
-  //if (error != 0) {
-  //  error_code = error;
-  //  return false;
-  //}
+  int error = 0;
+  FT_Face face = get_cached_face(font_info.file, font_info.index, size, res, &error);
+  if (error != 0) {
+    error_code = error;
+    return false;
+  }
   hb_font_t *font = hb_ft_font_create_referenced(face);
 
   int n_chars = 0;
