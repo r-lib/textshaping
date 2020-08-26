@@ -1,14 +1,15 @@
-VERSION = 1.16.0
-RWINLIB = ../windows/cairo-${VERSION}
+VERSION = 2.6.2
+RWINLIB = ../windows/harfbuzz-$(VERSION)
 
 CXX_STD = CXX11
 
 PKG_CPPFLAGS = \
 	-I${RWINLIB}/include/harfbuzz \
+	-I${RWINLIB}/include/fribidi \
 	-I${RWINLIB}/include/freetype2
 
 PKG_LIBS = -L${RWINLIB}/lib${R_ARCH} \
-	-lfreetype -lharfbuzz -lfreetype -lpng -lbz2 -lz -ldwrite
+	-lharfbuzz -lfreetype -lfribidi -lpng -lz
 
 all: clean winlibs
 
@@ -17,4 +18,3 @@ winlibs:
 
 clean:
 	rm -f $(OBJECTS) $(SHLIB)
-
