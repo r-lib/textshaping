@@ -1,5 +1,6 @@
 #pragma once
 
+#include <systemfonts.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include <vector>
@@ -122,8 +123,8 @@ public:
   bool finish_string();
 
 
-  bool single_line_shape(const char* string, const char* fontfile, int index,
-                         double size, double res);
+  bool single_line_shape(const char* string, FontSettings font_info, double size,
+                         double res);
 
 private:
   static UTF_UCS utf_converter;

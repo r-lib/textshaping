@@ -1,7 +1,7 @@
-#include <systemfonts.h>
 #include <hb-ft.h>
 #include "string_shape.h"
 #include "string_bidi.h"
+#include <algorithm>
 
 UTF_UCS HarfBuzzShaper::utf_converter = UTF_UCS();
 LRU_Cache<std::string, std::vector<int> > HarfBuzzShaper::bidi_cache = {1000};
@@ -311,26 +311,44 @@ bool HarfBuzzShaper::finish_string() {
   return true;
 }
 
-bool HarfBuzzShaper::single_line_shape(const char* string, const char* fontfile,
-                                       int index, double size, double res) {
-  temp_shape_id.string.assign(string);
-  temp_shape_id.font.assign(fontfile);
-  temp_shape_id.index = index;
-  temp_shape_id.size = size * res;
-  if (temp_shape_id == last_shape_id) {
-    return true;
+bool HarfBuzzShaper::single_line_shape(const char* string, FontSettings font_info,
+                                       double size, double res) {
+  int n_features = font_info.n_features;
+  std::vector<hb_feature_t> features(n_features);
+  if (n_features == 0) {
+    temp_shape_id.string.assign(string);
+    temp_shape_id.font.assign(font_info.file);
+    temp_shape_id.index = font_info.index;
+    temp_shape_id.size = size * res;
+    if (temp_shape_id == last_shape_id) {
+      return true;
+    }
+    if (shape_cache.get(temp_shape_id, last_shape_info)) {
+      last_shape_id.string.swap(temp_shape_id.string);
+      last_shape_id.font.swap(temp_shape_id.font);
+      last_shape_id.index = temp_shape_id.index;
+      last_shape_id.size = temp_shape_id.size;
+      return true;
+    }
+  } else {
+    for (int i = 0; i < n_features; ++i) {
+      const char* tag = font_info.features[i].feature;
+      features[i].tag = HB_TAG(tag[0], tag[1], tag[2], tag[3]);
+      features[i].value = font_info.features[i].setting;
+      features[i].start = HB_FEATURE_GLOBAL_START;
+      features[i].end = HB_FEATURE_GLOBAL_END;
+    }
+    // Reset temp id so we don't haphazardly use a shaping with features
+    temp_shape_id.string.clear();
+    temp_shape_id.font.clear();
+    temp_shape_id.index = 0;
+    temp_shape_id.size = 0;
   }
-  if (shape_cache.get(temp_shape_id, last_shape_info)) {
-    last_shape_id.string.swap(temp_shape_id.string);
-    last_shape_id.font.swap(temp_shape_id.font);
-    last_shape_id.index = temp_shape_id.index;
-    last_shape_id.size = temp_shape_id.size;
-    return true;
-  }
+
   int32_t x = 0;
 
   void * face_p = NULL;
-  int error = get_cached_face(fontfile, index, size, res, face_p);
+  int error = get_cached_face(font_info.file, font_info.index, size, res, face_p);
   if (error != 0) {
     error_code = error;
     return false;
@@ -367,7 +385,7 @@ bool HarfBuzzShaper::single_line_shape(const char* string, const char* fontfile,
       hb_buffer_add_utf32(buffer, utc_string, n_chars, start, i - start + 1);
       hb_buffer_guess_segment_properties(buffer);
 
-      hb_shape(font, buffer, NULL, 0);
+      hb_shape(font, buffer, features.data(), n_features);
       glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
       glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
 

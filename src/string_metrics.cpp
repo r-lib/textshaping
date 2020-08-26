@@ -4,6 +4,7 @@
 #include "string_shape.h"
 #include "hb_shaper.h"
 
+#define CPP11_PARTIAL
 #include <cpp11/declarations.hpp>
 #include <cpp11/data_frame.hpp>
 #include <cpp11/named_arg.hpp>
@@ -17,7 +18,6 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                         doubles hjust, doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
                         doubles space_after) {
-  BEGIN_CPP11
   int n_strings = string.size();
   bool one_path = path.size() == 1;
   const char* first_path = Rf_translateCharUTF8(path[0]);
@@ -149,12 +149,10 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
     "shape"_nm = info_df,
     "metrics"_nm = string_df
   });
-  END_CPP11
 }
 
 doubles get_line_width_c(strings string, strings path, integers index, doubles size,
                          doubles res, logicals include_bearing) {
-  BEGIN_CPP11
   int n_strings = string.size();
   bool one_path = path.size() == 1;
   const char* first_path = Rf_translateCharUTF8(path[0]);
@@ -187,15 +185,14 @@ doubles get_line_width_c(strings string, strings path, integers index, doubles s
   }
 
   return widths;
-  END_CPP11
 }
 
-int string_width(const char* string, const char* fontfile, int index,
-                 double size, double res, int include_bearing, double* width) {
+int ts_string_width(const char* string, FontSettings font_info, double size,
+                    double res, int include_bearing, double* width) {
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
   bool success = shaper.single_line_shape(
-    string, fontfile, index, size, res
+    string, font_info, size, res
   );
 
   if (!success) {
@@ -213,13 +210,13 @@ int string_width(const char* string, const char* fontfile, int index,
   return 0;
 }
 
-int string_shape(const char* string, const char* fontfile, int index,
-                 double size, double res, double* x, double* y, int* id, int* n_glyphs,
-                 unsigned int max_length) {
+int ts_string_shape(const char* string, FontSettings font_info, double size,
+                    double res, double* x, double* y, int* id, int* n_glyphs,
+                    unsigned int max_length) {
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
   bool success = shaper.single_line_shape(
-    string, fontfile, index, size, res
+    string, font_info, size, res
   );
   if (!success) {
     return shaper.error_code;
@@ -236,6 +233,6 @@ int string_shape(const char* string, const char* fontfile, int index,
 }
 
 void export_string_metrics(DllInfo* dll) {
-  R_RegisterCCallable("textshaping", "string_width", (DL_FUNC)string_width);
-  R_RegisterCCallable("textshaping", "string_shape", (DL_FUNC)string_shape);
+  R_RegisterCCallable("textshaping", "ts_string_width", (DL_FUNC)ts_string_width);
+  R_RegisterCCallable("textshaping", "ts_string_shape", (DL_FUNC)ts_string_shape);
 }
