@@ -1,7 +1,8 @@
 #include "face_feature.h"
+#include <ft2build.h>
+#include FT_FREETYPE_H
 #include <hb.h>
-#include <hb-blob.h>
-#include <hb-face.h>
+#include <hb-ft.h>
 #include <hb-ot.h>
 #include <vector>
 #include <cpp11/r_string.hpp>
@@ -15,9 +16,22 @@ writable::list get_face_features_c(strings path, integers index) {
   char tag_temp[5];
   tag_temp[4] = '\0';
 
+  FT_Library library;
+  FT_Face ft_face;
+  FT_Error error = FT_Init_FreeType(&library);
+  if (error != 0) {
+    stop("Freetype could not be initialised");
+  }
+
   for (int i = 0; i < path.size(); ++i) {
-    hb_blob_t* blob = hb_blob_create_from_file(Rf_translateCharUTF8(path[i]));
-    hb_face_t* face = hb_face_create(blob, index[i]);
+    error = FT_New_Face(library,
+                        Rf_translateCharUTF8(path[i]),
+                        index[i],
+                        &ft_face);
+    if (error != 0) {
+      stop("Font could not be loaded");
+    }
+    hb_face_t *face = hb_ft_face_create_referenced(ft_face);
     writable::strings font_tags;
     // Get GPOS tags
     n_tags = hb_ot_layout_table_get_feature_tags(face, HB_OT_TAG_GPOS, 0, NULL, NULL);
@@ -46,6 +60,8 @@ writable::list get_face_features_c(strings path, integers index) {
       font_tags.push_back(tag_temp);
     }
     features[i] = (SEXP) font_tags;
+    hb_face_destroy(face);
   }
+  FT_Done_FreeType(library);
   return features;
 }
