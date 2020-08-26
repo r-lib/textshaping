@@ -40,7 +40,7 @@ bool HarfBuzzShaper::shape_string(const char* string, const char* fontfile,
     return false;
   }
   FT_Face face = *((FT_Face*) face_p);
-  hb_font_t *font = hb_ft_font_create(face, {});
+  hb_font_t *font = hb_ft_font_create_referenced(face);
 
   int n_chars = 0;
   const uint32_t* utc_string = utf_converter.convert_to_ucs(string, n_chars);
@@ -102,7 +102,7 @@ bool HarfBuzzShaper::add_string(const char* string, const char* fontfile,
     return false;
   }
   FT_Face face = *((FT_Face*) face_p);
-  hb_font_t *font = hb_ft_font_create(face, {});
+  hb_font_t *font = hb_ft_font_create_referenced(face);
 
   int n_chars = 0;
   const uint32_t* utc_string = utf_converter.convert_to_ucs(string, n_chars);
@@ -354,7 +354,7 @@ bool HarfBuzzShaper::single_line_shape(const char* string, FontSettings font_inf
     return false;
   }
   FT_Face face = *((FT_Face*) face_p);
-  hb_font_t *font = hb_ft_font_create(face, {});
+  hb_font_t *font = hb_ft_font_create_referenced(face);
 
   int n_chars = 0;
   const uint32_t* utc_string = utf_converter.convert_to_ucs(string, n_chars);
