@@ -35,7 +35,7 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
     BREWDIR=$(brew --prefix)
     PKG_CFLAGS="-I$BREWDIR/include/freetype2 -I$BREWDIR/include/harfbuzz -I$BREWDIR/include/glib-2.0  -I$BREWDIR/include/fribidi"
   else
-    curl -sfL "https://autobrew.github.io/scripts/$PKG_BREW_NAME" > autobrew
+    curl -sfL "https://autobrew.github.io/scripts/harfbuzz" > autobrew
     source autobrew
   fi
 fi
