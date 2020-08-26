@@ -335,8 +335,8 @@ bool HarfBuzzShaper::single_line_shape(const char* string, FontSettings font_inf
       const char* tag = font_info.features[i].feature;
       features[i].tag = HB_TAG(tag[0], tag[1], tag[2], tag[3]);
       features[i].value = font_info.features[i].setting;
-      features[i].start = HB_FEATURE_GLOBAL_START;
-      features[i].end = HB_FEATURE_GLOBAL_END;
+      features[i].start = 0;
+      features[i].end = -1;
     }
     // Reset temp id so we don't haphazardly use a shaping with features
     temp_shape_id.string.clear();
