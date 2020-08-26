@@ -1,6 +1,7 @@
 #include <hb-ft.h>
 #include "string_shape.h"
 #include "string_bidi.h"
+#include <systemfonts-ft.h>
 #include <algorithm>
 
 UTF_UCS HarfBuzzShaper::utf_converter = UTF_UCS();
@@ -33,13 +34,11 @@ bool HarfBuzzShaper::shape_string(const char* string, const char* fontfile,
                                   double after) {
   reset();
 
-  void * face_p = NULL;
-  int error = get_cached_face(fontfile, index, size, res, face_p);
-  if (error != 0) {
-    error_code = error;
-    return false;
-  }
-  FT_Face face = *((FT_Face*) face_p);
+  FT_Face face = get_cached_face(fontfile, index, size, res);
+  //if (error != 0) {
+  //  error_code = error;
+  //  return false;
+  //}
   hb_font_t *font = hb_ft_font_create_referenced(face);
 
   int n_chars = 0;
@@ -95,13 +94,11 @@ bool HarfBuzzShaper::shape_string(const char* string, const char* fontfile,
 bool HarfBuzzShaper::add_string(const char* string, const char* fontfile,
                                 int index, double size, double tracking) {
   cur_string++;
-  void * face_p = NULL;
-  int error = get_cached_face(fontfile, index, size, cur_res, face_p);
-  if (error != 0) {
-    error_code = error;
-    return false;
-  }
-  FT_Face face = *((FT_Face*) face_p);
+  FT_Face face = get_cached_face(fontfile, index, size, cur_res);
+  //if (error != 0) {
+  //  error_code = error;
+  //  return false;
+  //}
   hb_font_t *font = hb_ft_font_create_referenced(face);
 
   int n_chars = 0;
@@ -347,13 +344,11 @@ bool HarfBuzzShaper::single_line_shape(const char* string, FontSettings font_inf
 
   int32_t x = 0;
 
-  void * face_p = NULL;
-  int error = get_cached_face(font_info.file, font_info.index, size, res, face_p);
-  if (error != 0) {
-    error_code = error;
-    return false;
-  }
-  FT_Face face = *((FT_Face*) face_p);
+  FT_Face face = get_cached_face(font_info.file, font_info.index, size, res);
+  //if (error != 0) {
+  //  error_code = error;
+  //  return false;
+  //}
   hb_font_t *font = hb_ft_font_create_referenced(face);
 
   int n_chars = 0;
