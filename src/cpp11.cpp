@@ -3,6 +3,13 @@
 
 #include "cpp11/declarations.hpp"
 
+// face_feature.h
+cpp11::writable::list get_face_features_c(cpp11::strings path, cpp11::integers index);
+extern "C" SEXP _textshaping_get_face_features_c(SEXP path, SEXP index) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_face_features_c(cpp11::unmove(cpp11::as_cpp<cpp11::strings>(path)), cpp11::unmove(cpp11::as_cpp<cpp11::integers>(index))));
+  END_CPP11
+}
 // string_metrics.h
 list get_string_shape_c(strings string, integers id, strings path, integers index, doubles size, doubles res, doubles lineheight, integers align, doubles hjust, doubles vjust, doubles width, doubles tracking, doubles indent, doubles hanging, doubles space_before, doubles space_after);
 extern "C" SEXP _textshaping_get_string_shape_c(SEXP string, SEXP id, SEXP path, SEXP index, SEXP size, SEXP res, SEXP lineheight, SEXP align, SEXP hjust, SEXP vjust, SEXP width, SEXP tracking, SEXP indent, SEXP hanging, SEXP space_before, SEXP space_after) {
@@ -20,12 +27,14 @@ extern "C" SEXP _textshaping_get_line_width_c(SEXP string, SEXP path, SEXP index
 
 extern "C" {
 /* .Call calls */
+extern SEXP _textshaping_get_face_features_c(SEXP, SEXP);
 extern SEXP _textshaping_get_line_width_c(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP _textshaping_get_string_shape_c(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_textshaping_get_line_width_c",   (DL_FUNC) &_textshaping_get_line_width_c,    6},
-    {"_textshaping_get_string_shape_c", (DL_FUNC) &_textshaping_get_string_shape_c, 16},
+    {"_textshaping_get_face_features_c", (DL_FUNC) &_textshaping_get_face_features_c,  2},
+    {"_textshaping_get_line_width_c",    (DL_FUNC) &_textshaping_get_line_width_c,     6},
+    {"_textshaping_get_string_shape_c",  (DL_FUNC) &_textshaping_get_string_shape_c,  16},
     {NULL, NULL, 0}
 };
 }
