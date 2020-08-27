@@ -27,7 +27,8 @@ static inline int ts_string_width(const char* string, FontSettings font_info,
 // Returns 0 if successful.
 static inline int ts_string_shape(const char* string, FontSettings font_info,
                                   double size, double res, double* x, double* y,
-                                  int* id, int* n_glyphs, unsigned int max_length) {
+                                  int* id, int* cluster, int* n_glyphs,
+                                  unsigned int max_length) {
   static int (*p_ts_string_shape)(const char*, FontSettings, double, double, double*, double*, int*, int*, unsigned int) = NULL;
   if (p_ts_string_shape == NULL) {
     p_ts_string_shape = (int (*)(const char*, FontSettings, double, double, double*, double*, int*, int*, unsigned int)) R_GetCCallable("textshaping", "ts_string_shape");
