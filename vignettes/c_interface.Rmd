@@ -1,0 +1,95 @@
+---
+title: "textshaping C interface"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{textshaping C interface}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+textshaping is predominantly intended to be used by other packages implementing
+graphic devicees and calling it from the C level. As such it exports a set of
+functions that match the needs of graphic devices. The C API builds upon that of
+systemfonts and you'll thus need to link to both packages to access it 
+succesfully. This is done with the `LinkingTo` field in the `DESCRIPTION` file:
+
+```
+LinkingTo: 
+    systemfonts,
+    textshaping
+```
+
+You will further need to make sure that both packages are loaded when you need 
+to use the C API. This is most easily done by importing a function from each 
+package into your namespace.
+
+In your C/C++ code you'll then have `#include <textshaping.h>` to get access to
+the functions described below.
+
+The C API expects fonts to be given as `FontSettings` structs which can be 
+obtained from the systemfonts C API with `locate_font_with_features()`. This 
+makes it possible to both get access to the font file location along with 
+potential OpenType features registered to the font.
+
+## String width
+```C
+int ts_string_width(
+  const char* string, 
+  FontSettings font_info, 
+  double size, 
+  double res, 
+  int include_bearing, 
+  double* width
+)
+```
+
+This function calculates the width of a string, ignoring any newlines (these are
+automatically being handled by the graphic engine). It takes a UTF-8 encoded 
+string, along with a FontSettings struct to use for shaping the string before
+calculating the width. It also take a size in pt and a res in ppi for setting 
+the size. In addition it takes an include_bearing flag to control whether the 
+bearings of the first and last character should be taken into account (this is 
+recommended by the graphic engine). It will write the width in pts to the passed 
+in pointer and return 0 if successful.
+
+## String shape
+```C
+int ts_string_shape(
+  const char* string, 
+  FontSettings font_info,
+  double size, 
+  double res, 
+  double* x, 
+  double* y,
+  int* id, 
+  int* cluster, 
+  int* n_glyphs,
+  unsigned int max_length
+)
+```
+
+This function takes care of all the nitty-gritty of shaping a single line of 
+text. It takes the same font information input as `ts_string_width()`, that is,
+a `FontSettings` struct and size and res. It further accepts a number of array 
+pointers where the shaping information will be written. `x` and `y` will end up
+containing the location of each glyph in pts starting from a (0, 0) origin. 
+Since the graphic engine only pass single lines to the graphic device at a time 
+then line breaking is not handled and for now all returned y positions are set 
+to 0.0 (this may change in the future depending on the development of the 
+graphic engine). The glyph id in the font file will be written to the `id` 
+array. You will need to use this to look up the glyph to render instead of 
+relying on the characters in the input string due to the potential substitution 
+and merging of glyphs happening during shaping. The `cluster` array is currently 
+unused (and will thus not be touched) but may in the future contain 
+identifications of which character in the input string relates to the provided 
+glyphs. `n_glyphs` will be set to the total number of written glyphs and 
+positions as a result of the shaping. `max_length` should be set to the maximum 
+available space in `x`, `y`, and `id`. No information will be written beyond 
+that length. The function returns 0 if successful.

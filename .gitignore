@@ -6,3 +6,4 @@ src/Makevars
 autobrew
 .autobrew
 configure.log
+inst/doc

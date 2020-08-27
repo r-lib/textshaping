@@ -29,4 +29,7 @@ Remotes: r-lib/systemfonts
 URL: https://github.com/r-lib/textshaping
 BugReports: https://github.com/r-lib/textshaping/issues
 Suggests: 
-    covr
+    covr,
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
