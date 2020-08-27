@@ -63,7 +63,7 @@
 #' string <- "This is a long string\nLook; It spans multiple lines\nand all"
 #'
 #' # Shape with default settings
-#' shape_string(string)
+#' shape_text(string)
 #'
 #' # Mix styles within the same string
 #' string <- c(
@@ -72,13 +72,13 @@
 #'   " text style\nin the middle"
 #' )
 #'
-#' shape_string(string, id = c(1, 1, 1), size = c(12, 24, 12))
+#' shape_text(string, id = c(1, 1, 1), size = c(12, 24, 12))
 #'
-shape_string <- function(strings, id = NULL, family = '', italic = FALSE,
-                         bold = FALSE, size = 12, res = 72, lineheight = 1,
-                         align = 'left', hjust = 0, vjust = 0, width = NA,
-                         tracking = 0, indent = 0, hanging = 0, space_before = 0,
-                         space_after = 0, path = NULL, index = 0) {
+shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
+                       bold = FALSE, size = 12, res = 72, lineheight = 1,
+                       align = 'left', hjust = 0, vjust = 0, width = NA,
+                       tracking = 0, indent = 0, hanging = 0, space_before = 0,
+                       space_after = 0, path = NULL, index = 0) {
   n_strings = length(strings)
   if (is.null(id)) id <- seq_len(n_strings)
   id <- rep_len(id, n_strings)
@@ -166,11 +166,11 @@ shape_string <- function(strings, id = NULL, family = '', italic = FALSE,
 #'
 #' @examples
 #' strings <- c('A short string', 'A very very looong string')
-#' string_width(strings)
+#' text_width(strings)
 #'
-string_width <- function(strings, family = '', italic = FALSE, bold = FALSE,
-                         size = 12, res = 72, include_bearing = TRUE, path = NULL,
-                         index = 0) {
+text_width <- function(strings, family = '', italic = FALSE, bold = FALSE,
+                       size = 12, res = 72, include_bearing = TRUE, path = NULL,
+                       index = 0) {
   n_strings <- length(strings)
   if (is.null(path)) {
     if (all(c(length(family), length(italic), length(bold)) == 1)) {

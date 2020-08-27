@@ -41,4 +41,5 @@ random_font <- sys_fonts$family[sample(nrow(sys_fonts), 1)]
 
 # Get the features
 get_font_features(random_font)
+
 }
