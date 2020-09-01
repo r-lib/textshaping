@@ -16,7 +16,7 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.1.0.9000
 Imports:
     cpp11,
-    systemfonts
+    systemfonts (>= 0.3.0)
 LinkingTo: 
     cpp11,
     systemfonts
@@ -25,7 +25,6 @@ SystemRequirements:
     freetype2,
     harfbuzz,
     fribidi
-Remotes: r-lib/systemfonts
 URL: https://github.com/r-lib/textshaping
 BugReports: https://github.com/r-lib/textshaping/issues
 Suggests: 
