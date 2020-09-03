@@ -470,11 +470,16 @@ bool HarfBuzzShaper::shape_glyphs(hb_font_t *font, const uint32_t *string, int n
   x_pos.reserve(n_glyphs);
   y_pos.reserve(n_glyphs);
 
+#if HB_VERSION_MAJOR < 2 && HB_VERSION_MINOR < 2
+  ascend = 0;
+  descend = 0;
+#else
   hb_font_extents_t extent;
   hb_font_get_h_extents(font, &extent);
 
   ascend = extent.ascender;
   descend = extent.descender;
+#endif
 
   for (int i = 0; i < n_glyphs; ++i) {
     unsigned int cluster = glyph_info[i].cluster;
