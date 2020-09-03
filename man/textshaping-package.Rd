@@ -4,7 +4,7 @@
 \name{textshaping-package}
 \alias{textshaping}
 \alias{textshaping-package}
-\title{textshaping: Bindings to the HarfBuzz and Fribidi libraries for Text Shaping}
+\title{textshaping: Bindings to the HarfBuzz and Fribidi Libraries for Text Shaping}
 \description{
 Provides access to the text shaping functionality in the HarfBuzz
     library and the bidirectional algorithm in the Fribidi libary. 'textshaping' 
