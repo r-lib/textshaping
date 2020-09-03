@@ -473,7 +473,6 @@ bool HarfBuzzShaper::shape_glyphs(hb_font_t *font, const uint32_t *string, int n
 #if HB_VERSION_MAJOR < 2 && HB_VERSION_MINOR < 2
   ascend = 0;
   descend = 0;
-#warning "Old HarfBuzz version"
 #else
   hb_font_extents_t extent;
   hb_font_get_h_extents(font, &extent);
