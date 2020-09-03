@@ -1,5 +1,5 @@
 Package: textshaping
-Title: Bindings to the HarfBuzz and Fribidi libraries for Text Shaping
+Title: Bindings to the HarfBuzz and Fribidi Libraries for Text Shaping
 Version: 0.0.0.9000
 Authors@R: c(
     person("Thomas Lin", "Pedersen", , "thomas.pedersen@rstudio.com", c("cre", "aut"), comment = c(ORCID = "0000-0002-5147-4711")),
@@ -23,7 +23,7 @@ LinkingTo:
 SystemRequirements: 
     C++11,
     freetype2,
-    harfbuzz,
+    harfbuzz (>= 1.7.2),
     fribidi
 URL: https://github.com/r-lib/textshaping
 BugReports: https://github.com/r-lib/textshaping/issues
