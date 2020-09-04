@@ -1,6 +1,6 @@
 CXX_STD = CXX11
 
-PKG_CPPFLAGS=@cflags@
+PKG_CPPFLAGS = -DNDEBUG @cflags@
 PKG_LIBS = @libs@
 
 all: clean
