@@ -8,7 +8,7 @@ Authors@R: c(
 Description: Provides access to the text shaping functionality in the HarfBuzz
     library and the bidirectional algorithm in the Fribidi libary. 'textshaping' 
     is a low-level utility package mainly for graphic devices that expands upon 
-    the font toolset provided by the 'systemfonts' package.
+    the font tool-set provided by the 'systemfonts' package.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
