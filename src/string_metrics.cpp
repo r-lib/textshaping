@@ -221,8 +221,8 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
   if (!success) {
     return shaper.error_code;
   }
-  *n_glyphs = max_length < shaper.last_shape_info.x_pos.size() ? max_length : shaper.last_shape_info.x_pos.size();
-  for (unsigned int i = 0; i < *n_glyphs; ++i) {
+  *n_glyphs = int(max_length < shaper.last_shape_info.x_pos.size() ? max_length : shaper.last_shape_info.x_pos.size());
+  for (int i = 0; i < *n_glyphs; ++i) {
     x[i] = double(shaper.last_shape_info.x_pos[i]) / 64.0;
     y[i] = 0.0;
     id[i] = shaper.last_shape_info.glyph_id[i];

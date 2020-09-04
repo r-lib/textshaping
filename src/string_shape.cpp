@@ -72,7 +72,7 @@ bool HarfBuzzShaper::shape_string(const char* string, const char* fontfile,
   cur_vjust = vjust;
 
   int start = 0;
-  for (int i = 0; i < embeddings.size(); ++i) {
+  for (size_t i = 0; i < embeddings.size(); ++i) {
     if (i == embeddings.size() - 1 || embeddings[i] != embeddings[i + 1]) {
       hb_buffer_reset(buffer);
       hb_buffer_add_utf32(buffer, utc_string, n_chars, start, i - start + 1);
@@ -121,7 +121,7 @@ bool HarfBuzzShaper::add_string(const char* string, const char* fontfile,
   cur_tracking = tracking;
 
   int start = 0;
-  for (int i = 0; i < embeddings.size(); ++i) {
+  for (size_t i = 0; i < embeddings.size(); ++i) {
     if (i == embeddings.size() - 1 || embeddings[i] != embeddings[i + 1]) {
       hb_buffer_reset(buffer);
       hb_buffer_add_utf32(buffer, utc_string, n_chars, start, i - start + 1);
@@ -371,13 +371,13 @@ bool HarfBuzzShaper::single_line_shape(const char* string, FontSettings font_inf
 
   int start = 0;
   hb_glyph_extents_t extent;
-  hb_glyph_info_t *glyph_info;
-  hb_glyph_position_t *glyph_pos;
+  hb_glyph_info_t *glyph_info = NULL;
+  hb_glyph_position_t *glyph_pos = NULL;
   unsigned int n_glyphs = 0;
   last_shape_info.x_pos.clear();
   last_shape_info.glyph_id.clear();
 
-  for (int i = 0; i < embeddings.size(); ++i) {
+  for (size_t i = 0; i < embeddings.size(); ++i) {
     if (i == embeddings.size() - 1 || embeddings[i] != embeddings[i + 1]) {
       hb_buffer_reset(buffer);
       hb_buffer_add_utf32(buffer, utc_string, n_chars, start, i - start + 1);
@@ -387,7 +387,7 @@ bool HarfBuzzShaper::single_line_shape(const char* string, FontSettings font_inf
       glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
       glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
 
-      for (int i = 0; i < n_glyphs; ++i) {
+      for (unsigned int i = 0; i < n_glyphs; ++i) {
         if (i == 0 && start == 0)  {
           hb_font_get_glyph_extents(font, glyph_info[i].codepoint, &extent);
           last_shape_info.left_bearing = extent.x_bearing;
@@ -455,7 +455,7 @@ void HarfBuzzShaper::reset() {
   cur_string = 0;
 }
 
-bool HarfBuzzShaper::shape_glyphs(hb_font_t *font, const uint32_t *string, int n_chars) {
+bool HarfBuzzShaper::shape_glyphs(hb_font_t *font, const uint32_t *string, unsigned int n_chars) {
   hb_shape(font, buffer, NULL, 0);
 
   unsigned int n_glyphs = 0;
@@ -481,7 +481,7 @@ bool HarfBuzzShaper::shape_glyphs(hb_font_t *font, const uint32_t *string, int n
   descend = extent.descender;
 #endif
 
-  for (int i = 0; i < n_glyphs; ++i) {
+  for (unsigned int i = 0; i < n_glyphs; ++i) {
     unsigned int cluster = glyph_info[i].cluster;
     glyph_cluster.push_back(cluster);
     glyph_id.push_back(glyph_info[i].codepoint);

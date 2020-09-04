@@ -166,7 +166,7 @@ private:
   int32_t space_after;
 
   void reset();
-  bool shape_glyphs(hb_font_t *font, const uint32_t *string, int n_chars);
+  bool shape_glyphs(hb_font_t *font, const uint32_t *string, unsigned int n_chars);
 
   inline bool glyph_is_linebreak(int id) {
     switch (id) {
