@@ -3,7 +3,6 @@
 export(get_font_features)
 export(shape_text)
 export(text_width)
-importFrom(cpp11,cpp_source)
 importFrom(systemfonts,match_font)
 importFrom(systemfonts,system_fonts)
 useDynLib(textshaping, .registration = TRUE)
