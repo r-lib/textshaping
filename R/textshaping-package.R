@@ -6,6 +6,5 @@
 ## usethis namespace: start
 #' @useDynLib textshaping, .registration = TRUE
 #' @importFrom systemfonts system_fonts
-#' @importFrom cpp11 cpp_source
 ## usethis namespace: end
 NULL
