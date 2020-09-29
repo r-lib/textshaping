@@ -74,7 +74,7 @@ more information on how to use the different feature with a font." />
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">textshaping</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">0.0.0.9000</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">0.1.0</span>
       </span>
     </div>
 
@@ -136,13 +136,13 @@ for one or more fonts. See <code><a href='https://rdrr.io/pkg/systemfonts/man/fo
 more information on how to use the different feature with a font.</p>
     </div>
 
-    <pre class="usage"><span class='fu'>get_font_features</span>(
-  <span class='kw'>family</span> <span class='kw'>=</span> <span class='st'>""</span>,
-  <span class='kw'>italic</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
-  <span class='kw'>bold</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
-  <span class='kw'>path</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>index</span> <span class='kw'>=</span> <span class='fl'>0</span>
-)</pre>
+    <pre class="usage"><span class='fu'>get_font_features</span><span class='op'>(</span>
+  family <span class='op'>=</span> <span class='st'>""</span>,
+  italic <span class='op'>=</span> <span class='cn'>FALSE</span>,
+  bold <span class='op'>=</span> <span class='cn'>FALSE</span>,
+  path <span class='op'>=</span> <span class='cn'>NULL</span>,
+  index <span class='op'>=</span> <span class='fl'>0</span>
+<span class='op'>)</span></pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
@@ -178,11 +178,12 @@ supported feature tags for that font.</p>
 
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
     <pre class="examples"><div class='input'><span class='co'># Select a random font on the system</span>
-<span class='no'>sys_fonts</span> <span class='kw'>&lt;-</span> <span class='kw pkg'>systemfonts</span><span class='kw ns'>::</span><span class='fu'><a href='https://rdrr.io/pkg/systemfonts/man/system_fonts.html'>system_fonts</a></span>()
-<span class='no'>random_font</span> <span class='kw'>&lt;-</span> <span class='no'>sys_fonts</span>$<span class='no'>family</span>[<span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span>(<span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span>(<span class='no'>sys_fonts</span>), <span class='fl'>1</span>)]
+<span class='va'>sys_fonts</span> <span class='op'>&lt;-</span> <span class='fu'>systemfonts</span><span class='fu'>::</span><span class='fu'><a href='https://rdrr.io/pkg/systemfonts/man/system_fonts.html'>system_fonts</a></span><span class='op'>(</span><span class='op'>)</span>
+<span class='va'>random_font</span> <span class='op'>&lt;-</span> <span class='va'>sys_fonts</span><span class='op'>$</span><span class='va'>family</span><span class='op'>[</span><span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span><span class='op'>(</span><span class='fu'><a href='https://rdrr.io/r/base/nrow.html'>nrow</a></span><span class='op'>(</span><span class='va'>sys_fonts</span><span class='op'>)</span>, <span class='fl'>1</span><span class='op'>)</span><span class='op'>]</span>
 
 <span class='co'># Get the features</span>
-<span class='fu'>get_font_features</span>(<span class='no'>random_font</span>)</div><div class='output co'>#&gt; [[1]]
+<span class='fu'>get_font_features</span><span class='op'>(</span><span class='va'>random_font</span><span class='op'>)</span>
+</div><div class='output co'>#&gt; [[1]]
 #&gt;  [1] "abvm" "blwm" "abvs" "akhn" "blwf" "blws" "cjct" "half" "nukt" "pres"
 #&gt; [11] "psts" "rkrf" "rphf" "ss01" "ss02" "ss03" "vatu"
 #&gt; </div><div class='input'>
@@ -202,7 +203,7 @@ supported feature tags for that font.</p>
 </div>
 
 <div class="pkgdown">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.5.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.6.1.</p>
 </div>
 
       </footer>

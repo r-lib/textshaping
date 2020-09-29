@@ -1,7 +1,7 @@
 pandoc: 2.7.3
-pkgdown: 1.5.1
+pkgdown: 1.6.1
 pkgdown_sha: ~
 articles:
   c_interface: c_interface.html
-last_built: 2020-09-04T07:16Z
+last_built: 2020-09-29T18:40Z
 

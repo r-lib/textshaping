@@ -76,7 +76,7 @@ length of strings." />
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">textshaping</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">0.0.0.9000</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">0.1.0</span>
       </span>
     </div>
 
@@ -140,27 +140,27 @@ the standard graphic devices does text shaping. Inputs are recycled to the
 length of <code>strings</code>.</p>
     </div>
 
-    <pre class="usage"><span class='fu'>shape_text</span>(
-  <span class='no'>strings</span>,
-  <span class='kw'>id</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>family</span> <span class='kw'>=</span> <span class='st'>""</span>,
-  <span class='kw'>italic</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
-  <span class='kw'>bold</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
-  <span class='kw'>size</span> <span class='kw'>=</span> <span class='fl'>12</span>,
-  <span class='kw'>res</span> <span class='kw'>=</span> <span class='fl'>72</span>,
-  <span class='kw'>lineheight</span> <span class='kw'>=</span> <span class='fl'>1</span>,
-  <span class='kw'>align</span> <span class='kw'>=</span> <span class='st'>"left"</span>,
-  <span class='kw'>hjust</span> <span class='kw'>=</span> <span class='fl'>0</span>,
-  <span class='kw'>vjust</span> <span class='kw'>=</span> <span class='fl'>0</span>,
-  <span class='kw'>width</span> <span class='kw'>=</span> <span class='fl'>NA</span>,
-  <span class='kw'>tracking</span> <span class='kw'>=</span> <span class='fl'>0</span>,
-  <span class='kw'>indent</span> <span class='kw'>=</span> <span class='fl'>0</span>,
-  <span class='kw'>hanging</span> <span class='kw'>=</span> <span class='fl'>0</span>,
-  <span class='kw'>space_before</span> <span class='kw'>=</span> <span class='fl'>0</span>,
-  <span class='kw'>space_after</span> <span class='kw'>=</span> <span class='fl'>0</span>,
-  <span class='kw'>path</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>index</span> <span class='kw'>=</span> <span class='fl'>0</span>
-)</pre>
+    <pre class="usage"><span class='fu'>shape_text</span><span class='op'>(</span>
+  <span class='va'>strings</span>,
+  id <span class='op'>=</span> <span class='cn'>NULL</span>,
+  family <span class='op'>=</span> <span class='st'>""</span>,
+  italic <span class='op'>=</span> <span class='cn'>FALSE</span>,
+  bold <span class='op'>=</span> <span class='cn'>FALSE</span>,
+  size <span class='op'>=</span> <span class='fl'>12</span>,
+  res <span class='op'>=</span> <span class='fl'>72</span>,
+  lineheight <span class='op'>=</span> <span class='fl'>1</span>,
+  align <span class='op'>=</span> <span class='st'>"left"</span>,
+  hjust <span class='op'>=</span> <span class='fl'>0</span>,
+  vjust <span class='op'>=</span> <span class='fl'>0</span>,
+  width <span class='op'>=</span> <span class='cn'>NA</span>,
+  tracking <span class='op'>=</span> <span class='fl'>0</span>,
+  indent <span class='op'>=</span> <span class='fl'>0</span>,
+  hanging <span class='op'>=</span> <span class='fl'>0</span>,
+  space_before <span class='op'>=</span> <span class='fl'>0</span>,
+  space_after <span class='op'>=</span> <span class='fl'>0</span>,
+  path <span class='op'>=</span> <span class='cn'>NULL</span>,
+  index <span class='op'>=</span> <span class='fl'>0</span>
+<span class='op'>)</span></pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
@@ -243,7 +243,7 @@ family and style</p></td>
     <p>A list with two element: <code>shape</code> contains the position of each glyph,
 relative to the origin in the enclosing textbox. <code>metrics</code> contain metrics
 about the full strings.</p>
-<p><code>shape</code> is a data.frame with the following columns:</p><dl'>
+<p><code>shape</code> is a data.frame with the following columns:</p><dl>
 <dt>glyph</dt><dd><p>The glyph as a character</p></dd>
 <dt>index</dt><dd><p>The index of the glyph in the font file</p></dd>
 <dt>metric_id</dt><dd><p>The index of the string the glyph is part of (referencing a row in the <code>metrics</code> data.frame)</p></dd>
@@ -254,7 +254,7 @@ about the full strings.</p>
 
 </dl>
 
-<p><code>metrics</code> is a data.frame with the following columns:</p><dl'>
+<p><code>metrics</code> is a data.frame with the following columns:</p><dl>
 <dt>string</dt><dd><p>The text the string consist of</p></dd>
 <dt>width</dt><dd><p>The width of the string</p></dd>
 <dt>height</dt><dd><p>The height of the string</p></dd>
@@ -271,10 +271,11 @@ about the full strings.</p>
 
 
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
-    <pre class="examples"><div class='input'><span class='no'>string</span> <span class='kw'>&lt;-</span> <span class='st'>"This is a long string\nLook; It spans multiple lines\nand all"</span>
+    <pre class="examples"><div class='input'><span class='va'>string</span> <span class='op'>&lt;-</span> <span class='st'>"This is a long string\nLook; It spans multiple lines\nand all"</span>
 
 <span class='co'># Shape with default settings</span>
-<span class='fu'>shape_text</span>(<span class='no'>string</span>)</div><div class='output co'>#&gt; $shape
+<span class='fu'>shape_text</span><span class='op'>(</span><span class='va'>string</span><span class='op'>)</span>
+</div><div class='output co'>#&gt; $shape
 #&gt; <span style='color: #555555;'># A tibble: 59 x 7</span><span>
 #&gt;    glyph index metric_id string_id x_offset y_offset x_midpoint
 #&gt;    </span><span style='color: #555555;font-style: italic;'>&lt;int&gt;</span><span> </span><span style='color: #555555;font-style: italic;'>&lt;int&gt;</span><span>     </span><span style='color: #555555;font-style: italic;'>&lt;int&gt;</span><span>     </span><span style='color: #555555;font-style: italic;'>&lt;int&gt;</span><span>    </span><span style='color: #555555;font-style: italic;'>&lt;dbl&gt;</span><span>    </span><span style='color: #555555;font-style: italic;'>&lt;dbl&gt;</span><span>      </span><span style='color: #555555;font-style: italic;'>&lt;dbl&gt;</span><span>
@@ -299,13 +300,14 @@ about the full strings.</p>
 #&gt; </span><span style='color: #555555;'>#   pen_y </span><span style='color: #555555;font-style: italic;'>&lt;dbl&gt;</span><span>
 #&gt; </div><div class='input'>
 <span class='co'># Mix styles within the same string</span>
-<span class='no'>string</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(
+<span class='va'>string</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span>
   <span class='st'>"This string will have\na "</span>,
   <span class='st'>"very large"</span>,
   <span class='st'>" text style\nin the middle"</span>
-)
+<span class='op'>)</span>
 
-<span class='fu'>shape_text</span>(<span class='no'>string</span>, <span class='kw'>id</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>1</span>, <span class='fl'>1</span>, <span class='fl'>1</span>), <span class='kw'>size</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>12</span>, <span class='fl'>24</span>, <span class='fl'>12</span>))</div><div class='output co'>#&gt; $shape
+<span class='fu'>shape_text</span><span class='op'>(</span><span class='va'>string</span>, id <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='fl'>1</span>, <span class='fl'>1</span><span class='op'>)</span>, size <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>12</span>, <span class='fl'>24</span>, <span class='fl'>12</span><span class='op'>)</span><span class='op'>)</span>
+</div><div class='output co'>#&gt; $shape
 #&gt; </span><span style='color: #555555;'># A tibble: 59 x 7</span><span>
 #&gt;    glyph index metric_id string_id x_offset y_offset x_midpoint
 #&gt;    </span><span style='color: #555555;font-style: italic;'>&lt;int&gt;</span><span> </span><span style='color: #555555;font-style: italic;'>&lt;int&gt;</span><span>     </span><span style='color: #555555;font-style: italic;'>&lt;int&gt;</span><span>     </span><span style='color: #555555;font-style: italic;'>&lt;int&gt;</span><span>    </span><span style='color: #555555;font-style: italic;'>&lt;dbl&gt;</span><span>    </span><span style='color: #555555;font-style: italic;'>&lt;dbl&gt;</span><span>      </span><span style='color: #555555;font-style: italic;'>&lt;dbl&gt;</span><span>
@@ -345,7 +347,7 @@ about the full strings.</p>
 </div>
 
 <div class="pkgdown">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.5.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.6.1.</p>
 </div>
 
       </footer>
