@@ -1,3 +1,5 @@
+# textshaping (development version)
+
 # textshaping 0.1.1
 
 * Small changes to comply with next cpp11 version
