@@ -1,4 +1,4 @@
-Small changes as requested by CRAN
+Small release to prepare for next cpp11 version
 
 ## Test environments
 * local R installation, R 4.0.1
