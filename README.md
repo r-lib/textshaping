@@ -22,13 +22,15 @@ ligatures, stylistic glyph substitutions, etc.
 For an example of a package that uses textshaping to support advanced
 text layout see [ragg](https://ragg.r-lib.org).
 
-A big thanks to [Behdad Esfahbod](http://behdad.org) who is the main author of
-both FriBidi and HarfBuzz and has been very helpful answering questions
-during the cause of development.
+A big thanks to [Behdad Esfahbod](http://behdad.org) who is the main
+author of both FriBidi and HarfBuzz and has been very helpful answering
+questions during the cause of development.
 
 ## Installation
 
-For now you can install the package with devtools:
+You can install textshaping from CRAN with
+`install.packages("textshaping)`. For the development version you can
+install it from Github with devtools:
 
 ``` r
 devtools::install_github("r-lib/textshaping")
