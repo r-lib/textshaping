@@ -10,3 +10,4 @@
 ^autobrew$
 ^cran-comments\.md$
 ^CRAN-RELEASE$
+^O$
