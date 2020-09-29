@@ -9,3 +9,4 @@
 ^src/Makevars$
 ^autobrew$
 ^cran-comments\.md$
+^CRAN-RELEASE$
