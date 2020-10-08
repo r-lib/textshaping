@@ -1,3 +1,5 @@
+# textshaping (development version)
+
 # textshaping 0.1.2
 
 * Fix a bug in the interaction with the systemfonts font cache that could cause
