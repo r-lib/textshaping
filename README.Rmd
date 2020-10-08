@@ -27,7 +27,7 @@ For an example of a package that uses textshaping to support advanced text layou
 A big thanks to [Behdad Esfahbod](http://behdad.org) who is the main author of both FriBidi and HarfBuzz and has been very helpful answering questions during the cause of development.
 
 ## Installation
-You can install textshaping from CRAN with `install.packages("textshaping)`. For the development version you can install it from Github with devtools:
+You can install textshaping from CRAN with `install.packages("textshaping")`. For the development version you can install it from Github with devtools:
 
 ```{r, eval=FALSE}
 devtools::install_github("r-lib/textshaping")
