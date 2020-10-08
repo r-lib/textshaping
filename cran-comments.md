@@ -1,4 +1,5 @@
-Small release to prepare for next cpp11 version
+This release includes a hotfix for a bug that could result in segfaults randomly
+appearing in packages that used textshaping calls.
 
 ## Test environments
 * local R installation, R 4.0.1
