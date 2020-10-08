@@ -25,6 +25,7 @@ jobs:
       matrix:
         config:
           - {os: macOS-latest,   r: 'release'}
+          - {os: macOS-latest,   r: 'oldrel', autobrew: true}
           - {os: windows-latest, r: 'release'}
           - {os: windows-latest, r: '3.6'}
           - {os: ubuntu-20.04,   r: 'devel', rspm: "https://packagemanager.rstudio.com/cran/__linux__/focal/latest", http-user-agent: "R/4.0.0 (ubuntu-20.04) R (4.0.0 x86_64-pc-linux-gnu x86_64 linux-gnu) on GitHub Actions" }
@@ -57,7 +58,7 @@ jobs:
         shell: Rscript {0}
 
       - name: Cache R packages
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && !matrix.config.autobrew
         uses: actions/cache@v1
         with:
           path: ${{ env.R_LIBS_USER }}
@@ -75,8 +76,12 @@ jobs:
           done < <(Rscript -e 'cat(remotes::system_requirements("ubuntu", "20.04"), sep = "\n")')
 
       - name: Install system dependencies
-        if: runner.os == 'MacOS'
+        if: runner.os == 'MacOS' && !matrix.config.autobrew
         run: brew install harfbuzz fribidi
+
+      - name: Remove homebrew
+        if: matrix.config.autobrew
+        uses: r-universe-org/uninstall-homebrew@master
 
       - name: Install dependencies
         run: |
