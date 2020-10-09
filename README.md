@@ -29,7 +29,7 @@ questions during the cause of development.
 ## Installation
 
 You can install textshaping from CRAN with
-`install.packages("textshaping)`. For the development version you can
+`install.packages("textshaping")`. For the development version you can
 install it from Github with devtools:
 
 ``` r
