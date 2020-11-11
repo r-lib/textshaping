@@ -56,6 +56,7 @@ echo "$PKG_TEST_HEADER" | ${CC} ${CPPFLAGS} ${PKG_CFLAGS} ${CFLAGS} -E -xc - >/d
 if [ $? -ne 0 ]; then
   if [ "`uname`" = "SunOS" ]; then
     PKG_CFLAGS="$PKG_CFLAGS -DNO_HARFBUZZ_FRIBIDI"
+    PKG_LIBS=""
   else
     echo "--------------------------- [ANTICONF] --------------------------------"
     echo "Configuration failed to find the $PKG_CONFIG_NAME library. Try installing:"
