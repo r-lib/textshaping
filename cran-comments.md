@@ -1,5 +1,6 @@
-This release includes a hotfix for a bug that could result in segfaults randomly
-appearing in packages that used textshaping calls.
+This version includes a "fix" that allows the package to build on Solaris even
+without harfbuzz and fribidi (as is the situation on CRAN). It further updates 
+the C api to prepare for future font substitution functionality
 
 ## Test environments
 * local R installation, R 4.0.1
@@ -8,6 +9,4 @@ appearing in packages that used textshaping calls.
 
 ## R CMD check results
 
-0 errors | 0 warnings | 1 note
-
-* This is a new release.
+0 errors | 0 warnings | 0 note
