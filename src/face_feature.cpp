@@ -1,4 +1,16 @@
 #include "face_feature.h"
+
+#ifdef NO_HARFBUZZ_FRIBIDI
+
+using namespace cpp11;
+
+writable::list get_face_features_c(strings path, integers index) {
+  Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
+  return {};
+}
+
+#else
+
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include <hb.h>
@@ -64,3 +76,5 @@ writable::list get_face_features_c(strings path, integers index) {
   }
   return features;
 }
+
+#endif

@@ -1,5 +1,17 @@
 #include "hb_shaper.h"
 
+#ifdef NO_HARFBUZZ_FRIBIDI
+
+void init_hb_shaper(DllInfo* dll) {
+
+}
+
+void unload_hb_shaper(DllInfo *dll) {
+
+}
+
+#else
+
 static HarfBuzzShaper* hb_shaper;
 
 HarfBuzzShaper& get_hb_shaper() {
@@ -13,3 +25,5 @@ void init_hb_shaper(DllInfo* dll) {
 void unload_hb_shaper(DllInfo *dll) {
   delete hb_shaper;
 }
+
+#endif

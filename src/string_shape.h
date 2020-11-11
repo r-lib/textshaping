@@ -1,5 +1,7 @@
 #pragma once
 
+#ifndef NO_HARFBUZZ_FRIBIDI
+
 #include <systemfonts.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -206,3 +208,5 @@ private:
     return false;
   }
 };
+
+#endif

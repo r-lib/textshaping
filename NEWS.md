@@ -1,5 +1,8 @@
 # textshaping (development version)
 
+* Update C API to prepare for font fallback
+* Make sure it compiles on Solaris without system dependencies
+
 # textshaping 0.1.2
 
 * Fix a bug in the interaction with the systemfonts font cache that could cause

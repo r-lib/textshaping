@@ -1,3 +1,5 @@
+#ifndef NO_HARFBUZZ_FRIBIDI
+
 #include <hb-ft.h>
 #include "string_shape.h"
 #include "string_bidi.h"
@@ -516,3 +518,5 @@ bool HarfBuzzShaper::shape_glyphs(hb_font_t *font, const uint32_t *string, unsig
   }
   return true;
 }
+
+#endif

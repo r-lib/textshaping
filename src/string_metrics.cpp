@@ -13,6 +13,45 @@
 
 using namespace cpp11;
 
+#ifdef NO_HARFBUZZ_FRIBIDI
+
+list get_string_shape_c(strings string, integers id, strings path, integers index,
+                        doubles size, doubles res, doubles lineheight, integers align,
+                        doubles hjust, doubles vjust, doubles width, doubles tracking,
+                        doubles indent, doubles hanging, doubles space_before,
+                        doubles space_after) {
+  Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
+  return {};
+}
+
+doubles get_line_width_c(strings string, strings path, integers index, doubles size,
+                         doubles res, logicals include_bearing) {
+  Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
+  return {};
+}
+
+int ts_string_width(const char* string, FontSettings font_info, double size,
+                    double res, int include_bearing, double* width) {
+  Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
+  *width = 0.0;
+  return 0;
+}
+
+int ts_string_shape(const char* string, FontSettings font_info, double size,
+                    double res, std::vector<Point>& loc, std::vector<uint32_t>& id,
+                    std::vector<int>& cluster, std::vector<unsigned int>& font,
+                    std::vector<FontSettings>& fallbacks) {
+  Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
+  loc.clear();
+  id.clear();
+  cluster.clear();
+  font.clear();
+  fallbacks.clear();
+  return 0;
+}
+
+#else
+
 list get_string_shape_c(strings string, integers id, strings path, integers index,
                         doubles size, doubles res, doubles lineheight, integers align,
                         doubles hjust, doubles vjust, doubles width, doubles tracking,
@@ -211,8 +250,9 @@ int ts_string_width(const char* string, FontSettings font_info, double size,
 }
 
 int ts_string_shape(const char* string, FontSettings font_info, double size,
-                    double res, double* x, double* y, int* id, int* n_glyphs,
-                    unsigned int max_length) {
+                    double res, std::vector<Point>& loc, std::vector<uint32_t>& id,
+                    std::vector<int>& cluster, std::vector<unsigned int>& font,
+                    std::vector<FontSettings>& fallbacks) {
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
   bool success = shaper.single_line_shape(
@@ -221,16 +261,22 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
   if (!success) {
     return shaper.error_code;
   }
-  *n_glyphs = int(max_length < shaper.last_shape_info.x_pos.size() ? max_length : shaper.last_shape_info.x_pos.size());
-  for (int i = 0; i < *n_glyphs; ++i) {
-    x[i] = double(shaper.last_shape_info.x_pos[i]) / 64.0;
-    y[i] = 0.0;
-    id[i] = shaper.last_shape_info.glyph_id[i];
+  int n_glyphs = shaper.last_shape_info.x_pos.size();
+  loc.clear();
+  id.clear();
+  for (int i = 0; i < n_glyphs; ++i) {
+    loc.emplace_back(
+      double(shaper.last_shape_info.x_pos[i]) / 64.0,
+      0.0
+    );
+    id.push_back(shaper.last_shape_info.glyph_id[i]);
   }
 
   END_CPP11_NO_RETURN
   return 0;
 }
+
+#endif
 
 void export_string_metrics(DllInfo* dll) {
   R_RegisterCCallable("textshaping", "ts_string_width", (DL_FUNC)ts_string_width);
