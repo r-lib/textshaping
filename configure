@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#! /bin/sh
 # Anticonf (tm) script by Jeroen Ooms and Thomas Lin Pedersen(2020)
 # This script will query 'pkg-config' for the required cflags and ldflags.
 # If pkg-config is unavailable or does not find the library, try setting
@@ -29,14 +29,14 @@ elif [ "$PKGCONFIG_CFLAGS" ] || [ "$PKGCONFIG_LIBS" ]; then
   echo "Found pkg-config cflags and libs!"
   PKG_CFLAGS=${PKGCONFIG_CFLAGS}
   PKG_LIBS=${PKGCONFIG_LIBS}
-elif [[ "$OSTYPE" == "darwin"* ]]; then
+elif [ "`uname`" = "Darwin" ]; then
   brew --version 2>/dev/null
   if [ $? -eq 0 ]; then
     BREWDIR=$(brew --prefix)
     PKG_CFLAGS="-I$BREWDIR/include/freetype2 -I$BREWDIR/include/harfbuzz -I$BREWDIR/include/glib-2.0  -I$BREWDIR/include/fribidi"
   else
     curl -sfL "https://autobrew.github.io/scripts/harfbuzz" > autobrew
-    source autobrew
+    . autobrew
   fi
 fi
 
@@ -54,7 +54,7 @@ echo "$PKG_TEST_HEADER" | ${CC} ${CPPFLAGS} ${PKG_CFLAGS} ${CFLAGS} -E -xc - >/d
 
 # Customize the error
 if [ $? -ne 0 ]; then
-  if [ "$PLATFORM" == "SunOS" ]; then
+  if [ "$PLATFORM" = "SunOS" ]; then
     PKG_CFLAGS="$PKG_CFLAGS -DNO_HARFBUZZ_FRIBIDI"
   else
     echo "--------------------------- [ANTICONF] --------------------------------"
