@@ -74,6 +74,8 @@ writable::list get_face_features_c(strings path, integers index) {
     features[i] = (SEXP) font_tags;
     hb_face_destroy(face);
   }
+
+  FT_Done_FreeType(library);
   return features;
 }
 
