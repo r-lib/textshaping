@@ -15,9 +15,9 @@ PKG_TEST_HEADER="#include <hb-ft.h>"
 PKG_LIBS="-lfreetype -lharfbuzz -lfribidi"
 
 # Use pkg-config if available
-if [ $(command -v pkg-config) ]; then
-  PKGCONFIG_CFLAGS=$(pkg-config --cflags --silence-errors ${PKG_CONFIG_NAME})
-  PKGCONFIG_LIBS=$(pkg-config --libs ${PKG_CONFIG_NAME})
+if [ "`command -v pkg-config`" ]; then
+  PKGCONFIG_CFLAGS="`pkg-config --cflags --silence-errors ${PKG_CONFIG_NAME}`"
+  PKGCONFIG_LIBS="`pkg-config --libs ${PKG_CONFIG_NAME}`"
 fi
 
 # Note that cflags may be empty in case of success
@@ -27,12 +27,12 @@ if [ "$INCLUDE_DIR" ] || [ "$LIB_DIR" ]; then
   PKG_LIBS="-L$LIB_DIR $PKG_LIBS"
 elif [ "$PKGCONFIG_CFLAGS" ] || [ "$PKGCONFIG_LIBS" ]; then
   echo "Found pkg-config cflags and libs!"
-  PKG_CFLAGS=${PKGCONFIG_CFLAGS}
-  PKG_LIBS=${PKGCONFIG_LIBS}
+  PKG_CFLAGS="${PKGCONFIG_CFLAGS}"
+  PKG_LIBS="${PKGCONFIG_LIBS}"
 elif [ "`uname`" = "Darwin" ]; then
   brew --version 2>/dev/null
   if [ $? -eq 0 ]; then
-    BREWDIR=$(brew --prefix)
+    BREWDIR="`brew --prefix`"
     PKG_CFLAGS="-I$BREWDIR/include/freetype2 -I$BREWDIR/include/harfbuzz -I$BREWDIR/include/glib-2.0  -I$BREWDIR/include/fribidi"
   else
     curl -sfL "https://autobrew.github.io/scripts/harfbuzz" > autobrew
@@ -45,16 +45,16 @@ echo "Using PKG_CFLAGS=$PKG_CFLAGS"
 echo "Using PKG_LIBS=$PKG_LIBS"
 
 # Find compiler
-CC=$(${R_HOME}/bin/R CMD config CC)
-CFLAGS=$(${R_HOME}/bin/R CMD config CFLAGS)
-CPPFLAGS=$(${R_HOME}/bin/R CMD config CPPFLAGS)
+CC="`${R_HOME}/bin/R CMD config CC`"
+CFLAGS="`${R_HOME}/bin/R CMD config CFLAGS`"
+CPPFLAGS="`${R_HOME}/bin/R CMD config CPPFLAGS`"
 
 # Test configuration
 echo "$PKG_TEST_HEADER" | ${CC} ${CPPFLAGS} ${PKG_CFLAGS} ${CFLAGS} -E -xc - >/dev/null 2>configure.log
 
 # Customize the error
 if [ $? -ne 0 ]; then
-  if [ "$PLATFORM" = "SunOS" ]; then
+  if [ "`uname`" = "SunOS" ]; then
     PKG_CFLAGS="$PKG_CFLAGS -DNO_HARFBUZZ_FRIBIDI"
   else
     echo "--------------------------- [ANTICONF] --------------------------------"
