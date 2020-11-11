@@ -98,12 +98,12 @@
     systemfonts,
     textshaping</code></pre>
 <p>You will further need to make sure that both packages are loaded when you need to use the C API. This is most easily done by importing a function from each package into your namespace.</p>
-<p>In your C/C++ code you’ll then have <code>#include &lt;textshaping.h&gt;</code> to get access to the functions described below.</p>
+<p>In your C/C++ code you’ll then have <code>#include &lt;textshaping.h&gt;</code> to get access to the functions described below. The functions are available in the <code>textshaping</code> namespace.</p>
 <p>The C API expects fonts to be given as <code>FontSettings</code> structs which can be obtained from the systemfonts C API with <code>locate_font_with_features()</code>. This makes it possible to both get access to the font file location along with potential OpenType features registered to the font.</p>
 <div id="string-width" class="section level2">
 <h2 class="hasAnchor">
 <a href="#string-width" class="anchor"></a>String width</h2>
-<div class="sourceCode" id="cb2"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1"></a><span class="dt">int</span> ts_string_width(</span>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1"></a><span class="dt">int</span> string_width(</span>
 <span id="cb2-2"><a href="#cb2-2"></a>  <span class="dt">const</span> <span class="dt">char</span>* string, </span>
 <span id="cb2-3"><a href="#cb2-3"></a>  FontSettings font_info, </span>
 <span id="cb2-4"><a href="#cb2-4"></a>  <span class="dt">double</span> size, </span>
@@ -116,19 +116,18 @@
 <div id="string-shape" class="section level2">
 <h2 class="hasAnchor">
 <a href="#string-shape" class="anchor"></a>String shape</h2>
-<div class="sourceCode" id="cb3"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1"></a><span class="dt">int</span> ts_string_shape(</span>
+<div class="sourceCode" id="cb3"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1"></a><span class="dt">int</span> string_shape(</span>
 <span id="cb3-2"><a href="#cb3-2"></a>  <span class="dt">const</span> <span class="dt">char</span>* string, </span>
 <span id="cb3-3"><a href="#cb3-3"></a>  FontSettings font_info,</span>
 <span id="cb3-4"><a href="#cb3-4"></a>  <span class="dt">double</span> size, </span>
 <span id="cb3-5"><a href="#cb3-5"></a>  <span class="dt">double</span> res, </span>
-<span id="cb3-6"><a href="#cb3-6"></a>  <span class="dt">double</span>* x, </span>
-<span id="cb3-7"><a href="#cb3-7"></a>  <span class="dt">double</span>* y,</span>
-<span id="cb3-8"><a href="#cb3-8"></a>  <span class="dt">int</span>* id, </span>
-<span id="cb3-9"><a href="#cb3-9"></a>  <span class="dt">int</span>* cluster, </span>
-<span id="cb3-10"><a href="#cb3-10"></a>  <span class="dt">int</span>* n_glyphs,</span>
-<span id="cb3-11"><a href="#cb3-11"></a>  <span class="dt">unsigned</span> <span class="dt">int</span> max_length</span>
-<span id="cb3-12"><a href="#cb3-12"></a>)</span></code></pre></div>
-<p>This function takes care of all the nitty-gritty of shaping a single line of text. It takes the same font information input as <code>ts_string_width()</code>, that is, a <code>FontSettings</code> struct and size and res. It further accepts a number of array pointers where the shaping information will be written. <code>x</code> and <code>y</code> will end up containing the location of each glyph in pts starting from a (0, 0) origin. Since the graphic engine only pass single lines to the graphic device at a time then line breaking is not handled and for now all returned y positions are set to 0.0 (this may change in the future depending on the development of the graphic engine). The glyph id in the font file will be written to the <code>id</code> array. You will need to use this to look up the glyph to render instead of relying on the characters in the input string due to the potential substitution and merging of glyphs happening during shaping. The <code>cluster</code> array is currently unused (and will thus not be touched) but may in the future contain identifications of which character in the input string relates to the provided glyphs. <code>n_glyphs</code> will be set to the total number of written glyphs and positions as a result of the shaping. <code>max_length</code> should be set to the maximum available space in <code>x</code>, <code>y</code>, and <code>id</code>. No information will be written beyond that length. The function returns 0 if successful.</p>
+<span id="cb3-6"><a href="#cb3-6"></a>  std::vector&lt;Point&gt;&amp; loc,</span>
+<span id="cb3-7"><a href="#cb3-7"></a>  std::vector&lt;<span class="dt">uint32_t</span>&gt;&amp; id, </span>
+<span id="cb3-8"><a href="#cb3-8"></a>  std::vector&lt;<span class="dt">int</span>&gt;&amp; cluster,</span>
+<span id="cb3-9"><a href="#cb3-9"></a>  std::vector&lt;<span class="dt">unsigned</span> <span class="dt">int</span>&gt;&amp; font, </span>
+<span id="cb3-10"><a href="#cb3-10"></a>  std::vector&lt;FontSettings&gt;&amp; fallbacks</span>
+<span id="cb3-11"><a href="#cb3-11"></a>)</span></code></pre></div>
+<p>This function takes care of all the nitty-gritty of shaping a single line of text. It takes the same font information input as <code>string_width()</code>, that is, a <code>FontSettings</code> struct and size and res. It further accepts a number of vectors where the shaping information will be written. <code>loc</code> will end up containing the location of each glyph in pts starting from a (0, 0) origin. Since the graphic engine only pass single lines to the graphic device at a time then line breaking is not handled and for now all returned y positions are set to 0.0 (this may change in the future depending on the development of the graphic engine). The glyph id in the font file will be written to the <code>id</code> vector You will need to use this to look up the glyph to render instead of relying on the characters in the input string due to the potential substitution and merging of glyphs happening during shaping. The <code>cluster</code> array is currently unused (and will thus not be touched) but may in the future contain identifications of which character in the input string relates to the provided glyphs. The same is true for the <code>font</code> and <code>fallbacks</code> vectors, which in the future will hold information about font fallback but is currently unused. The function returns 0 if successful.</p>
 </div>
   </div>
 
