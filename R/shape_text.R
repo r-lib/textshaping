@@ -137,6 +137,7 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
     as.numeric(indent), as.numeric(hanging), as.numeric(space_before),
     as.numeric(space_after)
   )
+  if (nrow(shape$shape) == 0) return(shape)
 
   shape$metrics$string <- vapply(split(strings, id), paste, character(1), collapse = '')
   shape$shape$string_id <- ido[shape$shape$string_id]

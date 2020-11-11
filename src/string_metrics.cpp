@@ -21,7 +21,36 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                         doubles indent, doubles hanging, doubles space_before,
                         doubles space_after) {
   Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
-  return {};
+  writable::data_frame string_df({
+    "string"_nm = writable::logicals(),
+    "width"_nm = writable::logicals(),
+    "height"_nm = writable::logicals(),
+    "left_bearing"_nm = writable::logicals(),
+    "right_bearing"_nm = writable::logicals(),
+    "top_bearing"_nm = writable::logicals(),
+    "bottom_bearing"_nm = writable::logicals(),
+    "left_border"_nm = writable::logicals(),
+    "top_border"_nm = writable::logicals(),
+    "pen_x"_nm = writable::logicals(),
+    "pen_y"_nm = writable::logicals()
+  });
+  string_df.attr("class") = writable::strings({"tbl_df", "tbl", "data.frame"});
+
+  writable::data_frame info_df({
+    "glyph"_nm = writable::logicals(),
+    "index"_nm = writable::logicals(),
+    "metric_id"_nm = writable::logicals(),
+    "string_id"_nm = writable::logicals(),
+    "x_offset"_nm = writable::logicals(),
+    "y_offset"_nm = writable::logicals(),
+    "x_midpoint"_nm = writable::logicals()
+  });
+  info_df.attr("class") = writable::strings({"tbl_df", "tbl", "data.frame"});
+
+  return writable::list({
+    "shape"_nm = info_df,
+    "metrics"_nm = string_df
+  });
 }
 
 doubles get_line_width_c(strings string, strings path, integers index, doubles size,
