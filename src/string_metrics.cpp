@@ -79,6 +79,14 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
   return 0;
 }
 
+int ts_string_shape_old(const char* string, FontSettings font_info, double size,
+                         double res, double* x, double* y, int* id, int* n_glyphs,
+                         unsigned int max_length) {
+  Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
+  *n_glyphs = 0;
+  return 0;
+}
+
 #else
 
 list get_string_shape_c(strings string, integers id, strings path, integers index,

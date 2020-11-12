@@ -1,6 +1,4 @@
-This version includes a "fix" that allows the package to build on Solaris even
-without harfbuzz and fribidi (as is the situation on CRAN). It further updates 
-the C api to prepare for future font substitution functionality
+This is a very quick patch release to fix issues on the CRAN Solaris machine
 
 ## Test environments
 * local R installation, R 4.0.1
