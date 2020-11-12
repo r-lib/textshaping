@@ -1,4 +1,4 @@
-# textshaping (development version)
+# textshaping 0.2.1
 
 # textshaping 0.2.0
 
