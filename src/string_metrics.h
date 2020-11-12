@@ -37,5 +37,8 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
                     double res, std::vector<Point>& loc, std::vector<uint32_t>& id,
                     std::vector<int>& cluster, std::vector<unsigned int>& font,
                     std::vector<FontSettings>& fallbacks);
+int ts_string_shape_old(const char* string, FontSettings font_info, double size,
+                        double res, double* x, double* y, int* id, int* n_glyphs,
+                        unsigned int max_length);
 [[cpp11::init]]
 void export_string_metrics(DllInfo* dll);

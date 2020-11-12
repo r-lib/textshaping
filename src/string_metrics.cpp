@@ -304,10 +304,35 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
   END_CPP11_NO_RETURN
   return 0;
 }
+int ts_string_shape_old(const char* string, FontSettings font_info, double size,
+                        double res, double* x, double* y, int* id, int* n_glyphs,
+                        unsigned int max_length) {
+  int result = 0;
+  BEGIN_CPP11
+  std::vector<Point> _loc;
+  std::vector<uint32_t> _id;
+  std::vector<int> _cluster;
+  std::vector<unsigned int> _font;
+  std::vector<FontSettings> _fallbacks;
+  result = ts_string_shape(string, font_info, size, res, _loc, _id, _cluster, _font, _fallbacks);
+
+  if (result == 0) {
+    *n_glyphs = max_length > _loc.size() ? _loc.size() : max_length;
+    for (int i = 0; i < *n_glyphs; ++i) {
+      x[i] = _loc[i].x;
+      y[i] = _loc[i].y;
+      id[i] = (int) _id[i];
+    }
+  }
+
+  END_CPP11_NO_RETURN
+  return result;
+}
 
 #endif
 
 void export_string_metrics(DllInfo* dll) {
   R_RegisterCCallable("textshaping", "ts_string_width", (DL_FUNC)ts_string_width);
-  R_RegisterCCallable("textshaping", "ts_string_shape", (DL_FUNC)ts_string_shape);
+  R_RegisterCCallable("textshaping", "ts_string_shape_new", (DL_FUNC)ts_string_shape);
+  R_RegisterCCallable("textshaping", "ts_string_shape", (DL_FUNC)ts_string_shape_old);
 }
