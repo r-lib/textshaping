@@ -1,6 +1,10 @@
 # textshaping (development version)
 
+* Add support for performing font fallback as part of the single-line shaping
+
 # textshaping 0.2.1
+
+* Fix issues with the Solaris mock solution
 
 # textshaping 0.2.0
 

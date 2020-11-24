@@ -300,14 +300,15 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
   }
   int n_glyphs = shaper.last_shape_info.x_pos.size();
   loc.clear();
-  id.clear();
   for (int i = 0; i < n_glyphs; ++i) {
     loc.emplace_back(
       double(shaper.last_shape_info.x_pos[i]) / 64.0,
       0.0
     );
-    id.push_back(shaper.last_shape_info.glyph_id[i]);
   }
+  id.assign(shaper.last_shape_info.glyph_id.begin(), shaper.last_shape_info.glyph_id.end());
+  font.assign(shaper.last_shape_info.font.begin(), shaper.last_shape_info.font.end());
+  fallbacks.assign(shaper.last_shape_info.fallbacks.begin(), shaper.last_shape_info.fallbacks.end());
 
   END_CPP11_NO_RETURN
   return 0;

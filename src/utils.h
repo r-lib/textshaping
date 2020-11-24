@@ -112,7 +112,7 @@ static int u8_toucs(uint32_t *dest, int sz, const char *src, int srcsz) {
  the NUL as well.
  the destination string will never be bigger than the source string.
  */
-inline int u8_toutf8(char *dest, int sz, uint32_t *src, int srcsz) {
+inline int u8_toutf8(char *dest, int sz, const uint32_t *src, int srcsz) {
   uint32_t ch;
   int i = 0;
   char *dest_end = dest + sz;
@@ -183,7 +183,7 @@ public:
 
     return buffer_ucs.data();
   }
-  const char * convert_to_utf(uint32_t * string, unsigned int str_len, int &n_conv) {
+  const char * convert_to_utf(const uint32_t * string, unsigned int str_len, int &n_conv) {
     if (string == NULL) {
       n_conv = 0;
       return buffer_utf.data();

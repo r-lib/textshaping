@@ -20,7 +20,7 @@ Imports:
     systemfonts (>= 0.3.0)
 LinkingTo: 
     cpp11 (>= 0.2.1),
-    systemfonts
+    systemfonts (>= 0.3.2.9000)
 SystemRequirements: 
     C++11,
     freetype2,
@@ -32,4 +32,5 @@ Suggests:
     covr,
     knitr,
     rmarkdown
+Remotes: r-lib/systemfonts
 VignetteBuilder: knitr
