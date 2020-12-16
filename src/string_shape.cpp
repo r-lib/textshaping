@@ -492,7 +492,7 @@ bool HarfBuzzShaper::shape_embedding(const uint32_t* string, unsigned start,
                                      unsigned end, unsigned int string_length,
                                      double size, double res,
                                      std::vector<hb_feature_t>& features) {
-  int embedding_size = end - start;
+  unsigned int embedding_size = end - start;
 
   if (embedding_size < 1) {
     return true;
