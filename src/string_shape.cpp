@@ -525,11 +525,20 @@ bool HarfBuzzShaper::shape_embedding(const uint32_t* string, unsigned start,
     return true;
   }
 
+  bool ltr = true;
+  for (unsigned int i = 1; i < n_glyphs; ++i) {
+    if (glyph_info[i - 1].cluster == glyph_info[i].cluster) {
+      continue;
+    }
+    ltr = glyph_info[i - 1].cluster < glyph_info[i].cluster;
+    break;
+  }
+
   unsigned int current_font = 0;
   std::vector<unsigned int> char_font(embedding_size, current_font);
   bool needs_fallback = false;
   bool any_resolved = false;
-  annotate_fallbacks(current_font + 1, 0, char_font, glyph_info, n_glyphs, needs_fallback, any_resolved);
+  annotate_fallbacks(current_font + 1, 0, char_font, glyph_info, n_glyphs, needs_fallback, any_resolved, ltr, start);
 
   if (!needs_fallback) { // Short route - use existing shaping
     glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
@@ -575,47 +584,83 @@ bool HarfBuzzShaper::shape_embedding(const uint32_t* string, unsigned start,
       if (n_glyphs > 0) {
         bool needs_fallback_2 = false;
         bool any_resolved_2 = false;
-        annotate_fallbacks(current_font + 1, fallback_start, char_font, glyph_info, n_glyphs, needs_fallback_2, any_resolved_2);
+        annotate_fallbacks(current_font + 1, fallback_start, char_font, glyph_info, n_glyphs, needs_fallback_2, any_resolved_2, ltr, start);
         if (needs_fallback_2) needs_fallback = true;
         if (any_resolved_2) any_resolved = true;
       }
-      hb_font_destroy(font);
 
       found = fallback_cluster(current_font, char_font, fallback_end, fallback_start, fallback_end);
     } while (found);
+
+    hb_font_destroy(font);
   }
 
-  current_font = char_font[0];
-  unsigned int text_run_start = 0;
-  for (unsigned int i = 1; i <= embedding_size; ++i) {
-    if (i == embedding_size || char_font[i] != current_font) {
-      int error = 0;
-      FT_Face face = get_cached_face(last_shape_info.fallbacks[current_font].file,
-                                     last_shape_info.fallbacks[current_font].index,
-                                     size, res, &error);
-      if (error != 0) {
-        Rprintf("Failed to get face: %s, %i\n", last_shape_info.fallbacks[current_font].file, last_shape_info.fallbacks[current_font].index);
-        error_code = error;
-        return false;
+  if (ltr) {
+    current_font = char_font[0];
+    unsigned int text_run_start = 0;
+    for (unsigned int i = 1; i <= embedding_size; ++i) {
+      if (i == embedding_size || char_font[i] != current_font) {
+        int error = 0;
+        FT_Face face = get_cached_face(last_shape_info.fallbacks[current_font].file,
+                                       last_shape_info.fallbacks[current_font].index,
+                                       size, res, &error);
+        if (error != 0) {
+          Rprintf("Failed to get face: %s, %i\n", last_shape_info.fallbacks[current_font].file, last_shape_info.fallbacks[current_font].index);
+          error_code = error;
+          return false;
+        }
+        font = hb_ft_font_create(face, NULL);
+
+        hb_buffer_reset(buffer);
+        hb_buffer_add_utf32(buffer, string, string_length, start + text_run_start, i - text_run_start);
+        hb_buffer_guess_segment_properties(buffer);
+        hb_shape(font, buffer, features.data(), features.size());
+        glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
+        glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
+        fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font);
+        hb_font_destroy(font);
+
+        if (i < embedding_size) {
+          current_font = char_font[i];
+          if (current_font >= last_shape_info.fallbacks.size()) current_font = 0;
+          text_run_start = i;
+        }
       }
-      font = hb_ft_font_create(face, NULL);
+    }
+  } else {
+    current_font = char_font.back();
+    int text_run_end = embedding_size;
+    for (int i = text_run_end - 1; i >= 0; --i) {
+      if (i <= 0 || char_font[i - 1] != current_font) {
+        int error = 0;
+        FT_Face face = get_cached_face(last_shape_info.fallbacks[current_font].file,
+                                       last_shape_info.fallbacks[current_font].index,
+                                       size, res, &error);
+        if (error != 0) {
+          Rprintf("Failed to get face: %s, %i\n", last_shape_info.fallbacks[current_font].file, last_shape_info.fallbacks[current_font].index);
+          error_code = error;
+          return false;
+        }
+        font = hb_ft_font_create(face, NULL);
 
-      hb_buffer_reset(buffer);
-      hb_buffer_add_utf32(buffer, string, string_length, start + text_run_start, i - text_run_start);
-      hb_buffer_guess_segment_properties(buffer);
-      hb_shape(font, buffer, features.data(), features.size());
-      glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
-      glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
-      fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font);
-      hb_font_destroy(font);
+        hb_buffer_reset(buffer);
+        hb_buffer_add_utf32(buffer, string, string_length, start + i, text_run_end - i);
+        hb_buffer_guess_segment_properties(buffer);
+        hb_shape(font, buffer, features.data(), features.size());
+        glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
+        glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
+        fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font);
+        hb_font_destroy(font);
 
-      if (i < embedding_size) {
-        current_font = char_font[i];
-        if (current_font >= last_shape_info.fallbacks.size()) current_font = 0;
-        text_run_start = i;
+        if (i > 0) {
+          current_font = char_font[i - 1];
+          if (current_font >= last_shape_info.fallbacks.size()) current_font = 0;
+          text_run_end = i;
+        }
       }
     }
   }
+
 
   return true;
 }
@@ -624,12 +669,19 @@ void HarfBuzzShaper::annotate_fallbacks(unsigned int font, unsigned int offset,
                                         std::vector<unsigned int>& char_font,
                                         hb_glyph_info_t* glyph_info,
                                         unsigned int n_glyphs,
-                                        bool& needs_fallback, bool& any_resolved) {
+                                        bool& needs_fallback, bool& any_resolved,
+                                        bool ltr, unsigned int string_offset) {
   unsigned int current_cluster = glyph_info[0].cluster;
   unsigned int cluster_start = 0;
 
   for (unsigned int i = 1; i <= n_glyphs; ++i) {
     if (i == n_glyphs || glyph_info[i].cluster != current_cluster) {
+      unsigned int next_cluster;
+      if (ltr) {
+        next_cluster = i < n_glyphs ? glyph_info[i].cluster : char_font.size() + string_offset;
+      } else {
+        next_cluster = cluster_start > 0 ? glyph_info[cluster_start - 1].cluster : char_font.size() + string_offset;
+      }
       bool has_glyph = true;
       for (unsigned int j = cluster_start; j < i; ++j) {
         if (glyph_info[j].codepoint == 0) {
@@ -638,8 +690,8 @@ void HarfBuzzShaper::annotate_fallbacks(unsigned int font, unsigned int offset,
       }
       if (!has_glyph) {
         needs_fallback = true;
-        for (unsigned int j = cluster_start; j < i; ++j) {
-          char_font[j + offset] = font;
+        for (unsigned int j = current_cluster; j < next_cluster; ++j) {
+          char_font[j - string_offset] = font;
         }
       } else {
         any_resolved = true;

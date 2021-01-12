@@ -182,7 +182,8 @@ private:
   void annotate_fallbacks(unsigned int font, unsigned int offset,
                           std::vector<unsigned int>& char_font,
                           hb_glyph_info_t* glyph_info, unsigned int n_glyphs,
-                          bool& needs_fallback, bool& any_resolved);
+                          bool& needs_fallback, bool& any_resolved, bool ltr,
+                          unsigned int string_offset);
   void fill_shape_info(hb_glyph_info_t* glyph_info, hb_glyph_position_t* glyph_pos,
                        unsigned int n_glyphs, hb_font_t* font, unsigned int font_id);
 
