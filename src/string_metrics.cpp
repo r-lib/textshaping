@@ -289,7 +289,8 @@ int ts_string_width(const char* string, FontSettings font_info, double size,
 int ts_string_shape(const char* string, FontSettings font_info, double size,
                     double res, std::vector<Point>& loc, std::vector<uint32_t>& id,
                     std::vector<int>& cluster, std::vector<unsigned int>& font,
-                    std::vector<FontSettings>& fallbacks) {
+                    std::vector<FontSettings>& fallbacks,
+                    std::vector<double>& fallback_scaling) {
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
   bool success = shaper.single_line_shape(
@@ -309,6 +310,7 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
   id.assign(shaper.last_shape_info.glyph_id.begin(), shaper.last_shape_info.glyph_id.end());
   font.assign(shaper.last_shape_info.font.begin(), shaper.last_shape_info.font.end());
   fallbacks.assign(shaper.last_shape_info.fallbacks.begin(), shaper.last_shape_info.fallbacks.end());
+  fallback_scaling.assign(shaper.last_shape_info.fallback_scaling.begin(), shaper.last_shape_info.fallback_scaling.end());
 
   END_CPP11_NO_RETURN
   return 0;
@@ -323,7 +325,8 @@ int ts_string_shape_old(const char* string, FontSettings font_info, double size,
   std::vector<int> _cluster;
   std::vector<unsigned int> _font;
   std::vector<FontSettings> _fallbacks;
-  result = ts_string_shape(string, font_info, size, res, _loc, _id, _cluster, _font, _fallbacks);
+  std::vector<double> _fallback_scaling;
+  result = ts_string_shape(string, font_info, size, res, _loc, _id, _cluster, _font, _fallbacks, _fallback_scaling);
 
   if (result == 0) {
     *n_glyphs = max_length > _loc.size() ? _loc.size() : max_length;

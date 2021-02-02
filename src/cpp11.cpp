@@ -48,4 +48,5 @@ extern "C" void R_init_textshaping(DllInfo* dll){
   R_useDynamicSymbols(dll, FALSE);
   init_hb_shaper(dll);
   export_string_metrics(dll);
+  R_forceSymbols(dll, TRUE);
 }

@@ -17,10 +17,10 @@ RoxygenNote: 7.1.1
 Depends: 
     R (>= 3.2.0)
 Imports:
-    systemfonts (>= 0.3.0)
+    systemfonts (>= 1.0.0)
 LinkingTo: 
     cpp11 (>= 0.2.1),
-    systemfonts (>= 0.3.2.9000)
+    systemfonts (>= 1.0.0)
 SystemRequirements: 
     C++11,
     freetype2,
@@ -32,5 +32,4 @@ Suggests:
     covr,
     knitr,
     rmarkdown
-Remotes: r-lib/systemfonts
 VignetteBuilder: knitr

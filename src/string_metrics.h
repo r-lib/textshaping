@@ -36,7 +36,8 @@ int ts_string_width(const char* string, FontSettings font_info,
 int ts_string_shape(const char* string, FontSettings font_info, double size,
                     double res, std::vector<Point>& loc, std::vector<uint32_t>& id,
                     std::vector<int>& cluster, std::vector<unsigned int>& font,
-                    std::vector<FontSettings>& fallbacks);
+                    std::vector<FontSettings>& fallbacks,
+                    std::vector<double>& fallback_scaling);
 int ts_string_shape_old(const char* string, FontSettings font_info, double size,
                         double res, double* x, double* y, int* id, int* n_glyphs,
                         unsigned int max_length);

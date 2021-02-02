@@ -41,6 +41,7 @@ struct ShapeInfo {
   std::vector<int32_t> x_pos;
   std::vector<unsigned int> font;
   std::vector<FontSettings> fallbacks;
+  std::vector<double> fallback_scaling;
   int32_t width;
   int32_t left_bearing;
   int32_t right_bearing;
@@ -173,7 +174,7 @@ private:
   bool shape_glyphs(hb_font_t *font, const uint32_t *string, unsigned int n_chars);
   bool shape_embedding(const uint32_t* string, unsigned start, unsigned end,
                        unsigned int string_length, double size, double res,
-                       std::vector<hb_feature_t>& features);
+                       std::vector<hb_feature_t>& features, bool emoji);
   hb_font_t* load_fallback(unsigned int font, const uint32_t* string,
                            unsigned int start, unsigned int end, int& error,
                            double size, double res, bool& new_added);
@@ -187,6 +188,14 @@ private:
   void fill_shape_info(hb_glyph_info_t* glyph_info, hb_glyph_position_t* glyph_pos,
                        unsigned int n_glyphs, hb_font_t* font, unsigned int font_id);
 
+  inline double family_scaling(const char* family) {
+    if (strcmp("Apple Color Emoji", family) == 0) {
+      return 1.3;
+    } else if (strcmp("Noto Color Emoji", family) == 0) {
+      return 1.175;
+    }
+    return 1;
+  }
   inline bool glyph_is_linebreak(int id) {
     switch (id) {
     case 10: return true;
