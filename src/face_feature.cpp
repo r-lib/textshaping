@@ -45,6 +45,7 @@ writable::list get_face_features_c(strings path, integers index) {
     }
     hb_face_t *face = hb_ft_face_create_referenced(ft_face);
     writable::strings font_tags;
+
     // Get GPOS tags
     n_tags = hb_ot_layout_table_get_feature_tags(face, HB_OT_TAG_GPOS, 0, NULL, NULL);
     tags.clear();
@@ -53,11 +54,14 @@ writable::list get_face_features_c(strings path, integers index) {
       hb_tag_t tag;
       tags.push_back(tag);
     }
-    n_tags = hb_ot_layout_table_get_feature_tags(face, HB_OT_TAG_GPOS, 0, &n_tags, &tags[0]);
-    for (size_t j = 0; j < n_tags; ++j) {
-      hb_tag_to_string(tags[j], tag_temp);
-      font_tags.push_back(tag_temp);
+    if (n_tags > 0) {
+      n_tags = hb_ot_layout_table_get_feature_tags(face, HB_OT_TAG_GPOS, 0, &n_tags, &tags[0]);
+      for (size_t j = 0; j < n_tags; ++j) {
+        hb_tag_to_string(tags[j], tag_temp);
+        font_tags.push_back(tag_temp);
+      }
     }
+
     // Get GSUB tags — same as above
     n_tags = hb_ot_layout_table_get_feature_tags(face, HB_OT_TAG_GSUB, 0, NULL, NULL);
     tags.clear();
@@ -66,11 +70,14 @@ writable::list get_face_features_c(strings path, integers index) {
       hb_tag_t tag;
       tags.push_back(tag);
     }
-    n_tags = hb_ot_layout_table_get_feature_tags(face, HB_OT_TAG_GSUB, 0, &n_tags, &tags[0]);
-    for (size_t j = 0; j < n_tags; ++j) {
-      hb_tag_to_string(tags[j], tag_temp);
-      font_tags.push_back(tag_temp);
+    if (n_tags > 0) {
+      n_tags = hb_ot_layout_table_get_feature_tags(face, HB_OT_TAG_GSUB, 0, &n_tags, &tags[0]);
+      for (size_t j = 0; j < n_tags; ++j) {
+        hb_tag_to_string(tags[j], tag_temp);
+        font_tags.push_back(tag_temp);
+      }
     }
+
     features[i] = (SEXP) font_tags;
     hb_face_destroy(face);
   }
