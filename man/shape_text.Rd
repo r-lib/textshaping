@@ -98,6 +98,8 @@ about the full strings.
 }
 }
 \description{
+\ifelse{html}{\out{<a href='https://www.tidyverse.org/lifecycle/#experimental'><img src='figures/lifecycle-experimental.svg' alt='Experimental lifecycle'></a>}}{\strong{Experimental}}
+
 Do basic text shaping of strings. This function will use freetype to
 calculate advances, doing kerning if possible. It will not perform any font
 substitution or ligature resolving and will thus be much in line with how

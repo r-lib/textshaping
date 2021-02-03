@@ -1,5 +1,8 @@
 #' Calculate glyph positions for strings
 #'
+#' @description
+#' `r lifecycle::badge('experimental')`
+#'
 #' Do basic text shaping of strings. This function will use freetype to
 #' calculate advances, doing kerning if possible. It will not perform any font
 #' substitution or ligature resolving and will thus be much in line with how
