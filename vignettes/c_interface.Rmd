@@ -71,7 +71,8 @@ int string_shape(
   std::vector<uint32_t>& id, 
   std::vector<int>& cluster,
   std::vector<unsigned int>& font, 
-  std::vector<FontSettings>& fallbacks
+  std::vector<FontSettings>& fallbacks,
+  std::vector<double>& fallback_scaling
 )
 ```
 
@@ -89,6 +90,12 @@ relying on the characters in the input string due to the potential substitution
 and merging of glyphs happening during shaping. The `cluster` array is currently 
 unused (and will thus not be touched) but may in the future contain 
 identifications of which character in the input string relates to the provided 
-glyphs. The same is true for the `font` and `fallbacks` vectors, which in the
-future will hold information about font fallback but is currently unused. The 
-function returns 0 if successful.
+glyphs. The `font`, `fallback`, and `fallback_scaling` vectors will be filled 
+with information about the selected fonts for the shaping. The `font` vector 
+will map each glyph to a font in the `fallback` vector. The first element in the
+`fallback` vector will be the requested font, and if any additional elements 
+exist it will be due to font fallback occurring. The `fallback_scaling` vector 
+is holding information about how the shaping of non-scalable fonts has been 
+scaled. It contains one element for each elements in `fallback`. If the value is
+negative the font is scalable and no scaling of the metrics have occurred. If it
+is positive it is the value that has been multiplied to the glyph metrics.
