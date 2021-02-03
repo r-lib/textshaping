@@ -761,6 +761,7 @@ void HarfBuzzShaper::fill_shape_info(hb_glyph_info_t* glyph_info,
                                      unsigned int n_glyphs, hb_font_t* font,
                                      unsigned int font_id) {
   double scaling = last_shape_info.fallback_scaling[font_id];
+  if (scaling < 0) scaling = 1.0;
   hb_glyph_extents_t extent;
   int32_t x = last_shape_info.width;
   for (unsigned int i = 0; i < n_glyphs; ++i) {
