@@ -69,7 +69,8 @@ int ts_string_width(const char* string, FontSettings font_info, double size,
 int ts_string_shape(const char* string, FontSettings font_info, double size,
                     double res, std::vector<Point>& loc, std::vector<uint32_t>& id,
                     std::vector<int>& cluster, std::vector<unsigned int>& font,
-                    std::vector<FontSettings>& fallbacks) {
+                    std::vector<FontSettings>& fallbacks,
+                    std::vector<double>& fallback_scaling) {
   Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
   loc.clear();
   id.clear();
