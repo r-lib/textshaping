@@ -1,3 +1,5 @@
+# textshaping (development version)
+
 # textshaping 0.3.1
 
 * Try to avoid ASAN issue reported by CRAN
