@@ -1,5 +1,5 @@
-This is a feature release that adds font fallback to the shaping. There are no
-breaking changes and no reverse dependency issues have been detected.
+This is a very small patch release to hopefully address the ASAN issues surfaced
+by the ragg CRAN checks
 
 ## Test environments
 
