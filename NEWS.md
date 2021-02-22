@@ -1,5 +1,7 @@
 # textshaping (development version)
 
+* Try to avoid ASAN issue reported by CRAN
+
 # textshaping 0.3.0
 
 * Add support for performing font fallback as part of the single-line shaping
