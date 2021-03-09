@@ -1,5 +1,7 @@
 # textshaping (development version)
 
+* Avoid overindexing fallbacks when no fallback is found
+
 # textshaping 0.3.1
 
 * Try to avoid ASAN issue reported by CRAN

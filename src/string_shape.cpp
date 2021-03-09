@@ -645,6 +645,13 @@ bool HarfBuzzShaper::shape_embedding(const uint32_t* string, unsigned start,
     hb_font_destroy(font);
   }
 
+  // Make sure char_font does not point to non-existing fonts
+  for (size_t i = 0; i < char_font.size(); ++i) {
+    if (char_font[i] >= char_font.size()) {
+      char_font[i] = 0;
+    }
+  }
+
   if (ltr) {
     current_font = char_font[0];
     unsigned int text_run_start = 0;
