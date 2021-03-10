@@ -1,4 +1,4 @@
-# textshaping (development version)
+# textshaping 0.3.2
 
 * Avoid overindexing fallbacks when no fallback is found
 
