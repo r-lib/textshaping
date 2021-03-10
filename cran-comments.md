@@ -1,5 +1,5 @@
-This is a very small patch release to hopefully address the ASAN issues surfaced
-by the ragg CRAN checks
+This is a very small patch release that addresses a rare container overflow bug.
+It may fix the ragg ASAN issue as well
 
 ## Test environments
 
