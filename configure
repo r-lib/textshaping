@@ -12,7 +12,12 @@ PKG_RPM_NAME="harfbuzz-devel fribidi-devel"
 PKG_CSW_NAME="libharfbuzz_dev libfribidi_dev"
 PKG_BREW_NAME="harfbuzz fribidi"
 PKG_TEST_HEADER="#include <hb-ft.h>"
-PKG_LIBS="-lfreetype -lharfbuzz -lfribidi"
+PKG_LIBS="-lfreetype -lharfbuzz -lfribidi -lpng"
+
+# Support static linking for binary packages on MacOS
+if [ `uname` = "Darwin" ]; then
+PKG_CONFIG_NAME="--static $PKG_CONFIG_NAME"
+fi
 
 # Use pkg-config if available
 if [ "`command -v pkg-config`" ]; then
