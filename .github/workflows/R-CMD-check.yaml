@@ -81,7 +81,7 @@ jobs:
 
       - name: Remove homebrew
         if: matrix.config.autobrew
-        uses: r-universe-org/uninstall-homebrew@master
+        uses: autobrew/uninstall-homebrew@master
 
       - name: Install dependencies
         run: |
