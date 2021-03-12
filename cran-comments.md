@@ -1,5 +1,5 @@
-This is a very small patch release that addresses a rare container overflow bug.
-It may fix the ragg ASAN issue as well
+This release is in response to a request by CRAN to improve the configure script
+for macOS
 
 ## Test environments
 
