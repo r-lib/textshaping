@@ -1,4 +1,4 @@
-# textshaping (development version)
+# textshaping 0.3.3
 
 * Support static linking on macOS (#17, @jeroen)
 
