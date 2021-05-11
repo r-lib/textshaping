@@ -6,21 +6,21 @@
 
 #define R_NO_REMAP
 
-#define END_CPP11_NO_RETURN                                      \
-  }                                                              \
-  catch (cpp11::unwind_exception & e) {                          \
-    err = e.token;                                               \
-  }                                                              \
-  catch (std::exception & e) {                                   \
-    strncpy(buf, e.what(), ERROR_SIZE - 1);                      \
-  }                                                              \
-  catch (...) {                                                  \
-    strncpy(buf, "C++ error (unknown cause)", ERROR_SIZE - 1);   \
-  }                                                              \
-  if (buf[0] != '\0') {                                          \
-    Rf_error("%s", buf);                                         \
-  } else if (err != R_NilValue) {                                \
-    CPP11_UNWIND                                                 \
+#define END_CPP11_NO_RETURN                                \
+  }                                                        \
+  catch (cpp11::unwind_exception & e) {                    \
+    err = e.token;                                         \
+  }                                                        \
+  catch (std::exception & e) {                             \
+    strncpy(buf, e.what(), 8192 - 1);                      \
+  }                                                        \
+  catch (...) {                                            \
+    strncpy(buf, "C++ error (unknown cause)", 8192 - 1);   \
+  }                                                        \
+  if (buf[0] != '\0') {                                    \
+    Rf_error("%s", buf);                                   \
+  } else if (err != R_NilValue) {                          \
+    CPP11_UNWIND                                           \
   }
 
 /*
