@@ -1,6 +1,6 @@
 Package: textshaping
 Title: Bindings to the 'HarfBuzz' and 'Fribidi' Libraries for Text Shaping
-Version: 0.3.3.9000
+Version: 0.3.4
 Authors@R: c(
     person("Thomas Lin", "Pedersen", , "thomas.pedersen@rstudio.com", c("cre", "aut"), comment = c(ORCID = "0000-0002-5147-4711")),
     person("RStudio", role = "cph")
