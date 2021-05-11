@@ -8,7 +8,7 @@ PKG_CPPFLAGS = \
 	-I${RWINLIB}/include/fribidi \
 	-I${RWINLIB}/include/freetype2
 
-PKG_LIBS = -L${RWINLIB}/lib${R_ARCH} \
+PKG_LIBS = -L${RWINLIB}/lib${R_ARCH}${CRT} \
 	-lharfbuzz -lfreetype -lfribidi -lpng -lz
 
 all: clean winlibs
