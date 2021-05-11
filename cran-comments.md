@@ -1,5 +1,4 @@
-This release is in response to a request by CRAN to improve the configure script
-for macOS
+This is a small release addressing upstream changes
 
 ## Test environments
 
