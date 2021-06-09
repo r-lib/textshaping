@@ -1,3 +1,5 @@
+# textshaping (development version)
+
 # textshaping 0.3.5
 
 * Address an UBCSAN issue in packages linking to textshaping
