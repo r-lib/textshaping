@@ -51,7 +51,7 @@ writable::list get_face_features_c(strings path, integers index) {
     tags.clear();
     tags.reserve(n_tags);
     for (size_t j = 0; j < n_tags; ++j) {
-      hb_tag_t tag;
+      hb_tag_t tag = {};
       tags.push_back(tag);
     }
     if (n_tags > 0) {
@@ -67,7 +67,7 @@ writable::list get_face_features_c(strings path, integers index) {
     tags.clear();
     tags.reserve(n_tags);
     for (size_t j = 0; j < n_tags; ++j) {
-      hb_tag_t tag;
+      hb_tag_t tag = {};
       tags.push_back(tag);
     }
     if (n_tags > 0) {

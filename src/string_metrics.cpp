@@ -67,7 +67,7 @@ int ts_string_width(const char* string, FontSettings font_info, double size,
 }
 
 int ts_string_shape(const char* string, FontSettings font_info, double size,
-                    double res, std::vector<Point>& loc, std::vector<uint32_t>& id,
+                    double res, std::vector<textshaping::Point>& loc, std::vector<uint32_t>& id,
                     std::vector<int>& cluster, std::vector<unsigned int>& font,
                     std::vector<FontSettings>& fallbacks,
                     std::vector<double>& fallback_scaling) {
@@ -288,7 +288,7 @@ int ts_string_width(const char* string, FontSettings font_info, double size,
 }
 
 int ts_string_shape(const char* string, FontSettings font_info, double size,
-                    double res, std::vector<Point>& loc, std::vector<uint32_t>& id,
+                    double res, std::vector<textshaping::Point>& loc, std::vector<uint32_t>& id,
                     std::vector<int>& cluster, std::vector<unsigned int>& font,
                     std::vector<FontSettings>& fallbacks,
                     std::vector<double>& fallback_scaling) {
@@ -309,10 +309,10 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
     fallback_scaling.clear();
   } else {
     for (int i = 0; i < n_glyphs; ++i) {
-      loc.emplace_back(
+      loc.push_back({
         double(shaper.last_shape_info.x_pos[i]) / 64.0,
         0.0
-      );
+      });
     }
     id.assign(shaper.last_shape_info.glyph_id.begin(), shaper.last_shape_info.glyph_id.end());
     font.assign(shaper.last_shape_info.font.begin(), shaper.last_shape_info.font.end());
@@ -328,7 +328,7 @@ int ts_string_shape_old(const char* string, FontSettings font_info, double size,
                         unsigned int max_length) {
   int result = 0;
   BEGIN_CPP11
-  std::vector<Point> _loc;
+  std::vector<textshaping::Point> _loc;
   std::vector<uint32_t> _id;
   std::vector<int> _cluster;
   std::vector<unsigned int> _font;

@@ -17,9 +17,6 @@ namespace textshaping {
 struct Point {
   double x;
   double y;
-
-  Point() : x(0.0), y(0.0) {}
-  Point(double _x, double _y) : x(_x), y(_y) {}
 };
 
 // Calculate the width of a string based on a fontfile, index, size, and
@@ -48,7 +45,7 @@ static inline int string_shape(const char* string, FontSettings font_info,
   }
   return p_ts_string_shape(string, font_info, size, res, loc, id, cluster, font, fallbacks, fallback_scaling);
 }
-};
+}
 
 
 // Old API ---------------------------------------------------------------------
