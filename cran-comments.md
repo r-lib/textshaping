@@ -1,4 +1,4 @@
-This is a small release addressing upstream changes
+This release addresses a sanitizer error in packages linking to textshaping
 
 ## Test environments
 
