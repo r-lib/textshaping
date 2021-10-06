@@ -1,5 +1,8 @@
 # textshaping (development version)
 
+* Fix a bug in fallback font loading which would crash the process if the font 
+  failed to load (#23)
+
 # textshaping 0.3.5
 
 * Address an UBCSAN issue in packages linking to textshaping

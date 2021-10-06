@@ -804,17 +804,17 @@ hb_font_t*  HarfBuzzShaper::load_fallback(unsigned int font, const uint32_t* str
                                  last_shape_info.fallbacks[font].index,
                                  size, res, &error);
 
+  if (error != 0) {
+    return NULL;
+  }
+
   if (font >= last_shape_info.fallback_scaling.size()) {
     double scaling = FT_IS_SCALABLE(face) ? -1 : size * 64.0 / face->size->metrics.height;
     scaling *= family_scaling(face->family_name);
     last_shape_info.fallback_scaling.push_back(scaling);
   }
 
-  if (error == 0) {
-    return hb_ft_font_create(face, NULL);
-  } else {
-    return NULL;
-  }
+  return hb_ft_font_create(face, NULL);
 }
 
 bool HarfBuzzShaper::fallback_cluster(unsigned int font, std::vector<unsigned int>& char_font, unsigned int from, unsigned int& start, unsigned int& end) {
