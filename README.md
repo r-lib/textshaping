@@ -5,12 +5,11 @@
 
 <!-- badges: start -->
 
-[![R build
-status](https://github.com/r-lib/textshaping/workflows/R-CMD-check/badge.svg)](https://github.com/r-lib/textshaping/actions)
 [![CRAN
 status](https://www.r-pkg.org/badges/version/textshaping)](https://CRAN.R-project.org/package=textshaping)
 [![Lifecycle:
 stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://lifecycle.r-lib.org/articles/stages.html#stable)
+[![R-CMD-check](https://github.com/r-lib/textshaping/workflows/R-CMD-check/badge.svg)](https://github.com/r-lib/textshaping/actions)
 <!-- badges: end -->
 
 This package is a low level package that provides advanced text shaping
