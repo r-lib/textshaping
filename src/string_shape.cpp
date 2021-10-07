@@ -647,7 +647,7 @@ bool HarfBuzzShaper::shape_embedding(const uint32_t* string, unsigned start,
 
   // Make sure char_font does not point to non-existing fonts
   for (size_t i = 0; i < char_font.size(); ++i) {
-    if (char_font[i] >= char_font.size()) {
+    if (char_font[i] >= last_shape_info.fallbacks.size()) {
       char_font[i] = 0;
     }
   }
