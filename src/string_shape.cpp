@@ -145,7 +145,7 @@ bool HarfBuzzShaper::add_string(const char* string, const char* fontfile,
 }
 
 bool HarfBuzzShaper::finish_string() {
-  if (glyph_id.size() == 0) {
+  if (glyph_id.empty()) {
     return true;
   }
   bool first_char = true;
@@ -534,7 +534,7 @@ bool HarfBuzzShaper::shape_embedding(const uint32_t* string, unsigned start,
     return false;
   }
 
-  if (last_shape_info.fallback_scaling.size() == 0) {
+  if (last_shape_info.fallback_scaling.empty()) {
     double scaling = FT_IS_SCALABLE(face) ? -1 : size * 64.0 / face->size->metrics.height;
     scaling *= family_scaling(face->family_name);
     last_shape_info.fallback_scaling.push_back(scaling);
@@ -772,7 +772,7 @@ void HarfBuzzShaper::fill_shape_info(hb_glyph_info_t* glyph_info,
   hb_glyph_extents_t extent;
   int32_t x = last_shape_info.width;
   for (unsigned int i = 0; i < n_glyphs; ++i) {
-    if (last_shape_info.x_pos.size() == 0)  {
+    if (last_shape_info.x_pos.empty())  {
       hb_font_get_glyph_extents(font, glyph_info[i].codepoint, &extent);
       last_shape_info.left_bearing = extent.x_bearing * scaling;
     }
