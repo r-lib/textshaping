@@ -21,7 +21,6 @@ LinkingTo:
     cpp11 (>= 0.2.1),
     systemfonts (>= 1.0.0)
 SystemRequirements: 
-    C++11,
     freetype2,
     harfbuzz,
     fribidi
