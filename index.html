@@ -22,6 +22,8 @@
 <![endif]-->
 </head>
 <body data-spy="scroll" data-target="#toc">
+    
+
     <div class="container template-home">
       <header><div class="navbar navbar-default navbar-fixed-top" role="navigation">
   <div class="container">
@@ -34,23 +36,17 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="index.html">textshaping</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">0.3.6.9000</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.3.6.9000</span>
       </span>
     </div>
 
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
 <li>
-  <a href="index.html">
-    <span class="fas fa-home fa-lg"></span>
-     
-  </a>
-</li>
-<li>
   <a href="reference/index.html">Reference</a>
 </li>
 <li class="dropdown">
-  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
     Articles
      
     <span class="caret"></span>
@@ -67,7 +63,7 @@
       </ul>
 <ul class="nav navbar-nav navbar-right">
 <li>
-  <a href="https://github.com/r-lib/textshaping/">
+  <a href="https://github.com/r-lib/textshaping/" class="external-link">
     <span class="fab fa-github fa-lg"></span>
      
   </a>
@@ -84,81 +80,91 @@
 
       </header><div class="row">
   <div class="contents col-md-9">
-<div id="textshaping" class="section level1">
-<div class="page-header"><h1 class="hasAnchor">
-<a href="#textshaping" class="anchor"></a>textshaping</h1></div>
+<div class="section level1">
+<div class="page-header"><h1 id="textshaping">textshaping<a class="anchor" aria-label="anchor" href="#textshaping"></a>
+</h1></div>
 <!-- badges: start -->
 
-<p>This package is a low level package that provides advanced text shaping capabilities to graphic devices. It is based on the <a href="https://github.com/fribidi/fribidi">FriBidi</a> and <a href="https://harfbuzz.github.io">HarfBuzz</a> libraries and provides full support for correctly shaping left-to-right, right-to-left, and bidirectional text with full support for all OpenType features such as ligatures, stylistic glyph substitutions, etc.</p>
-<p>For an example of a package that uses textshaping to support advanced text layout see <a href="https://ragg.r-lib.org">ragg</a>.</p>
-<p>A big thanks to <a href="http://behdad.org">Behdad Esfahbod</a> who is the main author of both FriBidi and HarfBuzz and has been very helpful answering questions during the course of development.</p>
-<div id="installation" class="section level2">
-<h2 class="hasAnchor">
-<a href="#installation" class="anchor"></a>Installation</h2>
-<p>You can install textshaping from CRAN with <code><a href="https://rdrr.io/r/utils/install.packages.html">install.packages("textshaping")</a></code>. For the development version you can install it from Github with devtools:</p>
+<p>This package is a low level package that provides advanced text shaping capabilities to graphic devices. It is based on the <a href="https://github.com/fribidi/fribidi" class="external-link">FriBidi</a> and <a href="https://harfbuzz.github.io" class="external-link">HarfBuzz</a> libraries and provides full support for correctly shaping left-to-right, right-to-left, and bidirectional text with full support for all OpenType features such as ligatures, stylistic glyph substitutions, etc.</p>
+<p>For an example of a package that uses textshaping to support advanced text layout see <a href="https://ragg.r-lib.org" class="external-link">ragg</a>.</p>
+<p>A big thanks to <a href="http://behdad.org" class="external-link">Behdad Esfahbod</a> who is the main author of both FriBidi and HarfBuzz and has been very helpful answering questions during the course of development.</p>
+<div class="section level2">
+<h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
+</h2>
+<p>You can install textshaping from CRAN with <code>install.packages("textshaping")</code>. For the development version you can install it from Github with devtools:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="fu">devtools</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"r-lib/textshaping"</span><span class="op">)</span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"r-lib/textshaping"</span><span class="op">)</span></span></code></pre></div>
 <p>Note that you will need both the development versions of FriBidi and HarfBuzz to successfully compile it.</p>
 </div>
-<div id="code-of-conduct" class="section level2">
-<h2 class="hasAnchor">
-<a href="#code-of-conduct" class="anchor"></a>Code of Conduct</h2>
-<p>Please note that the textshaping project is released with a <a href="https://contributor-covenant.org/version/2/0/CODE_OF_CONDUCT.html">Contributor Code of Conduct</a>. By contributing to this project, you agree to abide by its terms.</p>
+<div class="section level2">
+<h2 id="code-of-conduct">Code of Conduct<a class="anchor" aria-label="anchor" href="#code-of-conduct"></a>
+</h2>
+<p>Please note that the textshaping project is released with a <a href="https://contributor-covenant.org/version/2/0/CODE_OF_CONDUCT.html" class="external-link">Contributor Code of Conduct</a>. By contributing to this project, you agree to abide by its terms.</p>
 </div>
 </div>
   </div>
 
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
     <div class="links">
-<h2>Links</h2>
+<h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
-<li>Download from CRAN at <br><a href="https://cloud.r-project.org/package=textshaping">https://​cloud.r-project.org/​package=textshaping</a>
-</li>
-<li>Browse source code at <br><a href="https://github.com/r-lib/textshaping/">https://​github.com/​r-lib/​textshaping/​</a>
-</li>
-<li>Report a bug at <br><a href="https://github.com/r-lib/textshaping/issues">https://​github.com/​r-lib/​textshaping/​issues</a>
-</li>
+<li><a href="https://cloud.r-project.org/package=textshaping" class="external-link">View on CRAN</a></li>
+<li><a href="https://github.com/r-lib/textshaping/" class="external-link">Browse source code</a></li>
+<li><a href="https://github.com/r-lib/textshaping/issues" class="external-link">Report a bug</a></li>
 </ul>
 </div>
+
 <div class="license">
-<h2>License</h2>
+<h2 data-toc-skip>License</h2>
 <ul class="list-unstyled">
 <li><a href="LICENSE.html">Full license</a></li>
-<li><small><a href="https://opensource.org/licenses/mit-license.php">MIT</a> + file <a href="LICENSE-text.html">LICENSE</a></small></li>
+<li><small><a href="https://opensource.org/licenses/mit-license.php" class="external-link">MIT</a> + file <a href="LICENSE-text.html">LICENSE</a></small></li>
 </ul>
 </div>
+
 <div class="community">
-<h2>Community</h2>
+<h2 data-toc-skip>Community</h2>
 <ul class="list-unstyled">
 <li><a href="CODE_OF_CONDUCT.html">Code of conduct</a></li>
 </ul>
 </div>
-<div class="developers">
-<h2>Developers</h2>
+
+<div class="citation">
+<h2 data-toc-skip>Citation</h2>
 <ul class="list-unstyled">
-<li>Thomas Lin Pedersen <br><small class="roles"> Maintainer, author </small> <a href="https://orcid.org/0000-0002-5147-4711" target="orcid.widget" aria-label="ORCID"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a> </li>
-<li><a href="authors.html">All authors...</a></li>
+<li><a href="authors.html#citation">Citing textshaping</a></li>
 </ul>
 </div>
 
-  <div class="dev-status">
-<h2>Dev status</h2>
+<div class="developers">
+<h2 data-toc-skip>Developers</h2>
 <ul class="list-unstyled">
-<li><a href="https://CRAN.R-project.org/package=textshaping"><img src="https://www.r-pkg.org/badges/version/textshaping" alt="CRAN status"></a></li>
-<li><a href="https://lifecycle.r-lib.org/articles/stages.html#stable"><img src="https://img.shields.io/badge/lifecycle-stable-brightgreen.svg" alt="Lifecycle: stable"></a></li>
-<li><a href="https://github.com/r-lib/textshaping/actions"><img src="https://github.com/r-lib/textshaping/workflows/R-CMD-check/badge.svg" alt="R-CMD-check"></a></li>
+<li>Thomas Lin Pedersen <br><small class="roles"> Maintainer, author </small> <a href="https://orcid.org/0000-0002-5147-4711" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a> </li>
+<li><a href="authors.html">More about authors...</a></li>
 </ul>
 </div>
+
+<div class="dev-status">
+<h2 data-toc-skip>Dev status</h2>
+<ul class="list-unstyled">
+<li><a href="https://CRAN.R-project.org/package=textshaping" class="external-link"><img src="https://www.r-pkg.org/badges/version/textshaping" alt="CRAN status"></a></li>
+<li><a href="https://lifecycle.r-lib.org/articles/stages.html#stable" class="external-link"><img src="https://img.shields.io/badge/lifecycle-stable-brightgreen.svg" alt="Lifecycle: stable"></a></li>
+<li><a href="https://github.com/r-lib/textshaping/actions" class="external-link"><img src="https://github.com/r-lib/textshaping/workflows/R-CMD-check/badge.svg" alt="R-CMD-check"></a></li>
+</ul>
 </div>
+
+  </div>
 </div>
 
 
       <footer><div class="copyright">
-  <p>Developed by Thomas Lin Pedersen.</p>
+  <p></p>
+<p>Developed by Thomas Lin Pedersen.</p>
 </div>
 
 <div class="pkgdown">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.6.1.</p>
+  <p></p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.7.</p>
 </div>
 
       </footer>
@@ -166,6 +172,8 @@
 
   
 
+
+  
 
   </body>
 </html>
