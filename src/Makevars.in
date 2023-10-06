@@ -1,5 +1,3 @@
-CXX_STD = CXX11
-
 PKG_CPPFLAGS = -DNDEBUG @cflags@
 PKG_LIBS = @libs@
 
