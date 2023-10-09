@@ -3,6 +3,7 @@
 
 
 #include "cpp11/declarations.hpp"
+#include <R_ext/Visibility.h>
 
 // face_feature.h
 cpp11::writable::list get_face_features_c(cpp11::strings path, cpp11::integers index);
@@ -27,11 +28,6 @@ extern "C" SEXP _textshaping_get_line_width_c(SEXP string, SEXP path, SEXP index
 }
 
 extern "C" {
-/* .Call calls */
-extern SEXP _textshaping_get_face_features_c(SEXP, SEXP);
-extern SEXP _textshaping_get_line_width_c(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
-extern SEXP _textshaping_get_string_shape_c(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
-
 static const R_CallMethodDef CallEntries[] = {
     {"_textshaping_get_face_features_c", (DL_FUNC) &_textshaping_get_face_features_c,  2},
     {"_textshaping_get_line_width_c",    (DL_FUNC) &_textshaping_get_line_width_c,     6},
@@ -43,7 +39,7 @@ static const R_CallMethodDef CallEntries[] = {
 void init_hb_shaper(DllInfo* dll);
 void export_string_metrics(DllInfo* dll);
 
-extern "C" void R_init_textshaping(DllInfo* dll){
+extern "C" attribute_visible void R_init_textshaping(DllInfo* dll){
   R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
   R_useDynamicSymbols(dll, FALSE);
   init_hb_shaper(dll);

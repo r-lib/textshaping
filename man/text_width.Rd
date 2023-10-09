@@ -32,10 +32,7 @@ text_width(
 \item{include_bearing}{Logical, should left and right bearing be included in
 the string width?}
 
-\item{path}{path an index of a font file to circumvent lookup based on
-family and style}
-
-\item{index}{path an index of a font file to circumvent lookup based on
+\item{path, index}{path an index of a font file to circumvent lookup based on
 family and style}
 }
 \value{

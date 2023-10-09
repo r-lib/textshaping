@@ -6,10 +6,7 @@
 \alias{textshaping-package}
 \title{textshaping: Bindings to the 'HarfBuzz' and 'Fribidi' Libraries for Text Shaping}
 \description{
-Provides access to the text shaping functionality in the 'HarfBuzz'
-    library and the bidirectional algorithm in the 'Fribidi' library. 
-    'textshaping' is a low-level utility package mainly for graphic devices that 
-    expands upon the font tool-set provided by the 'systemfonts' package.
+Provides access to the text shaping functionality in the 'HarfBuzz' library and the bidirectional algorithm in the 'Fribidi' library. 'textshaping' is a low-level utility package mainly for graphic devices that expands upon the font tool-set provided by the 'systemfonts' package.
 }
 \seealso{
 Useful links:
@@ -20,11 +17,11 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Thomas Lin Pedersen \email{thomas.pedersen@rstudio.com} (\href{https://orcid.org/0000-0002-5147-4711}{ORCID})
+\strong{Maintainer}: Thomas Lin Pedersen \email{thomas.pedersen@posit.co} (\href{https://orcid.org/0000-0002-5147-4711}{ORCID})
 
 Other contributors:
 \itemize{
-  \item RStudio [copyright holder]
+  \item Posit, PBC [copyright holder, funder]
 }
 
 }

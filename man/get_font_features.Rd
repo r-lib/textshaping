@@ -19,10 +19,7 @@ get_font_features(
 
 \item{bold}{logicals indicating the font style}
 
-\item{path}{path an index of a font file to circumvent lookup based on
-family and style}
-
-\item{index}{path an index of a font file to circumvent lookup based on
+\item{path, index}{path an index of a font file to circumvent lookup based on
 family and style}
 }
 \value{
