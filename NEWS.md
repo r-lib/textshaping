@@ -1,3 +1,5 @@
+# textshaping (development version)
+
 # textshaping 0.3.7
 
 * Prepare for Arm Windows
