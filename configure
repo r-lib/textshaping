@@ -41,7 +41,7 @@ elif [ "`uname`" = "Darwin" ]; then
     PKG_CFLAGS="-I$BREWDIR/include/freetype2 -I$BREWDIR/include/harfbuzz -I$BREWDIR/include/glib-2.0  -I$BREWDIR/include/fribidi"
   else
     curl -sfL "https://autobrew.github.io/scripts/harfbuzz" > autobrew
-    . autobrew
+    . ./autobrew
   fi
 fi
 
