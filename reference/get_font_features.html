@@ -62,7 +62,7 @@ more information on how to use the different feature with a font."><!-- mathjax 
 
     <div class="ref-description">
     <p>This is a simply functions that returns the available OpenType feature tags
-for one or more fonts. See <code><a href="https://rdrr.io/pkg/systemfonts/man/font_feature.html" class="external-link">font_feature()</a></code> for
+for one or more fonts. See <code><a href="https://systemfonts.r-lib.org/reference/font_feature.html" class="external-link">font_feature()</a></code> for
 more information on how to use the different feature with a font.</p>
     </div>
 
@@ -106,15 +106,14 @@ supported feature tags for that font.</p>
     <div id="ref-examples">
     <h2>Examples</h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Select a random font on the system</span></span></span>
-<span class="r-in"><span><span class="va">sys_fonts</span> <span class="op">&lt;-</span> <span class="fu">systemfonts</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/systemfonts/man/system_fonts.html" class="external-link">system_fonts</a></span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">sys_fonts</span> <span class="op">&lt;-</span> <span class="fu">systemfonts</span><span class="fu">::</span><span class="fu"><a href="https://systemfonts.r-lib.org/reference/system_fonts.html" class="external-link">system_fonts</a></span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">random_font</span> <span class="op">&lt;-</span> <span class="va">sys_fonts</span><span class="op">$</span><span class="va">family</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">sys_fonts</span><span class="op">)</span>, <span class="fl">1</span><span class="op">)</span><span class="op">]</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Get the features</span></span></span>
 <span class="r-in"><span><span class="fu">get_font_features</span><span class="op">(</span><span class="va">random_font</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [[1]]</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  [1] "kern" "calt" "case" "ccmp" "dlig" "dnom" "frac" "liga" "lnum" "locl"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [11] "numr" "onum" "ordn" "pnum" "salt" "sinf" "ss01" "ss02" "ss03" "ss04"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [21] "subs" "sups" "tnum"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [1] "mark" "mkmk" "rtbd" "case" "ccmp" "dlig" "fina" "init" "liga" "locl"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [11] "medi" "rlig"</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
