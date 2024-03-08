@@ -59,7 +59,10 @@
 
     <div class="section level2">
 <h2 class="page-header" data-toc-text="development version" id="textshaping-development-version">textshaping (development version)<a class="anchor" aria-label="anchor" href="#textshaping-development-version"></a></h2>
-</div>
+<ul><li>Fixed height calculation in <code><a href="../reference/shape_text.html">shape_text()</a></code> to avoid an extra line of height</li>
+<li>Fixed width calculation in <code><a href="../reference/shape_text.html">shape_text()</a></code> to ignore width of terminal line-break characters</li>
+<li>Added <code>'justified'</code> and <code>'distributed'</code> options to <code>align</code> in <code><a href="../reference/shape_text.html">shape_text()</a></code> to either expand spaces to fit line width to full width, or distribute all glyphs to fit line width to full width</li>
+</ul></div>
     <div class="section level2">
 <h2 class="page-header" data-toc-text="0.3.7" id="textshaping-037">textshaping 0.3.7<small>2023-10-09</small><a class="anchor" aria-label="anchor" href="#textshaping-037"></a></h2>
 <ul><li>Prepare for Arm Windows</li>

@@ -112,14 +112,14 @@ features registered to the font.</p>
 <div class="section level2">
 <h2 id="string-width">String width<a class="anchor" aria-label="anchor" href="#string-width"></a>
 </h2>
-<div class="sourceCode" id="cb2"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> string_width<span class="op">(</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">const</span> <span class="dt">char</span><span class="op">*</span> string<span class="op">,</span> </span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  FontSettings font_info<span class="op">,</span> </span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">double</span> size<span class="op">,</span> </span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">double</span> res<span class="op">,</span> </span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> include_bearing<span class="op">,</span> </span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">double</span><span class="op">*</span> width</span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="dt">int</span> string_width<span class="op">(</span></span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>  <span class="dt">const</span> <span class="dt">char</span><span class="op">*</span> string<span class="op">,</span> </span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>  FontSettings font_info<span class="op">,</span> </span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>  <span class="dt">double</span> size<span class="op">,</span> </span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>  <span class="dt">double</span> res<span class="op">,</span> </span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>  <span class="dt">int</span> include_bearing<span class="op">,</span> </span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="dt">double</span><span class="op">*</span> width</span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a><span class="op">)</span></span></code></pre></div>
 <p>This function calculates the width of a string, ignoring any newlines
 (these are automatically being handled by the graphic engine). It takes
 a UTF-8 encoded string, along with a FontSettings struct to use for
@@ -133,18 +133,18 @@ and return 0 if successful.</p>
 <div class="section level2">
 <h2 id="string-shape">String shape<a class="anchor" aria-label="anchor" href="#string-shape"></a>
 </h2>
-<div class="sourceCode" id="cb3"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> string_shape<span class="op">(</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">const</span> <span class="dt">char</span><span class="op">*</span> string<span class="op">,</span> </span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  FontSettings font_info<span class="op">,</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">double</span> size<span class="op">,</span> </span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">double</span> res<span class="op">,</span> </span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  std<span class="op">::</span>vector<span class="op">&lt;</span>Point<span class="op">&gt;&amp;</span> loc<span class="op">,</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  std<span class="op">::</span>vector<span class="op">&lt;</span><span class="dt">uint32_t</span><span class="op">&gt;&amp;</span> id<span class="op">,</span> </span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  std<span class="op">::</span>vector<span class="op">&lt;</span><span class="dt">int</span><span class="op">&gt;&amp;</span> cluster<span class="op">,</span></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>  std<span class="op">::</span>vector<span class="op">&lt;</span><span class="dt">unsigned</span> <span class="dt">int</span><span class="op">&gt;&amp;</span> font<span class="op">,</span> </span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>  std<span class="op">::</span>vector<span class="op">&lt;</span>FontSettings<span class="op">&gt;&amp;</span> fallbacks<span class="op">,</span></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>  std<span class="op">::</span>vector<span class="op">&lt;</span><span class="dt">double</span><span class="op">&gt;&amp;</span> fallback_scaling</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="dt">int</span> string_shape<span class="op">(</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>  <span class="dt">const</span> <span class="dt">char</span><span class="op">*</span> string<span class="op">,</span> </span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>  FontSettings font_info<span class="op">,</span></span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  <span class="dt">double</span> size<span class="op">,</span> </span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="dt">double</span> res<span class="op">,</span> </span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>  std<span class="op">::</span>vector<span class="op">&lt;</span>Point<span class="op">&gt;&amp;</span> loc<span class="op">,</span></span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  std<span class="op">::</span>vector<span class="op">&lt;</span><span class="dt">uint32_t</span><span class="op">&gt;&amp;</span> id<span class="op">,</span> </span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  std<span class="op">::</span>vector<span class="op">&lt;</span><span class="dt">int</span><span class="op">&gt;&amp;</span> cluster<span class="op">,</span></span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  std<span class="op">::</span>vector<span class="op">&lt;</span><span class="dt">unsigned</span> <span class="dt">int</span><span class="op">&gt;&amp;</span> font<span class="op">,</span> </span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>  std<span class="op">::</span>vector<span class="op">&lt;</span>FontSettings<span class="op">&gt;&amp;</span> fallbacks<span class="op">,</span></span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a>  std<span class="op">::</span>vector<span class="op">&lt;</span><span class="dt">double</span><span class="op">&gt;&amp;</span> fallback_scaling</span>
+<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a><span class="op">)</span></span></code></pre></div>
 <p>This function takes care of all the nitty-gritty of shaping a single
 line of text. It takes the same font information input as
 <code>string_width()</code>, that is, a <code>FontSettings</code> struct
