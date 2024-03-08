@@ -26,6 +26,7 @@ std::vector<int32_t> HarfBuzzShaper::ascenders = {};
 std::vector<int32_t> HarfBuzzShaper::descenders = {};
 std::vector<bool> HarfBuzzShaper::may_break = {};
 std::vector<bool> HarfBuzzShaper::must_break = {};
+std::vector<bool> HarfBuzzShaper::may_stretch = {};
 ShapeID HarfBuzzShaper::last_shape_id = {};
 ShapeID HarfBuzzShaper::temp_shape_id = {};
 ShapeInfo HarfBuzzShaper::last_shape_info = {};
@@ -62,7 +63,6 @@ bool HarfBuzzShaper::shape_string(const char* string, const char* fontfile,
 
   max_width = width;
   indent = ind;
-  pen_x = indent;
   hanging = hang;
   space_before = before;
   space_after = after;
@@ -200,7 +200,7 @@ bool HarfBuzzShaper::finish_string() {
     }
 
     // If last char update terminal line info
-    if (last) {
+    if (last && !linebreak) {
       last_nonspace_width = pen_x + x_advance[i];
       last_nonspace_bear = right_bear[i];
     }
@@ -242,7 +242,7 @@ bool HarfBuzzShaper::finish_string() {
       } else {
         pen_x = soft_wrap ? hanging : indent;
       }
-      pen_y = first_line ? 0 : pen_y - line_height;
+      pen_y -= first_line ? 0 : line_height;
       bottom -= line_height;
       // Fill up y_pos based on calculated pen position
       for (; glyph_counter < x_pos.size(); ++glyph_counter) {
@@ -278,15 +278,57 @@ bool HarfBuzzShaper::finish_string() {
       first_char = false;
     }
   }
-  height = top_border - bottom - max_descend;
+  height = top_border - pen_y - max_descend + space_after;
   bottom_bearing = max_bottom_extend - max_descend;
   int max_width_ind = std::max_element(line_width.begin(), line_width.end()) - line_width.begin();
   width = max_width < 0 ? line_width[max_width_ind] : max_width;
-  if (cur_align != 0) {
+  if (cur_align == 1 || cur_align == 2) {
     for (unsigned int i = 0; i < x_pos.size(); ++i) {
       int index = line_id[i];
-      int lwd = line_width[index];
+      int32_t lwd = line_width[index];
       x_pos[i] = cur_align == 1 ? x_pos[i] + width/2 - lwd/2 : x_pos[i] + width - lwd;
+    }
+  }
+  if (cur_align == 3) {
+    std::vector<size_t> n_stretches(line_width.size(), 0);
+    std::vector<bool> no_stretch(line_width.size(), false);
+    for (unsigned int i = 0; i < x_pos.size(); ++i) {
+      int index = line_id[i];
+      no_stretch[index] = no_stretch[index] || must_break[i];
+      if (may_stretch[i] && i-1 < x_pos.size() && index == line_id[i+1]) {
+        n_stretches[index]++;
+      }
+    }
+    int32_t cum_move = 0;
+    for (unsigned int i = 0; i < x_pos.size(); ++i) {
+      int index = line_id[i];
+      if (no_stretch[index]) continue;
+      if (i == 0 || line_id[i-1] != index) {
+        cum_move = 0;
+      }
+      x_pos[i] += cum_move;
+      if (may_stretch[i]) {
+        cum_move += (width - line_width[index]) / n_stretches[index];
+      }
+    }
+  }
+  if (cur_align == 4) {
+    std::vector<size_t> n_glyphs(line_width.size(), 0);
+    for (unsigned int i = 0; i < x_pos.size(); ++i) {
+      int index = line_id[i];
+      if (!must_break[i] && i-1 < x_pos.size() && index == line_id[i+1]) {
+        n_glyphs[index]++;
+      }
+      if (i == x_pos.size()-1) n_glyphs[index]++;
+    }
+    int32_t cum_move = 0;
+    for (unsigned int i = 0; i < x_pos.size(); ++i) {
+      int index = line_id[i];
+      if (i == 0 || line_id[i-1] != index) {
+        cum_move = 0;
+      }
+      x_pos[i] += cum_move;
+      cum_move += (width - line_width[index]) / (n_glyphs[index]-1);
     }
   }
   double width_diff = width - line_width[max_width_ind];
@@ -431,6 +473,7 @@ void HarfBuzzShaper::reset() {
   descenders.clear();
   may_break.clear();
   must_break.clear();
+  may_stretch.clear();
 
   pen_x = 0;
   pen_y = 0;
@@ -484,9 +527,11 @@ bool HarfBuzzShaper::shape_glyphs(hb_font_t *font, const uint32_t *string, unsig
     if (cluster < n_chars) {
       may_break.push_back(glyph_is_breaker(string[cluster]));
       must_break.push_back(glyph_is_linebreak(string[cluster]));
+      may_stretch.push_back(glyph_may_stretch(string[cluster]));
     } else {
       may_break.push_back(false);
       must_break.push_back(false);
+      may_stretch.push_back(false);
     }
 
     string_id.push_back(cur_string);

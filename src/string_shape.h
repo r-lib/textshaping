@@ -155,6 +155,7 @@ private:
   static std::vector<int32_t> descenders;
   static std::vector<bool> may_break;
   static std::vector<bool> must_break;
+  static std::vector<bool> may_stretch;
   std::vector<int32_t> line_left_bear;
   std::vector<int32_t> line_right_bear;
   std::vector<int32_t> line_width;
@@ -230,6 +231,13 @@ private:
     case 8205: return true;
     case 8287: return true;
     case 12288: return true;
+    }
+    return false;
+  }
+
+  inline bool glyph_may_stretch(int id) {
+    switch (id) {
+    case 32: return true;
     }
     return false;
   }

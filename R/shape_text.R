@@ -14,8 +14,8 @@
 #' shaping will continue between strings
 #' @inheritParams systemfonts::font_info
 #' @param lineheight A multiplier for the lineheight
-#' @param align Within text box alignment, either `'left'`, `'center'`, or
-#' `'right'`
+#' @param align Within text box alignment, either `'left'`, `'center'`, `'right'`,
+#' `'justified'`, or `'distributed'`
 #' @param hjust,vjust The justification of the textbox surrounding the text
 #' @param width The requested with of the string in inches. Setting this to
 #' something other than `NA` will turn on word wrapping.
@@ -115,8 +115,8 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
   if (length(size) != 1) size <- rep_len(size, n_strings)[ido]
   if (length(res) != 1) res <- rep_len(res, n_strings)[ido]
   if (length(lineheight) != 1) lineheight <- rep_len(lineheight, n_strings)[ido]
-  align <- match.arg(align, c('left', 'center', 'right'), TRUE)
-  align <- match(align, c('left', 'center', 'right'))
+  align <- match.arg(align, c('left', 'center', 'right', 'justified', 'distributed'), TRUE)
+  align <- match(align, c('left', 'center', 'right', 'justified', 'distributed'))
   if (length(align) != 1) align <- rep_len(align, n_strings)[ido]
   if (length(hjust) != 1) hjust <- rep_len(hjust, n_strings)[ido]
   if (length(vjust) != 1) vjust <- rep_len(vjust, n_strings)[ido]
