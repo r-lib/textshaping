@@ -38,13 +38,24 @@ struct ShapeID {
 };
 struct ShapeInfo {
   std::vector<unsigned int> glyph_id;
-  std::vector<int32_t> x_pos;
+  std::vector<unsigned int> glyph_cluster;
+  std::vector<int32_t> x_advance;
+  std::vector<int32_t> y_advance;
+  std::vector<int32_t> x_offset;
+  std::vector<int32_t> y_offset;
+  std::vector<int32_t> x_bear;
+  std::vector<int32_t> y_bear;
+  std::vector<int32_t> width;
+  std::vector<int32_t> height;
+  std::vector<int32_t> ascenders;
+  std::vector<int32_t> descenders;
+  std::vector<bool> may_break;
+  std::vector<bool> must_break;
+  std::vector<bool> may_stretch;
   std::vector<unsigned int> font;
   std::vector<FontSettings> fallbacks;
   std::vector<double> fallback_scaling;
-  int32_t width;
-  int32_t left_bearing;
-  int32_t right_bearing;
+  bool ltr;
 };
 namespace std {
 template <>
@@ -104,6 +115,7 @@ public:
   static std::vector<int32_t> x_pos;
   static std::vector<int32_t> y_pos;
   static std::vector<int32_t> x_mid;
+  static std::vector<int32_t> y_mid;
   int32_t width;
   int32_t height;
   int32_t left_bearing;
@@ -114,7 +126,7 @@ public:
   int32_t left_border;
   int32_t pen_x;
   int32_t pen_y;
-  static ShapeInfo last_shape_info;
+  static std::vector<ShapeInfo> shape_infos;
 
   int error_code;
 
@@ -127,16 +139,13 @@ public:
                   double size, double tracking);
   bool finish_string();
 
-
-  bool single_line_shape(const char* string, FontSettings font_info, double size,
-                         double res);
+  ShapeInfo shape_text_run(const char* string, FontSettings font_info, double size,
+                           double res);
 
 private:
   static UTF_UCS utf_converter;
   static LRU_Cache<std::string, std::vector<int> > bidi_cache;
   static LRU_Cache<ShapeID, ShapeInfo> shape_cache;
-  static ShapeID last_shape_id;
-  static ShapeID temp_shape_id;
   hb_buffer_t *buffer;
   double cur_lineheight;
   int cur_align;
@@ -175,10 +184,12 @@ private:
   bool shape_glyphs(hb_font_t *font, const uint32_t *string, unsigned int n_chars);
   bool shape_embedding(const uint32_t* string, unsigned start, unsigned end,
                        unsigned int string_length, double size, double res,
-                       std::vector<hb_feature_t>& features, bool emoji);
+                       std::vector<hb_feature_t>& features, bool emoji,
+                       ShapeInfo& shape_info);
   hb_font_t* load_fallback(unsigned int font, const uint32_t* string,
                            unsigned int start, unsigned int end, int& error,
-                           double size, double res, bool& new_added);
+                           double size, double res, bool& new_added,
+                           ShapeInfo& shape_info);
   bool fallback_cluster(unsigned int font, std::vector<unsigned int>& char_font,
                         unsigned int from, unsigned int& start, unsigned int& end);
   void annotate_fallbacks(unsigned int font, unsigned int offset,
@@ -187,7 +198,10 @@ private:
                           bool& needs_fallback, bool& any_resolved, bool ltr,
                           unsigned int string_offset);
   void fill_shape_info(hb_glyph_info_t* glyph_info, hb_glyph_position_t* glyph_pos,
-                       unsigned int n_glyphs, hb_font_t* font, unsigned int font_id);
+                       unsigned int n_glyphs, hb_font_t* font, unsigned int font_id,
+                       ShapeInfo& shape_info);
+  void fill_glyph_info(const uint32_t* string, unsigned start, unsigned length,
+                       ShapeInfo& shape_info);
 
   inline double family_scaling(const char* family) {
     if (strcmp("Apple Color Emoji", family) == 0) {
@@ -197,7 +211,7 @@ private:
     }
     return 1;
   }
-  inline bool glyph_is_linebreak(int id) {
+  inline bool glyph_is_linebreak(int32_t id) {
     switch (id) {
     case 10: return true;
     case 11: return true;
@@ -210,7 +224,7 @@ private:
     return false;
   }
 
-  inline bool glyph_is_breaker(int id) {
+  inline bool glyph_is_breaker(int32_t id) {
     switch (id) {
     case 9: return true;
     case 32: return true;
@@ -235,7 +249,7 @@ private:
     return false;
   }
 
-  inline bool glyph_may_stretch(int id) {
+  inline bool glyph_may_stretch(int32_t id) {
     switch (id) {
     case 32: return true;
     }

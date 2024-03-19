@@ -268,18 +268,23 @@ int ts_string_width(const char* string, FontSettings font_info, double size,
                     double res, int include_bearing, double* width) {
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
-  bool success = shaper.single_line_shape(
+  shaper.error_code = 0;
+  const ShapeInfo string_shape = shaper.shape_text_run(
     string, font_info, size, res
   );
 
-  if (!success) {
+  if (shaper.error_code != 0) {
     return shaper.error_code;
   }
 
-  int32_t width_tmp = shaper.last_shape_info.width;
+  int32_t width_tmp = 0;
+  for (size_t i = 0; i < string_shape.glyph_id.size(); ++i) {
+    width_tmp += string_shape.x_advance[i];
+  }
+
   if (!include_bearing) {
-    width_tmp -= shaper.last_shape_info.left_bearing;
-    width_tmp -= shaper.last_shape_info.right_bearing;
+    width_tmp -= string_shape.x_bear[0];
+    width_tmp -= string_shape.x_advance.back() - string_shape.x_bear.back() - string_shape.width.back();
   }
   *width = double(width_tmp) / 64.0;
 
@@ -294,31 +299,35 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
                     std::vector<double>& fallback_scaling) {
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
-  bool success = shaper.single_line_shape(
+  shaper.error_code = 0;
+  const ShapeInfo string_shape = shaper.shape_text_run(
     string, font_info, size, res
   );
-  if (!success) {
+
+  if (shaper.error_code != 0) {
     return shaper.error_code;
   }
-  int n_glyphs = shaper.last_shape_info.x_pos.size();
+
+  size_t n_glyphs = string_shape.glyph_id.size();
   loc.clear();
-  if (n_glyphs == 0) {
-    id.clear();
-    font.clear();
-    fallbacks.clear();
-    fallback_scaling.clear();
-  } else {
-    for (int i = 0; i < n_glyphs; ++i) {
-      loc.push_back({
-        double(shaper.last_shape_info.x_pos[i]) / 64.0,
-        0.0
-      });
-    }
-    id.assign(shaper.last_shape_info.glyph_id.begin(), shaper.last_shape_info.glyph_id.end());
-    font.assign(shaper.last_shape_info.font.begin(), shaper.last_shape_info.font.end());
-    fallbacks.assign(shaper.last_shape_info.fallbacks.begin(), shaper.last_shape_info.fallbacks.end());
-    fallback_scaling.assign(shaper.last_shape_info.fallback_scaling.begin(), shaper.last_shape_info.fallback_scaling.end());
+  id.clear();
+  font.clear();
+  fallbacks.clear();
+  fallback_scaling.clear();
+  int32_t x = 0;
+  int32_t y = 0;
+  for (int i = 0; i < n_glyphs; ++i) {
+    loc.push_back({
+      double(x + string_shape.x_offset[i]) / 64.0,
+      double(y + string_shape.y_offset[i]) / 64.0
+    });
+    x += string_shape.x_advance[i];
+    y += string_shape.y_advance[i];
   }
+  id.assign(string_shape.glyph_id.begin(), string_shape.glyph_id.end());
+  font.assign(string_shape.font.begin(), string_shape.font.end());
+  fallbacks.assign(string_shape.fallbacks.begin(), string_shape.fallbacks.end());
+  fallback_scaling.assign(string_shape.fallback_scaling.begin(), string_shape.fallback_scaling.end());
 
   END_CPP11_NO_RETURN
   return 0;
