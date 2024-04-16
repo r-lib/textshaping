@@ -217,7 +217,7 @@ private:
                        unsigned int n_glyphs, hb_font_t* font, unsigned int font_id,
                        unsigned int cluster_offset, ShapeInfo& shape_info,
                        int32_t tracking);
-  void fill_glyph_info(const uint32_t* string, unsigned end, ShapeInfo& shape_info);
+  void fill_glyph_info(const uint32_t* string, int end, ShapeInfo& shape_info);
   size_t fill_out_width(size_t from, int32_t max, size_t shape, int& breaktype);
 
   inline double family_scaling(const char* family) {

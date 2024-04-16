@@ -243,7 +243,7 @@ bool HarfBuzzShaper::finish_string() {
     std::vector<size_t> n_stretches(line_width.size(), 0);
     std::vector<bool> no_stretch(line_width.size(), false);
     for (unsigned int i = 0; i < x_pos.size(); ++i) {
-      int index = line_id[i];
+      size_t index = line_id[i];
       no_stretch[index] = no_stretch[index] || index == line_width.size() - 1 || must_break[i];
       if (may_stretch[i] && i-1 < x_pos.size() && index == line_id[i+1]) {
         n_stretches[index]++;
@@ -853,7 +853,7 @@ void HarfBuzzShaper::fill_shape_info(hb_glyph_info_t* glyph_info,
   }
 }
 
-void HarfBuzzShaper::fill_glyph_info(const uint32_t* string, unsigned end,
+void HarfBuzzShaper::fill_glyph_info(const uint32_t* string, int end,
                                      ShapeInfo& shape_info) {
   for (size_t i = shape_info.must_break.size(); i < shape_info.glyph_cluster.size(); ++i) {
     int32_t cluster = shape_info.glyph_cluster[i];

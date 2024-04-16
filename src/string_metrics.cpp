@@ -326,7 +326,7 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
   fallback_scaling.clear();
   int32_t x = 0;
   int32_t y = 0;
-  for (int i = 0; i < n_glyphs; ++i) {
+  for (size_t i = 0; i < n_glyphs; ++i) {
     loc.push_back({
       double(x + string_shape.x_offset[i]) / 64.0,
       double(y + string_shape.y_offset[i]) / 64.0
