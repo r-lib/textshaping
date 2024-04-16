@@ -13,10 +13,10 @@ extern "C" SEXP _textshaping_get_face_features_c(SEXP path, SEXP index) {
   END_CPP11
 }
 // string_metrics.h
-list get_string_shape_c(strings string, integers id, strings path, integers index, doubles size, doubles res, doubles lineheight, integers align, doubles hjust, doubles vjust, doubles width, doubles tracking, doubles indent, doubles hanging, doubles space_before, doubles space_after);
-extern "C" SEXP _textshaping_get_string_shape_c(SEXP string, SEXP id, SEXP path, SEXP index, SEXP size, SEXP res, SEXP lineheight, SEXP align, SEXP hjust, SEXP vjust, SEXP width, SEXP tracking, SEXP indent, SEXP hanging, SEXP space_before, SEXP space_after) {
+list get_string_shape_c(strings string, integers id, strings path, integers index, list_of<list> features, doubles size, doubles res, doubles lineheight, integers align, doubles hjust, doubles vjust, doubles width, doubles tracking, doubles indent, doubles hanging, doubles space_before, doubles space_after);
+extern "C" SEXP _textshaping_get_string_shape_c(SEXP string, SEXP id, SEXP path, SEXP index, SEXP features, SEXP size, SEXP res, SEXP lineheight, SEXP align, SEXP hjust, SEXP vjust, SEXP width, SEXP tracking, SEXP indent, SEXP hanging, SEXP space_before, SEXP space_after) {
   BEGIN_CPP11
-    return cpp11::as_sexp(get_string_shape_c(cpp11::as_cpp<cpp11::decay_t<strings>>(string), cpp11::as_cpp<cpp11::decay_t<integers>>(id), cpp11::as_cpp<cpp11::decay_t<strings>>(path), cpp11::as_cpp<cpp11::decay_t<integers>>(index), cpp11::as_cpp<cpp11::decay_t<doubles>>(size), cpp11::as_cpp<cpp11::decay_t<doubles>>(res), cpp11::as_cpp<cpp11::decay_t<doubles>>(lineheight), cpp11::as_cpp<cpp11::decay_t<integers>>(align), cpp11::as_cpp<cpp11::decay_t<doubles>>(hjust), cpp11::as_cpp<cpp11::decay_t<doubles>>(vjust), cpp11::as_cpp<cpp11::decay_t<doubles>>(width), cpp11::as_cpp<cpp11::decay_t<doubles>>(tracking), cpp11::as_cpp<cpp11::decay_t<doubles>>(indent), cpp11::as_cpp<cpp11::decay_t<doubles>>(hanging), cpp11::as_cpp<cpp11::decay_t<doubles>>(space_before), cpp11::as_cpp<cpp11::decay_t<doubles>>(space_after)));
+    return cpp11::as_sexp(get_string_shape_c(cpp11::as_cpp<cpp11::decay_t<strings>>(string), cpp11::as_cpp<cpp11::decay_t<integers>>(id), cpp11::as_cpp<cpp11::decay_t<strings>>(path), cpp11::as_cpp<cpp11::decay_t<integers>>(index), cpp11::as_cpp<cpp11::decay_t<list_of<list>>>(features), cpp11::as_cpp<cpp11::decay_t<doubles>>(size), cpp11::as_cpp<cpp11::decay_t<doubles>>(res), cpp11::as_cpp<cpp11::decay_t<doubles>>(lineheight), cpp11::as_cpp<cpp11::decay_t<integers>>(align), cpp11::as_cpp<cpp11::decay_t<doubles>>(hjust), cpp11::as_cpp<cpp11::decay_t<doubles>>(vjust), cpp11::as_cpp<cpp11::decay_t<doubles>>(width), cpp11::as_cpp<cpp11::decay_t<doubles>>(tracking), cpp11::as_cpp<cpp11::decay_t<doubles>>(indent), cpp11::as_cpp<cpp11::decay_t<doubles>>(hanging), cpp11::as_cpp<cpp11::decay_t<doubles>>(space_before), cpp11::as_cpp<cpp11::decay_t<doubles>>(space_after)));
   END_CPP11
 }
 // string_metrics.h
@@ -31,7 +31,7 @@ extern "C" {
 static const R_CallMethodDef CallEntries[] = {
     {"_textshaping_get_face_features_c", (DL_FUNC) &_textshaping_get_face_features_c,  2},
     {"_textshaping_get_line_width_c",    (DL_FUNC) &_textshaping_get_line_width_c,     6},
-    {"_textshaping_get_string_shape_c",  (DL_FUNC) &_textshaping_get_string_shape_c,  16},
+    {"_textshaping_get_string_shape_c",  (DL_FUNC) &_textshaping_get_string_shape_c,  17},
     {NULL, NULL, 0}
 };
 }

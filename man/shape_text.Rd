@@ -9,21 +9,24 @@ shape_text(
   id = NULL,
   family = "",
   italic = FALSE,
-  bold = FALSE,
+  weight = "normal",
+  width = "normal",
+  features = font_feature(),
   size = 12,
   res = 72,
   lineheight = 1,
   align = "left",
   hjust = 0,
   vjust = 0,
-  width = NA,
+  max_width = NA,
   tracking = 0,
   indent = 0,
   hanging = 0,
   space_before = 0,
   space_after = 0,
   path = NULL,
-  index = 0
+  index = 0,
+  bold = deprecated()
 )
 }
 \arguments{
@@ -32,11 +35,12 @@ shape_text(
 \item{id}{A vector grouping the strings together. If strings share an id the
 shaping will continue between strings}
 
-\item{family}{The name of the font family}
+\item{family}{The name of the font families to match}
 
-\item{italic}{logicals indicating the font style}
+\item{italic}{logical indicating the font slant}
 
-\item{bold}{logicals indicating the font style}
+\item{width}{The requested with of the string in inches. Setting this to
+something other than \code{NA} will turn on word wrapping.}
 
 \item{size}{The pointsize of the font to use for size related measures}
 
@@ -44,13 +48,10 @@ shaping will continue between strings}
 
 \item{lineheight}{A multiplier for the lineheight}
 
-\item{align}{Within text box alignment, either \code{'left'}, \code{'center'}, or
-\code{'right'}}
+\item{align}{Within text box alignment, either \code{'left'}, \code{'center'}, \code{'right'},
+\code{'justified'}, or \code{'distributed'}}
 
 \item{hjust, vjust}{The justification of the textbox surrounding the text}
-
-\item{width}{The requested with of the string in inches. Setting this to
-something other than \code{NA} will turn on word wrapping.}
 
 \item{tracking}{Tracking of the glyphs (space adjustment) measured in 1/1000
 em.}
@@ -65,6 +66,8 @@ measured in points}
 
 \item{path, index}{path an index of a font file to circumvent lookup based on
 family and style}
+
+\item{bold}{logical indicating whether the font weight}
 }
 \value{
 A list with two element: \code{shape} contains the position of each glyph,

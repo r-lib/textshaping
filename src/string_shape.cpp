@@ -10,61 +10,19 @@
 UTF_UCS HarfBuzzShaper::utf_converter = UTF_UCS();
 LRU_Cache<std::string, std::vector<int> > HarfBuzzShaper::bidi_cache = {1000};
 LRU_Cache<ShapeID, ShapeInfo> HarfBuzzShaper::shape_cache = {1000};
-std::vector<unsigned int> HarfBuzzShaper::glyph_id = {};
-std::vector<unsigned int> HarfBuzzShaper::glyph_cluster = {};
-std::vector<unsigned int> HarfBuzzShaper::string_id = {};
-std::vector<int32_t> HarfBuzzShaper::x_pos = {};
-std::vector<int32_t> HarfBuzzShaper::y_pos = {};
-std::vector<int32_t> HarfBuzzShaper::x_mid = {};
-std::vector<int32_t> HarfBuzzShaper::x_advance = {};
-std::vector<int32_t> HarfBuzzShaper::x_offset = {};
-std::vector<int32_t> HarfBuzzShaper::left_bear = {};
-std::vector<int32_t> HarfBuzzShaper::right_bear = {};
-std::vector<int32_t> HarfBuzzShaper::top_extend = {};
-std::vector<int32_t> HarfBuzzShaper::bottom_extend = {};
-std::vector<int32_t> HarfBuzzShaper::ascenders = {};
-std::vector<int32_t> HarfBuzzShaper::descenders = {};
-std::vector<bool> HarfBuzzShaper::may_break = {};
-std::vector<bool> HarfBuzzShaper::must_break = {};
-std::vector<bool> HarfBuzzShaper::may_stretch = {};
-std::vector<ShapeInfo> HarfBuzzShaper::shape_infos = {};
 
-bool HarfBuzzShaper::shape_string(const char* string, const char* fontfile,
-                                  int index, double size, double res, double lineheight,
+bool HarfBuzzShaper::shape_string(const char* string, FontSettings& font_info,
+                                  double size, double res, double lineheight,
                                   int align, double hjust, double vjust, double width,
                                   double tracking, double ind, double hang, double before,
-                                  double after) {
+                                  double after, bool spacer) {
   reset();
-
-  int error = 0;
-  FT_Face face = get_cached_face(fontfile, index, size, res, &error);
-  if (error != 0) {
-    error_code = error;
-    return false;
-  }
-  hb_font_t *font = hb_ft_font_create(face, NULL);
-
-  int n_chars = 0;
-  const uint32_t* utc_string = utf_converter.convert_to_ucs(string, n_chars);
-
-  std::vector<int> embeddings = {};
-
-  if (n_chars > 1) {
-    std::string key(string);
-    if (!bidi_cache.get(key, embeddings)) {
-      embeddings = get_bidi_embeddings(utc_string, n_chars);
-      bidi_cache.add(key, embeddings);
-    }
-  } else {
-    embeddings.push_back(0);
-  }
 
   max_width = width;
   indent = ind;
   hanging = hang;
   space_before = before;
   space_after = after;
-  cur_tracking = tracking;
 
   cur_res = res;
   cur_lineheight = lineheight;
@@ -72,212 +30,205 @@ bool HarfBuzzShaper::shape_string(const char* string, const char* fontfile,
   cur_hjust = hjust;
   cur_vjust = vjust;
 
-  int start = 0;
-  for (size_t i = 0; i < embeddings.size(); ++i) {
-    if (i == embeddings.size() - 1 || embeddings[i] != embeddings[i + 1]) {
-      hb_buffer_reset(buffer);
-      hb_buffer_add_utf32(buffer, utc_string, n_chars, start, i - start + 1);
-      hb_buffer_guess_segment_properties(buffer);
+  return add_string(string, font_info, size, tracking, spacer);
+}
 
-      bool success = shape_glyphs(font, utc_string + start, i - start + 1);
-      if (!success) {
-        return false;
-      }
-
-      start = i + 1;
-    }
+bool HarfBuzzShaper::add_string(const char* string, FontSettings& font_info,
+                                double size, double tracking, bool spacer) {
+  if (spacer) {
+    return add_spacer(size, tracking);
   }
 
-  hb_font_destroy(font);
+  error_code = 0;
+  shape_infos.push_back(shape_text_run(string, font_info, size, cur_res, tracking));
+
+  if (error_code != 0) {
+    shape_infos.pop_back();
+    return false;
+  }
   //FT_Done_Face(face);
   return true;
 }
-
-bool HarfBuzzShaper::add_string(const char* string, const char* fontfile,
-                                int index, double size, double tracking) {
-  cur_string++;
-  int error = 0;
-  FT_Face face = get_cached_face(fontfile, index, size, cur_res, &error);
-  if (error != 0) {
-    error_code = error;
-    return false;
-  }
-  hb_font_t *font = hb_ft_font_create(face, NULL);
-
-  int n_chars = 0;
-  const uint32_t* utc_string = utf_converter.convert_to_ucs(string, n_chars);
-
-  std::vector<int> embeddings = {};
-
-  if (n_chars > 1) {
-    std::string key(string);
-    if (!bidi_cache.get(key, embeddings)) {
-      embeddings = get_bidi_embeddings(utc_string, n_chars);
-      bidi_cache.add(key, embeddings);
-    }
-  } else {
-    embeddings.push_back(0);
-  }
-
-  cur_tracking = tracking;
-
-  int start = 0;
-  for (size_t i = 0; i < embeddings.size(); ++i) {
-    if (i == embeddings.size() - 1 || embeddings[i] != embeddings[i + 1]) {
-      hb_buffer_reset(buffer);
-      hb_buffer_add_utf32(buffer, utc_string, n_chars, start, i - start + 1);
-      hb_buffer_guess_segment_properties(buffer);
-
-      bool success = shape_glyphs(font, utc_string + start, i - start + 1);
-      if (!success) {
-        return false;
-      }
-
-      start = i + 1;
-    }
-  }
-
-  hb_font_destroy(font);
-  //FT_Done_Face(face);
+bool HarfBuzzShaper::add_spacer(double height, double width) {
+  width *= 64.0 / 72.0;
+  double space_height = height * 64.0 * cur_res / 72.0;
+  shape_infos.push_back({
+    {0}, // glyph_id
+    {0}, // glyph_cluster
+    {int32_t(width)}, // x_advance
+    {0}, // y_advance
+    {0}, // x_offset
+    {0}, // y_offset
+    {0}, // x_bear
+    {int32_t(space_height)}, // y_bear
+    {int32_t(width)}, // width
+    {int32_t(space_height)}, // height
+    {int32_t(space_height)}, // ascenders
+    {0}, // descenders
+    {false}, // may_break
+    {false}, // must_break
+    {false}, // may_stretch
+    {0}, // font
+    {{"", 0, NULL, 0}}, // fallbacks
+    {height}, // fallback_size
+    {-1}, // fallback_scaling
+    true // ltr
+  });
   return true;
 }
 
 bool HarfBuzzShaper::finish_string() {
-  if (glyph_id.empty()) {
+  if (shape_infos.empty()) {
     return true;
   }
+  bool vertical = false;
+
+  if (vertical) {
+    pen_y = indent;
+    pen_x = 0;
+  } else {
+    pen_x = indent;
+    pen_y = 0;
+  }
+
   bool first_char = true;
   bool first_line = true;
-  pen_x += indent;
-  int last_space = -1;
-  int32_t last_nonspace_width = 0;
-  int32_t last_nonspace_bear = 0;
   int cur_line = 0;
-  double line_height = 0;
-  size_t glyph_counter = 0;
   int32_t max_descend = 0;
   int32_t max_ascend = 0;
   int32_t max_top_extend = 0;
   int32_t max_bottom_extend = 0;
   int32_t last_max_descend = 0;
-  bool no_break_last = true;
+  int breaktype = 0;
+  int32_t cur_linewidth = 0;
+  int32_t cur_left_bear = 0;
+  int32_t cur_right_bear = 0;
+  size_t last_line_start = 0;
 
-  for (unsigned int i = 0; i < glyph_id.size(); ++i) {
-    bool linebreak = must_break[i];
-    bool might_break = may_break[i];
-    bool last = i == glyph_id.size() - 1;
+  for (size_t j = 0; j < shape_infos.size(); ++j) {
+    ShapeInfo& cur_shape = shape_infos[j];
+    bool last_shape = j == shape_infos.size() - 1;
+    size_t start = cur_shape.ltr ? 0 : cur_shape.glyph_id.size();
 
-    bool soft_wrap = false;
-
-    if (might_break || linebreak) {
-      last_space = i;
-      if (no_break_last) {
-        last_nonspace_width = pen_x;
-        last_nonspace_bear = i == 0 ? 0 : right_bear[i - 1];
-      }
-    }
-    no_break_last = !might_break;
-
-    // Calculate top and bottom extend and ascender/descender
-
-
-    // Soft wrapping?
-    if (max_width > 0 && !first_char && pen_x + x_advance[i] > max_width && !might_break && !linebreak) {
-      // Rewind to last breaking char and set the soft_wrap flag
-      i = last_space >= 0 ? last_space : i - 1;
-      x_pos.resize(i + 1);
-      x_mid.resize(i + 1);
-      line_id.resize(i + 1);
-      soft_wrap = true;
-      last = false;
-    } else {
-      // No soft wrap, record pen position
-      x_pos.push_back(pen_x + x_offset[i]);
-      x_mid.push_back(x_advance[i] / 2);
-      line_id.push_back(cur_line);
-    }
-
-    // If last char update terminal line info
-    if (last && !linebreak) {
-      last_nonspace_width = pen_x + x_advance[i];
-      last_nonspace_bear = right_bear[i];
-    }
-    if (first_char) {
-      line_left_bear.push_back(left_bear[i]);
-      pen_y -= space_before;
-    }
-
-    // Handle new lines
-    if (linebreak || soft_wrap || last) {
-      // Record and reset line dim info
-      line_right_bear.push_back(last_nonspace_bear);
-      line_width.push_back(last_nonspace_width);
-      last_nonspace_bear = 0;
-      last_nonspace_width = 0;
-      last_space = -1;
-      no_break_last = true;
-
-      // Calculate line dimensions
-      for (size_t j = glyph_counter; j < x_pos.size(); ++j) {
-        if (max_ascend < ascenders[j]) {
-          max_ascend = ascenders[j];
-        }
-        if (max_top_extend < top_extend[j]) {
-          max_top_extend = top_extend[j];
-        }
-        if (max_descend > descenders[j]) {
-          max_descend = descenders[j];
-        }
-        if (max_bottom_extend > bottom_extend[j]) {
-          max_bottom_extend = bottom_extend[j];
-        }
-      }
-
-      // Move pen based on indent and line height
-      line_height = (max_ascend - last_max_descend) * cur_lineheight;
-      if (last) {
-        pen_x = (linebreak || soft_wrap) ? 0 : pen_x + x_advance[i];
+    while (true) {
+      size_t end;
+      bool last;
+      if (cur_shape.glyph_id.size() == 0) {
+        end = 0;
+        last = last_shape;
+        max_ascend = std::max(max_ascend, cur_shape.ascenders[0]);
+        max_descend = std::min(max_descend, cur_shape.descenders[0]);
       } else {
-        pen_x = soft_wrap ? hanging : indent;
-      }
-      pen_y -= first_line ? 0 : line_height;
-      bottom -= line_height;
-      // Fill up y_pos based on calculated pen position
-      for (; glyph_counter < x_pos.size(); ++glyph_counter) {
-        y_pos.push_back(pen_y);
-      }
-      // Move pen_y further down based on paragraph spacing
-      // TODO: Add per string paragraph spacing
-      if (linebreak) {
-        pen_y -= space_after;
-        if (last) {
-          pen_y -= line_height;
-          bottom -= line_height;
+        end = fill_out_width(start, max_width - pen_x, j, breaktype);
+        last = last_shape && end == (cur_shape.ltr ? cur_shape.glyph_id.size() : 0);
+        for (size_t i = std::min(start, end); i < std::max(start, end); ++i) {
+          glyph_id.push_back(cur_shape.glyph_id[i]);
+          glyph_cluster.push_back(cur_shape.glyph_cluster[i]);
+          fontfile.push_back(cur_shape.fallbacks[cur_shape.font[i]].file);
+          fontindex.push_back(cur_shape.fallbacks[cur_shape.font[i]].index);
+          fontsize.push_back(cur_shape.fallback_size[cur_shape.font[i]]);
+          advance.push_back(cur_shape.x_advance[i]);
+          ascender.push_back(cur_shape.ascenders[i]);
+          descender.push_back(cur_shape.descenders[i]);
+
+          string_id.push_back(j);
+          line_id.push_back(cur_line);
+          x_pos.push_back(pen_x + cur_shape.x_offset[i]);
+          y_pos.push_back(pen_y + cur_shape.y_offset[i]);
+
+          must_break.push_back(cur_shape.must_break[i]);
+          may_stretch.push_back(cur_shape.may_stretch[i]);
+
+          if (vertical) {
+            pen_y += cur_shape.y_advance[i];
+            if (first_char) cur_left_bear = cur_shape.y_bear[i];
+            if (!cur_shape.may_break[i] || (cur_shape.ltr && first_char)) {
+              cur_linewidth += pen_y;
+              cur_right_bear = cur_shape.y_bear[i] + cur_shape.height[i];
+            }
+
+            // TODO: Awaiting knowledge on glyph metrics returned with vertical layouts
+            max_ascend = std::max(max_ascend, cur_shape.ascenders[i]);
+            max_top_extend = std::max(max_top_extend, cur_shape.y_bear[i]);
+            max_descend = std::max(max_descend, cur_shape.descenders[i]);
+            max_bottom_extend = std::max(max_bottom_extend, cur_shape.height[i] + cur_shape.y_bear[i]);
+
+
+          } else {
+            pen_x += cur_shape.x_advance[i];
+            if (first_char) cur_left_bear = cur_shape.x_bear[i];
+            if ((!cur_shape.may_break[i] && !cur_shape.must_break[i]) || (cur_shape.ltr && first_char)) {
+              cur_linewidth = pen_x;
+              cur_right_bear = cur_shape.x_advance[i] - cur_shape.x_bear[i] - cur_shape.width[i];
+            }
+
+            max_ascend = std::max(max_ascend, cur_shape.ascenders[i]);
+            max_top_extend = std::max(max_top_extend, cur_shape.y_bear[i]);
+            max_descend = std::min(max_descend, cur_shape.descenders[i]);
+            max_bottom_extend = std::min(max_bottom_extend, cur_shape.height[i] + cur_shape.y_bear[i]);
+          }
+
+          if (!cur_shape.may_break[i]) first_char = false;
         }
       }
-      if (first_line) {
-        top_border = max_ascend;
-        top_bearing = top_border - max_top_extend;
-      }
-      // Reset flags and counters
-      last_max_descend = max_descend;
-      if (!last) {
-        max_ascend = 0;
-        max_descend = 0;
-        max_top_extend = 0;
-        max_bottom_extend = 0;
+
+      if (breaktype != 0 || last) {
+        line_width.push_back(cur_linewidth);
+        line_left_bear.push_back(cur_left_bear);
+        line_right_bear.push_back(cur_right_bear);
+
+        if (first_line) {
+          top_border = max_ascend + space_before;
+          top_bearing = top_border - max_top_extend;
+        }
+
+        double line_height = first_line ? 0 : (max_ascend - last_max_descend) * cur_lineheight;
+        for (size_t k = last_line_start; k < y_pos.size(); ++k) {
+          if (vertical) {
+            x_pos[k] -= line_height;
+          } else {
+            y_pos[k] -= line_height;
+          }
+        }
+        if (vertical) {
+          pen_x -= line_height + (breaktype == 2 ? space_after + (last ? 0 : space_before) : 0);
+          pen_y = last ? (breaktype != 0 ? 0 : pen_y) : (breaktype == 1 ? hanging : indent);
+
+        } else {
+          pen_y -= line_height + (breaktype == 2 ? space_after + (last ? 0 : space_before) : 0);
+          pen_x = last ? (breaktype != 0 ? 0 : pen_x) : (breaktype == 1 ? hanging : indent);
+        }
+
+        last_max_descend = max_descend;
+        cur_linewidth = 0;
+        cur_left_bear = 0;
+        cur_right_bear = 0;
         first_line = false;
         cur_line++;
         first_char = true;
+        if (!last) { // We need this for calculating box dimensions
+          max_ascend = 0;
+          max_descend = 0;
+          max_top_extend = 0;
+          max_bottom_extend = 0;
+        } else if (breaktype == 2) {
+          pen_y -= (max_ascend - last_max_descend) * cur_lineheight + space_before;
+          max_bottom_extend = 0;
+        }
       }
-    } else {
-      // No line break - advance the pen
-      pen_x += x_advance[i];
-      first_char = false;
+      if (breaktype != 0) {
+        last_line_start = y_pos.size();
+      }
+      if (end == 0 || end == cur_shape.glyph_id.size()) {
+        break;
+      }
+      start = end;
     }
   }
-  height = top_border - pen_y - max_descend + space_after;
-  bottom_bearing = max_bottom_extend - max_descend;
+
+  int32_t bottom = pen_y + max_descend - space_after;
+  height = top_border - bottom;
+  bottom_bearing = max_bottom_extend - max_descend + space_after;
   int max_width_ind = std::max_element(line_width.begin(), line_width.end()) - line_width.begin();
   width = max_width < 0 ? line_width[max_width_ind] : max_width;
   if (cur_align == 1 || cur_align == 2) {
@@ -286,13 +237,14 @@ bool HarfBuzzShaper::finish_string() {
       int32_t lwd = line_width[index];
       x_pos[i] = cur_align == 1 ? x_pos[i] + width/2 - lwd/2 : x_pos[i] + width - lwd;
     }
+    pen_x = cur_align == 1 ? pen_x + width/2 - line_width.back()/2 : pen_x + width - line_width.back();
   }
-  if (cur_align == 3) {
+  if (cur_align == 3 || cur_align == 4 || cur_align == 5) {
     std::vector<size_t> n_stretches(line_width.size(), 0);
     std::vector<bool> no_stretch(line_width.size(), false);
     for (unsigned int i = 0; i < x_pos.size(); ++i) {
       int index = line_id[i];
-      no_stretch[index] = no_stretch[index] || must_break[i];
+      no_stretch[index] = no_stretch[index] || index == line_width.size() - 1 || must_break[i];
       if (may_stretch[i] && i-1 < x_pos.size() && index == line_id[i+1]) {
         n_stretches[index]++;
       }
@@ -300,24 +252,49 @@ bool HarfBuzzShaper::finish_string() {
     int32_t cum_move = 0;
     for (unsigned int i = 0; i < x_pos.size(); ++i) {
       int index = line_id[i];
-      if (no_stretch[index]) continue;
+      int32_t lwd = line_width[index];
+      if (no_stretch[index]) {
+        if (cur_align == 4) {
+          x_pos[i] = x_pos[i] + width/2 - lwd/2;
+        } else if (cur_align == 5) {
+          x_pos[i] = x_pos[i] + width - lwd;
+        }
+        continue;
+      }
       if (i == 0 || line_id[i-1] != index) {
         cum_move = 0;
       }
       x_pos[i] += cum_move;
+      if (n_stretches[index] == 0) {
+        if (cur_align == 4) {
+          x_pos[i] = x_pos[i] + width/2 - lwd/2;
+        } else if (cur_align == 5) {
+          x_pos[i] = x_pos[i] + width - lwd;
+        }
+      }
       if (may_stretch[i]) {
         cum_move += (width - line_width[index]) / n_stretches[index];
       }
     }
+    pen_x += cum_move;
+    if (no_stretch.back() || n_stretches.back() == 0) {
+      if (cur_align == 4) {
+        pen_x += width/2 - line_width.back()/2;
+      } else if (cur_align == 5) {
+        pen_x += width - line_width.back();
+      }
+    }
+    for (size_t i = 0; i < line_width.size(); ++i) {
+      if (!no_stretch[i] && n_stretches[i] != 0) line_width[i] = width;
+    }
   }
-  if (cur_align == 4) {
+  if (cur_align == 6) {
     std::vector<size_t> n_glyphs(line_width.size(), 0);
     for (unsigned int i = 0; i < x_pos.size(); ++i) {
       int index = line_id[i];
-      if (!must_break[i] && i-1 < x_pos.size() && index == line_id[i+1]) {
+      if (!must_break[i] && (i == x_pos.size()-1 || index == line_id[i+1])) {
         n_glyphs[index]++;
       }
-      if (i == x_pos.size()-1) n_glyphs[index]++;
     }
     int32_t cum_move = 0;
     for (unsigned int i = 0; i < x_pos.size(); ++i) {
@@ -328,51 +305,47 @@ bool HarfBuzzShaper::finish_string() {
       x_pos[i] += cum_move;
       cum_move += (width - line_width[index]) / (n_glyphs[index]-1);
     }
+    pen_x += cum_move;
+    for (size_t i = 0; i < line_width.size(); ++i) {
+      if (n_glyphs[i] != 0) line_width[i] = width;
+    }
   }
   double width_diff = width - line_width[max_width_ind];
   if (cur_align == 1) {
     width_diff /= 2;
   }
-  left_bearing = cur_align == 0 ? *std::min_element(line_left_bear.begin(), line_left_bear.end()) : line_left_bear[max_width_ind] + width_diff;
-  right_bearing = cur_align == 2 ? *std::min_element(line_right_bear.begin(), line_right_bear.end()) : line_right_bear[max_width_ind] + width_diff;
-  if (cur_hjust != 0.0) {
-    left_border = - cur_hjust * width;
-    pen_x += left_border;
-    for (unsigned int i = 0; i < x_pos.size(); ++i) {
-      x_pos[i] += left_border;
-    }
+  left_bearing = cur_align == 0 || cur_align == 3 || cur_align == 5 ? *std::min_element(line_left_bear.begin(), line_left_bear.end()) : line_left_bear[max_width_ind] + width_diff;
+  right_bearing = cur_align == 2 || cur_align == 4 || cur_align == 5 ? *std::min_element(line_right_bear.begin(), line_right_bear.end()) : line_right_bear[max_width_ind] + width_diff;
+
+  left_border = - cur_hjust * width;
+  pen_x += left_border;
+  for (unsigned int i = 0; i < x_pos.size(); ++i) {
+    x_pos[i] += left_border;
   }
-  if (cur_vjust != 1.0) {
-    int32_t just_height = top_border - pen_y;
-    for (unsigned int i = 0; i < x_pos.size(); ++i) {
-      y_pos[i] += - pen_y - cur_vjust * just_height;
-    }
-    top_border += - pen_y - cur_vjust * just_height;
-    pen_y += - pen_y - cur_vjust * just_height;
+  for (unsigned int i = 0; i < x_pos.size(); ++i) {
+    y_pos[i] += - bottom - cur_vjust * height;
   }
+  top_border += - bottom - cur_vjust * height;
+  pen_y += - bottom - cur_vjust * height;
   return true;
 }
 
 void HarfBuzzShaper::reset() {
   glyph_id.clear();
   glyph_cluster.clear();
+  fontfile.clear();
+  fontindex.clear();
+  fontsize.clear();
   string_id.clear();
   x_pos.clear();
   y_pos.clear();
-  x_mid.clear();
-  x_advance.clear();
-  x_offset.clear();
-  left_bear.clear();
-  right_bear.clear();
-  top_extend.clear();
-  bottom_extend.clear();
+  advance.clear();
+  ascender.clear();
+  descender.clear();
   line_left_bear.clear();
   line_right_bear.clear();
   line_width.clear();
   line_id.clear();
-  ascenders.clear();
-  descenders.clear();
-  may_break.clear();
   must_break.clear();
   may_stretch.clear();
   shape_infos.clear();
@@ -387,16 +360,33 @@ void HarfBuzzShaper::reset() {
 
   left_bearing = 0;
   right_bearing = 0;
+  top_bearing = 0;
+  bottom_bearing = 0;
   width = 0;
   height = 0;
   top_border = 0;
   left_border = 0;
 
   cur_string = 0;
+
+  error_code = 0;
+
+  cur_lineheight = 0.0;
+  cur_align = 0;
+  cur_hjust = 0.0;
+  cur_vjust = 0.0;
+  cur_res = 0.0;
+  top = 0;
+  bottom = 0;
+  max_width = 0;
+  indent = 0;
+  hanging = 0;
+  space_before = 0;
+  space_after = 0;
 }
 
-ShapeInfo HarfBuzzShaper::shape_text_run(const char* string, FontSettings font_info,
-                                         double size, double res) {
+ShapeInfo HarfBuzzShaper::shape_text_run(const char* string, FontSettings& font_info,
+                                         double size, double res, double tracking) {
   int n_features = font_info.n_features;
   std::vector<hb_feature_t> features(n_features);
   ShapeInfo text_run;
@@ -406,6 +396,7 @@ ShapeInfo HarfBuzzShaper::shape_text_run(const char* string, FontSettings font_i
     run_id.font.assign(font_info.file);
     run_id.index = font_info.index;
     run_id.size = size * res;
+    run_id.tracking = tracking;
     if (shape_cache.get(run_id, text_run)) {
       return text_run;
     }
@@ -423,6 +414,26 @@ ShapeInfo HarfBuzzShaper::shape_text_run(const char* string, FontSettings font_i
 
   int n_chars = 0;
   const uint32_t* utc_string = utf_converter.convert_to_ucs(string, n_chars);
+
+  if (n_chars == 0) {
+    text_run.ascenders.push_back(0);
+    text_run.descenders.push_back(0);
+#if HB_VERSION_MAJOR < 2 && HB_VERSION_MINOR < 2
+#else
+    int error = 0;
+    hb_font_t *font = hb_ft_font_create(get_cached_face(font_info.file, font_info.index, size, res, &error), NULL);
+    if (error != 0) {
+      Rprintf("Failed to get face: %s, %i\n", font_info.file, font_info.index);
+      error_code = error;
+    } else {
+      hb_font_extents_t fextent;
+      hb_font_get_h_extents(font, &fextent);
+      text_run.ascenders[0] = fextent.ascender;
+      text_run.descenders[0] = fextent.descender;
+    }
+#endif
+    return text_run;
+  }
 
   std::vector<int> embeddings = {};
 
@@ -462,7 +473,8 @@ ShapeInfo HarfBuzzShaper::shape_text_run(const char* string, FontSettings font_i
   size_t embedding_start = 0;
   for (size_t i = 1; i <= embeddings.size(); ++i) {
     if (i == embeddings.size() || embeddings[i] != embeddings[i - 1]) {
-      shape_embedding(utc_string, embedding_start, i, n_chars, size, res, features, embeddings[embedding_start] == 2, text_run);
+      bool success = shape_embedding(utc_string, embedding_start, i, n_chars, size, res, tracking, features, embeddings[embedding_start] == 2, text_run);
+      if (!success) return ShapeInfo();
       embedding_start = i;
     }
   }
@@ -474,73 +486,9 @@ ShapeInfo HarfBuzzShaper::shape_text_run(const char* string, FontSettings font_i
   return text_run;
 }
 
-bool HarfBuzzShaper::shape_glyphs(hb_font_t *font, const uint32_t *string, unsigned int n_chars) {
-  hb_shape(font, buffer, NULL, 0);
-
-  unsigned int n_glyphs = 0;
-  hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
-  hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
-
-  if (n_glyphs == 0) return true;
-
-  glyph_id.reserve(n_glyphs);
-  glyph_cluster.reserve(n_glyphs);
-  string_id.reserve(n_glyphs);
-  x_pos.reserve(n_glyphs);
-  y_pos.reserve(n_glyphs);
-
-#if HB_VERSION_MAJOR < 2 && HB_VERSION_MINOR < 2
-  ascend = 0;
-  descend = 0;
-#else
-  hb_font_extents_t extent;
-  hb_font_get_h_extents(font, &extent);
-
-  ascend = extent.ascender;
-  descend = extent.descender;
-#endif
-
-  for (unsigned int i = 0; i < n_glyphs; ++i) {
-    unsigned int cluster = glyph_info[i].cluster;
-    glyph_cluster.push_back(cluster);
-    glyph_id.push_back(glyph_info[i].codepoint);
-
-    if (cluster < n_chars) {
-      may_break.push_back(glyph_is_breaker(string[cluster]));
-      must_break.push_back(glyph_is_linebreak(string[cluster]));
-      may_stretch.push_back(glyph_may_stretch(string[cluster]));
-    } else {
-      may_break.push_back(false);
-      must_break.push_back(false);
-      may_stretch.push_back(false);
-    }
-
-    string_id.push_back(cur_string);
-
-    hb_glyph_extents_t extent;
-    hb_font_get_glyph_extents(font, glyph_info[i].codepoint, &extent);
-
-    int32_t x_off = glyph_pos[i].x_offset;
-    int32_t x_adv = glyph_pos[i].x_advance;
-    x_advance.push_back(x_adv + cur_tracking);
-    left_bear.push_back(extent.x_bearing);
-    right_bear.push_back(x_adv - (extent.x_bearing + extent.width));
-    top_extend.push_back(extent.y_bearing);
-    bottom_extend.push_back(extent.height + extent.y_bearing);
-    ascenders.push_back(ascend);
-    descenders.push_back(descend);
-    if (i == 0) {
-      x_offset.push_back(0);
-    } else {
-      x_offset.push_back(x_off);
-    }
-  }
-  return true;
-}
-
 bool HarfBuzzShaper::shape_embedding(const uint32_t* string, unsigned start,
                                      unsigned end, unsigned int string_length,
-                                     double size, double res,
+                                     double size, double res, double tracking,
                                      std::vector<hb_feature_t>& features,
                                      bool emoji, ShapeInfo& shape_info) {
   unsigned int embedding_size = end - start;
@@ -561,9 +509,10 @@ bool HarfBuzzShaper::shape_embedding(const uint32_t* string, unsigned start,
   }
 
   if (shape_info.fallback_scaling.empty()) {
-    double scaling = FT_IS_SCALABLE(face) ? -1 : size * 64.0 / face->size->metrics.height;
-    scaling *= family_scaling(face->family_name);
-    shape_info.fallback_scaling.push_back(scaling);
+    double scaling = FT_IS_SCALABLE(face) ? -1 : size * 64.0 * res / 72.0 / face->size->metrics.height;
+    double fscaling = family_scaling(face->family_name);
+    shape_info.fallback_scaling.push_back(scaling * fscaling);
+    shape_info.fallback_size.push_back(size * fscaling);
   }
 
   if (emoji) {
@@ -577,9 +526,10 @@ bool HarfBuzzShaper::shape_embedding(const uint32_t* string, unsigned start,
     }
 
     if (shape_info.fallback_scaling.size() == 1) {
-      double scaling = FT_IS_SCALABLE(face) ? -1 : size * 64.0 / face->size->metrics.height;
-      scaling *= family_scaling(face->family_name);
-      shape_info.fallback_scaling.push_back(scaling);
+      double scaling = FT_IS_SCALABLE(face) ? -1 : size * 64.0 * res / 72.0 / face->size->metrics.height;
+      double fscaling = family_scaling(face->family_name);
+      shape_info.fallback_scaling.push_back(scaling * fscaling);
+      shape_info.fallback_size.push_back(size * fscaling);
     }
   }
 
@@ -589,10 +539,11 @@ bool HarfBuzzShaper::shape_embedding(const uint32_t* string, unsigned start,
   hb_buffer_reset(buffer);
   hb_buffer_add_utf32(buffer, string, string_length, start, embedding_size);
   hb_buffer_guess_segment_properties(buffer);
+  hb_glyph_info_t *glyph_info = NULL;
+  glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
 
   hb_shape(font, buffer, features.data(), features.size());
 
-  hb_glyph_info_t *glyph_info = NULL;
   hb_glyph_position_t *glyph_pos = NULL;
   glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
 
@@ -618,12 +569,10 @@ bool HarfBuzzShaper::shape_embedding(const uint32_t* string, unsigned start,
 
   if (!needs_fallback) { // Short route - use existing shaping
     glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
-    fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font, shape_info);
-    fill_glyph_info(string, start, embedding_size, shape_info);
+    fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font, start, shape_info, tracking);
+    fill_glyph_info(string, start + embedding_size, shape_info);
     hb_font_destroy(font);
     return true;
-  } else {
-
   }
   hb_font_destroy(font);
 
@@ -704,8 +653,8 @@ bool HarfBuzzShaper::shape_embedding(const uint32_t* string, unsigned start,
         hb_shape(font, buffer, features.data(), features.size());
         glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
         glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
-        fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font, shape_info);
-        fill_glyph_info(string, start + text_run_start, i - text_run_start, shape_info);
+        fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font, start + text_run_start, shape_info, tracking);
+        fill_glyph_info(string, start + i, shape_info);
         hb_font_destroy(font);
 
         if (i < embedding_size) {
@@ -738,8 +687,8 @@ bool HarfBuzzShaper::shape_embedding(const uint32_t* string, unsigned start,
         hb_shape(font, buffer, features.data(), features.size());
         glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
         glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
-        fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font, shape_info);
-        fill_glyph_info(string, start + i, text_run_end - i, shape_info);
+        fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font, start + i, shape_info, tracking);
+        fill_glyph_info(string, start + text_run_end, shape_info);
         hb_font_destroy(font);
 
         if (i > 0) {
@@ -776,9 +725,10 @@ hb_font_t*  HarfBuzzShaper::load_fallback(unsigned int font, const uint32_t* str
   }
 
   if (font >= shape_info.fallback_scaling.size()) {
-    double scaling = FT_IS_SCALABLE(face) ? -1 : size * 64.0 / face->size->metrics.height;
-    scaling *= family_scaling(face->family_name);
-    shape_info.fallback_scaling.push_back(scaling);
+    double scaling = FT_IS_SCALABLE(face) ? -1 : size * 64.0 * res / 72.0 / face->size->metrics.height;
+    double fscaling = family_scaling(face->family_name);
+    shape_info.fallback_scaling.push_back(scaling * fscaling);
+    shape_info.fallback_size.push_back(size * fscaling);
   }
 
   return hb_ft_font_create(face, NULL);
@@ -844,9 +794,13 @@ void HarfBuzzShaper::annotate_fallbacks(unsigned int font, unsigned int offset,
 void HarfBuzzShaper::fill_shape_info(hb_glyph_info_t* glyph_info,
                                      hb_glyph_position_t* glyph_pos,
                                      unsigned int n_glyphs, hb_font_t* font,
-                                     unsigned int font_id, ShapeInfo& shape_info) {
+                                     unsigned int font_id,
+                                     unsigned int cluster_offset,
+                                     ShapeInfo& shape_info, int32_t tracking) {
   double scaling = shape_info.fallback_scaling[font_id];
   if (scaling < 0) scaling = 1.0;
+
+  tracking *= shape_info.fallback_size[font_id] / 1000;
 
 
 #if HB_VERSION_MAJOR < 2 && HB_VERSION_MINOR < 2
@@ -882,7 +836,7 @@ void HarfBuzzShaper::fill_shape_info(hb_glyph_info_t* glyph_info,
     shape_info.glyph_cluster.push_back(glyph_info[i].cluster);
     shape_info.x_offset.push_back(glyph_pos[i].x_offset * scaling);
     shape_info.y_offset.push_back(glyph_pos[i].y_offset * scaling);
-    shape_info.x_advance.push_back(glyph_pos[i].x_advance * scaling);
+    shape_info.x_advance.push_back(glyph_pos[i].x_advance * scaling + tracking);
     shape_info.y_advance.push_back(glyph_pos[i].y_advance * scaling);
 
     hb_font_get_glyph_extents(font, glyph_info[i].codepoint, &extent);
@@ -891,19 +845,19 @@ void HarfBuzzShaper::fill_shape_info(hb_glyph_info_t* glyph_info,
     shape_info.width.push_back(extent.width * scaling);
     shape_info.height.push_back(extent.height * scaling);
 
-    shape_info.ascenders.push_back(ascend);
-    shape_info.descenders.push_back(descend);
+    shape_info.ascenders.push_back(ascend * scaling);
+    shape_info.descenders.push_back(descend * scaling);
 
     shape_info.font.push_back(font_id);
 
   }
 }
 
-void HarfBuzzShaper::fill_glyph_info(const uint32_t* string, unsigned start,
-                                     unsigned length, ShapeInfo& shape_info) {
+void HarfBuzzShaper::fill_glyph_info(const uint32_t* string, unsigned end,
+                                     ShapeInfo& shape_info) {
   for (size_t i = shape_info.must_break.size(); i < shape_info.glyph_cluster.size(); ++i) {
     int32_t cluster = shape_info.glyph_cluster[i];
-    if (cluster < length) {
+    if (cluster < end) {
       shape_info.must_break.push_back(glyph_is_linebreak(string[cluster]));
       shape_info.may_break.push_back(glyph_is_breaker(string[cluster]));
       shape_info.may_stretch.push_back(glyph_may_stretch(string[cluster]));
@@ -913,6 +867,80 @@ void HarfBuzzShaper::fill_glyph_info(const uint32_t* string, unsigned start,
       shape_info.may_stretch.push_back(false);
     }
   }
+}
+
+size_t HarfBuzzShaper::fill_out_width(size_t from, int32_t max,
+                                      size_t shape, int& breaktype) {
+  int32_t w = 0;
+  size_t last_possible_break = from;
+  bool has_break = false;
+  breaktype = 0;
+  if (shape_infos[shape].ltr) {
+    if (max < 0) return shape_infos[shape].glyph_id.size();
+    for (size_t i = from; i < shape_infos[shape].glyph_id.size(); ++i) {
+      if (shape_infos[shape].must_break[i]) {
+        breaktype = 2;
+        return i + 1;
+      }
+      if (shape_infos[shape].may_break[i]) {
+        last_possible_break = i;
+        has_break = true;
+      }
+      w += shape_infos[shape].x_advance[i];
+      if (w > max) {
+        breaktype = 1;
+        return has_break ? last_possible_break + 1 : i;
+      }
+    }
+    size_t next_shape = shape + 1;
+    while (next_shape < shape_infos.size()) {
+      for (size_t i = 0; i < shape_infos[next_shape].glyph_id.size(); ++i) {
+        if (shape_infos[next_shape].must_break[i] || shape_infos[next_shape].may_break[i]) {
+          return shape_infos[shape].glyph_id.size();
+        }
+        w += shape_infos[next_shape].x_advance[i];
+        if (w > max) {
+          breaktype = has_break ? 1 : 0;
+          return has_break ? last_possible_break + 1 : shape_infos[shape].glyph_id.size();
+        }
+      }
+      next_shape++;
+    }
+    last_possible_break = shape_infos[shape].glyph_id.size();
+  } else {
+    if (max < 0) return 0;
+    for (size_t i = from - 1; i >= 0; --i) {
+      if (shape_infos[shape].must_break[i]) {
+        breaktype = 2;
+        return i + 1;
+      }
+      if (shape_infos[shape].may_break[i]) {
+        last_possible_break = i;
+        has_break = true;
+      }
+      w += shape_infos[shape].x_advance[i];
+      if (w > max) {
+        breaktype = 1;
+        return has_break ? last_possible_break : i + 1;
+      }
+    }
+    size_t next_shape = shape + 1;
+    while (next_shape < shape_infos.size()) {
+      for (size_t i = shape_infos[next_shape].glyph_id.size() - 1; i >= 0; --i) {
+        if (shape_infos[next_shape].must_break[i] || shape_infos[shape].may_break[i]) {
+          return 0;
+        }
+        w += shape_infos[next_shape].x_advance[i];
+        if (w > max) {
+          breaktype = has_break ? 1 : 0;
+          return has_break ? last_possible_break : 0;
+        }
+      }
+      next_shape++;
+    }
+    last_possible_break = 0;
+  }
+  return last_possible_break;
 }
 
 #endif
