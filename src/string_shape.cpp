@@ -52,6 +52,7 @@ bool HarfBuzzShaper::add_string(const char* string, FontSettings& font_info,
 bool HarfBuzzShaper::add_spacer(double height, double width) {
   width *= 64.0 / 72.0;
   double space_height = height * 64.0 * cur_res / 72.0;
+  FontSettings dummy_font = {"", 0, NULL, 0};
   ShapeInfo info = {
     {0}, // glyph_id
     {0}, // glyph_cluster
@@ -69,7 +70,7 @@ bool HarfBuzzShaper::add_spacer(double height, double width) {
     {false}, // must_break
     {false}, // may_stretch
     {0}, // font
-    {{"", 0, NULL, 0}}, // fallbacks
+    {dummy_font}, // fallbacks
     {height}, // fallback_size
     {-1}, // fallback_scaling
     true // ltr
