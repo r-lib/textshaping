@@ -12,12 +12,17 @@
 #' @param strings A character vector of strings to shape
 #' @param id A vector grouping the strings together. If strings share an id the
 #' shaping will continue between strings
-#' @inheritParams systemfonts::font_info
+#' @inheritParams systemfonts::match_fonts
+#' @param features A [systemfonts::font_feature()] object or a list of them,
+#' giving the OpenType font features to set
+#' @param size The size in points to use for the font
+#' @param res The resolution to use when doing the shaping. Should optimally
+#' match the resolution used when rendering the glyphs.
 #' @param lineheight A multiplier for the lineheight
 #' @param align Within text box alignment, either `'left'`, `'center'`, `'right'`,
-#' `'justified'`, or `'distributed'`
+#' `'justified-left'`, `'justified-right'`, `'justified-center'`, or `'distributed'`
 #' @param hjust,vjust The justification of the textbox surrounding the text
-#' @param width The requested with of the string in inches. Setting this to
+#' @param max_width The requested with of the string in inches. Setting this to
 #' something other than `NA` will turn on word wrapping.
 #' @param tracking Tracking of the glyphs (space adjustment) measured in 1/1000
 #' em.

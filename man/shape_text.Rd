@@ -39,19 +39,35 @@ shaping will continue between strings}
 
 \item{italic}{logical indicating the font slant}
 
-\item{width}{The requested with of the string in inches. Setting this to
-something other than \code{NA} will turn on word wrapping.}
+\item{weight}{The weight to query for, either in numbers (\code{0}, \code{100}, \code{200},
+\code{300}, \code{400}, \code{500}, \code{600}, \code{700}, \code{800}, or \code{900}) or strings (\code{"undefined"},
+\code{"thin"}, \code{"ultralight"}, \code{"light"}, \code{"normal"}, \code{"medium"}, \code{"semibold"},
+\code{"bold"}, \code{"ultrabold"}, or \code{"heavy"}). \code{NA} will be interpreted as
+\code{"undefined"}/\code{0}}
 
-\item{size}{The pointsize of the font to use for size related measures}
+\item{width}{The width to query for either in numbers (\code{0}, \code{1}, \code{2},
+\code{3}, \code{4}, \code{5}, \code{6}, \code{7}, \code{8}, or \code{9}) or strings (\code{"undefined"},
+\code{"ultracondensed"}, \code{"extracondensed"}, \code{"condensed"}, \code{"semicondensed"},
+\code{"normal"}, \code{"semiexpanded"}, \code{"expanded"}, \code{"extraexpanded"}, or
+\code{"ultraexpanded"}). \code{NA} will be interpreted as \code{"undefined"}/\code{0}}
 
-\item{res}{The ppi of the size related mesures}
+\item{features}{A \code{\link[systemfonts:font_feature]{systemfonts::font_feature()}} object or a list of them,
+giving the OpenType font features to set}
+
+\item{size}{The size in points to use for the font}
+
+\item{res}{The resolution to use when doing the shaping. Should optimally
+match the resolution used when rendering the glyphs.}
 
 \item{lineheight}{A multiplier for the lineheight}
 
 \item{align}{Within text box alignment, either \code{'left'}, \code{'center'}, \code{'right'},
-\code{'justified'}, or \code{'distributed'}}
+\code{'justified-left'}, \code{'justified-right'}, \code{'justified-center'}, or \code{'distributed'}}
 
 \item{hjust, vjust}{The justification of the textbox surrounding the text}
+
+\item{max_width}{The requested with of the string in inches. Setting this to
+something other than \code{NA} will turn on word wrapping.}
 
 \item{tracking}{Tracking of the glyphs (space adjustment) measured in 1/1000
 em.}
