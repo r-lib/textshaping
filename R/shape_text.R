@@ -184,6 +184,7 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
 #' provided `res` value to convert it into absolute values.
 #'
 #' @export
+#' @importFrom systemfonts match_fonts
 #'
 #' @examples
 #' strings <- c('A short string', 'A very very looong string')
@@ -194,18 +195,13 @@ text_width <- function(strings, family = '', italic = FALSE, bold = FALSE,
                        index = 0) {
   n_strings <- length(strings)
   if (is.null(path)) {
-    if (all(c(length(family), length(italic), length(bold)) == 1)) {
-      loc <- systemfonts::match_font(family, italic, bold)
-      path <- loc$path
-      index <- loc$index
-    } else {
-      family <- rep_len(family, n_strings)
-      italic <- rep_len(italic, n_strings)
-      bold <- rep_len(bold, n_strings)
-      loc <- Map(systemfonts::match_font, family = family, italic = italic, bold = bold)
-      path <- vapply(loc, `[[`, character(1L), 1, USE.NAMES = FALSE)
-      index <- vapply(loc, `[[`, integer(1L), 2, USE.NAMES = FALSE)
-    }
+    fonts <- match_fonts(
+      rep_len(family, n_strings),
+      rep_len(italic, n_strings),
+      ifelse(rep_len(bold, n_strings), "bold", "normal")
+    )
+    path <- fonts$path
+    index <- fonts$index
   } else {
     if (!all(c(length(path), length(index)) == 1)) {
       path <- rep_len(path, n_strings)
