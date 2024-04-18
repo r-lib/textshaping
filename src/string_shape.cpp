@@ -232,7 +232,7 @@ bool HarfBuzzShaper::finish_string() {
   int max_width_ind = std::max_element(line_width.begin(), line_width.end()) - line_width.begin();
   width = max_width < 0 ? line_width[max_width_ind] : max_width;
   if (cur_align == 1 || cur_align == 2) {
-    for (unsigned int i = 0; i < x_pos.size(); ++i) {
+    for (size_t i = 0; i < x_pos.size(); ++i) {
       int index = line_id[i];
       int32_t lwd = line_width[index];
       x_pos[i] = cur_align == 1 ? x_pos[i] + width/2 - lwd/2 : x_pos[i] + width - lwd;
@@ -242,15 +242,15 @@ bool HarfBuzzShaper::finish_string() {
   if (cur_align == 3 || cur_align == 4 || cur_align == 5) {
     std::vector<size_t> n_stretches(line_width.size(), 0);
     std::vector<bool> no_stretch(line_width.size(), false);
-    for (unsigned int i = 0; i < x_pos.size(); ++i) {
-      size_t index = line_id[i];
+    for (size_t i = 0; i < x_pos.size(); ++i) {
+      int index = line_id[i];
       no_stretch[index] = no_stretch[index] || index == line_width.size() - 1 || must_break[i];
       if (may_stretch[i] && i-1 < x_pos.size() && index == line_id[i+1]) {
         n_stretches[index]++;
       }
     }
     int32_t cum_move = 0;
-    for (unsigned int i = 0; i < x_pos.size(); ++i) {
+    for (size_t i = 0; i < x_pos.size(); ++i) {
       int index = line_id[i];
       int32_t lwd = line_width[index];
       if (no_stretch[index]) {
@@ -290,14 +290,14 @@ bool HarfBuzzShaper::finish_string() {
   }
   if (cur_align == 6) {
     std::vector<size_t> n_glyphs(line_width.size(), 0);
-    for (unsigned int i = 0; i < x_pos.size(); ++i) {
+    for (size_t i = 0; i < x_pos.size(); ++i) {
       int index = line_id[i];
       if (!must_break[i] && (i == x_pos.size()-1 || index == line_id[i+1])) {
         n_glyphs[index]++;
       }
     }
     int32_t cum_move = 0;
-    for (unsigned int i = 0; i < x_pos.size(); ++i) {
+    for (size_t i = 0; i < x_pos.size(); ++i) {
       int index = line_id[i];
       if (i == 0 || line_id[i-1] != index) {
         cum_move = 0;
@@ -319,10 +319,10 @@ bool HarfBuzzShaper::finish_string() {
 
   left_border = - cur_hjust * width;
   pen_x += left_border;
-  for (unsigned int i = 0; i < x_pos.size(); ++i) {
+  for (size_t i = 0; i < x_pos.size(); ++i) {
     x_pos[i] += left_border;
   }
-  for (unsigned int i = 0; i < x_pos.size(); ++i) {
+  for (size_t i = 0; i < x_pos.size(); ++i) {
     y_pos[i] += - bottom - cur_vjust * height;
   }
   top_border += - bottom - cur_vjust * height;
