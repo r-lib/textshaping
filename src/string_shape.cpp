@@ -18,7 +18,7 @@ bool HarfBuzzShaper::shape_string(const char* string, FontSettings& font_info,
                                   double after, bool spacer) {
   reset();
 
-  max_width = width;
+  max_width = width + 1; // To prevent rounding errors
   indent = ind;
   hanging = hang;
   space_before = before;
