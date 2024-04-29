@@ -1,11 +1,7 @@
 # textshaping (development version)
 
-* Fixed height calculation in `shape_text()` to avoid an extra line of height
-* Fixed width calculation in `shape_text()` to ignore width of terminal 
-  line-break characters
-* Added `'justified'` and `'distributed'` options to `align` in `shape_text()`
-  to either expand spaces to fit line width to full width, or distribute all 
-  glyphs to fit line width to full width
+* Full rewrite of `shape_text()` to allow proper font-fallback, bidi text
+  support, support for font-features, spacers, new align settings, etc.
 
 # textshaping 0.3.7
 

@@ -16,8 +16,9 @@ using namespace cpp11;
 #ifdef NO_HARFBUZZ_FRIBIDI
 
 list get_string_shape_c(strings string, integers id, strings path, integers index,
-                        doubles size, doubles res, doubles lineheight, integers align,
-                        doubles hjust, doubles vjust, doubles width, doubles tracking,
+                        list_of<list> features, doubles size, doubles res,
+                        doubles lineheight, integers align, doubles hjust,
+                        doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
                         doubles space_after) {
   Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
@@ -90,43 +91,53 @@ int ts_string_shape_old(const char* string, FontSettings font_info, double size,
 
 #else
 
+std::vector< std::vector<FontFeature> > create_font_features(list_of<list> features) {
+  std::vector< std::vector<FontFeature> > res;
+
+  for (R_xlen_t i = 0; i < features.size(); ++i) {
+    res.emplace_back();
+    strings tags = as_cpp<strings>(features[i][0]);
+    integers vals = as_cpp<integers>(features[i][1]);
+    for (R_xlen_t j = 0; j < tags.size(); ++j) {
+      const char* f = Rf_translateCharUTF8(tags[j]);
+      res.back().push_back({{f[0], f[1], f[2], f[3]}, vals[j]});
+    }
+  }
+
+  return res;
+}
+
+std::vector<FontSettings> create_font_settings(strings path, integers index, std::vector< std::vector<FontFeature> >& features) {
+  std::vector<FontSettings> res;
+
+  for (R_xlen_t i = 0; i < path.size(); ++i) {
+    res.emplace_back();
+    strncpy(res.back().file, Rf_translateCharUTF8(path[i]), PATH_MAX);
+    res.back().file[PATH_MAX] = '\0';
+    res.back().index = index[i];
+    res.back().features = features[i].data();
+    res.back().n_features = features[i].size();
+  }
+
+  return res;
+}
+
 list get_string_shape_c(strings string, integers id, strings path, integers index,
-                        doubles size, doubles res, doubles lineheight, integers align,
-                        doubles hjust, doubles vjust, doubles width, doubles tracking,
+                        list_of<list> features, doubles size, doubles res,
+                        doubles lineheight, integers align, doubles hjust,
+                        doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
                         doubles space_after) {
   int n_strings = string.size();
-  bool one_path = path.size() == 1;
-  const char* first_path = Rf_translateCharUTF8(path[0]);
-  int first_index = index[0];
-  bool one_size = size.size() == 1;
-  double first_size = size[0];
-  bool one_res = res.size() == 1;
-  double first_res = res[0];
-  bool one_lht = lineheight.size() == 1;
-  double first_lht = lineheight[0];
-  bool one_align = align.size() == 1;
-  int first_align = align[0];
-  bool one_hjust = hjust.size() == 1;
-  double first_hjust = hjust[0];
-  bool one_vjust = vjust.size() == 1;
-  double first_vjust = vjust[0];
-  bool one_width = width.size() == 1;
-  double first_width = width[0] * 64;
-  bool one_tracking = tracking.size() == 1;
-  double first_tracking = tracking[0];
-  bool one_indent = indent.size() == 1;
-  double first_indent = indent[0] * 64;
-  bool one_hanging = hanging.size() == 1;
-  double first_hanging = hanging[0] * 64;
-  bool one_before = space_before.size() == 1;
-  double first_before = space_before[0] * 64;
-  bool one_after = space_after.size() == 1;
-  double first_after = space_after[0] * 64;
+  auto all_features = create_font_features(features);
+  auto fonts = create_font_settings(path, index, all_features);
 
   // Return Columns
-  writable::integers glyph, glyph_id, metric_id, string_id;
-  writable::doubles x_offset, y_offset, x_midpoint, widths, heights, left_bearings, right_bearings, top_bearings, bottom_bearings, left_border, top_border, pen_x, pen_y;
+  writable::integers glyph, glyph_id, metric_id, string_id, fontindex;
+  writable::doubles x_offset, y_offset, widths, heights, left_bearings, right_bearings,
+    top_bearings, bottom_bearings, left_border, top_border, pen_x, pen_y, fontsize,
+    advance, ascender, descender;
+  writable::strings fontpath;
 
   // Shape the text
   int cur_id = id[0] - 1; // make sure it differs from first
@@ -137,31 +148,19 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
     const char* this_string = Rf_translateCharUTF8(string[i]);
     int this_id = id[i];
     if (cur_id == this_id) {
-      success = shaper.add_string(this_string,
-                                  one_path ? first_path : Rf_translateCharUTF8(path[i]),
-                                  one_path ? first_index : index[i],
-                                  one_size ? first_size : size[i],
-                                  one_tracking ? first_tracking : tracking[i]);
+      success = shaper.add_string(this_string, fonts[i], size[i], tracking[i], cpp11::is_na(string[i]));
+
       if (!success) {
         Rf_error("Failed to shape string (%s) with font file (%s) with freetype error %i", this_string, Rf_translateCharUTF8(path[i]), shaper.error_code);
       }
     } else {
       cur_id = this_id;
-      success = shaper.shape_string(this_string,
-                                    one_path ? first_path : Rf_translateCharUTF8(path[i]),
-                                    one_path ? first_index : index[i],
-                                    one_size ? first_size : size[i],
-                                    one_res ? first_res : res[i],
-                                    one_lht ? first_lht : lineheight[i],
-                                    one_align ? first_align : align[i],
-                                    one_hjust ? first_hjust : hjust[i],
-                                    one_vjust ? first_vjust : vjust[i],
-                                    one_width ? first_width : width[i] * 64,
-                                    one_tracking ? first_tracking : tracking[i],
-                                    one_indent ? first_indent : indent[i] * 64,
-                                    one_hanging ? first_hanging : hanging[i] * 64,
-                                    one_before ? first_before : space_before[i] * 64,
-                                    one_after ? first_after : space_after[i] * 64);
+      success = shaper.shape_string(this_string, fonts[i], size[i], res[i],
+                                    lineheight[i], align[i], hjust[i], vjust[i],
+                                    width[i] * 64.0, tracking[i], indent[i] * 64.0,
+                                    hanging[i] * 64.0, space_before[i] * 64.0,
+                                    space_after[i] * 64.0, cpp11::is_na(string[i]));
+
       if (!success) {
         Rf_error("Failed to shape string (%s) with font file (%s) with freetype error %i", this_string, Rf_translateCharUTF8(STRING_ELT(path, i)), shaper.error_code);
       }
@@ -174,13 +173,19 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
       }
       int n_glyphs = shaper.glyph_id.size();
       for (int j = 0; j < n_glyphs; j++) {
-        glyph.push_back((int) shaper.glyph_cluster[j]);
+        if (shaper.must_break[j]) continue; // Don't add any linebreak chars as they often map to null glyph
+        glyph.push_back((int) shaper.glyph_cluster[j] + 1);
         glyph_id.push_back((int) shaper.glyph_id[j]);
         metric_id.push_back(pen_x.size() + 1);
         string_id.push_back(shaper.string_id[j] + 1);
         x_offset.push_back(double(shaper.x_pos[j]) / 64.0);
         y_offset.push_back(double(shaper.y_pos[j]) / 64.0);
-        x_midpoint.push_back(double(shaper.x_mid[j]) / 64.0);
+        fontpath.push_back(shaper.fontfile[j]);
+        fontindex.push_back((int) shaper.fontindex[j]);
+        fontsize.push_back(shaper.fontsize[j]);
+        advance.push_back(double(shaper.advance[j]) / 64.0);
+        ascender.push_back(double(shaper.ascender[j]) / 64.0);
+        descender.push_back(double(shaper.descender[j]) / 64.0);
       }
       widths.push_back(double(shaper.width) / 64.0);
       heights.push_back(double(shaper.height) / 64.0);
@@ -197,28 +202,33 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
   writable::strings str(pen_x.size());
 
   writable::data_frame string_df({
-    "string"_nm = (SEXP) str,
-    "width"_nm = (SEXP) widths,
-    "height"_nm = (SEXP) heights,
-    "left_bearing"_nm = (SEXP) left_bearings,
-    "right_bearing"_nm = (SEXP) right_bearings,
-    "top_bearing"_nm = (SEXP) top_bearings,
-    "bottom_bearing"_nm = (SEXP) bottom_bearings,
-    "left_border"_nm = (SEXP) left_border,
-    "top_border"_nm = (SEXP) top_border,
-    "pen_x"_nm = (SEXP) pen_x,
-    "pen_y"_nm = (SEXP) pen_y
+    "string"_nm = str,
+    "width"_nm = widths,
+    "height"_nm = heights,
+    "left_bearing"_nm = left_bearings,
+    "right_bearing"_nm = right_bearings,
+    "top_bearing"_nm = top_bearings,
+    "bottom_bearing"_nm = bottom_bearings,
+    "left_border"_nm = left_border,
+    "top_border"_nm = top_border,
+    "pen_x"_nm = pen_x,
+    "pen_y"_nm = pen_y
   });
   string_df.attr("class") = writable::strings({"tbl_df", "tbl", "data.frame"});
 
   writable::data_frame info_df({
-    "glyph"_nm = (SEXP) glyph,
-    "index"_nm = (SEXP) glyph_id,
-    "metric_id"_nm = (SEXP) metric_id,
-    "string_id"_nm = (SEXP) string_id,
-    "x_offset"_nm = (SEXP) x_offset,
-    "y_offset"_nm = (SEXP) y_offset,
-    "x_midpoint"_nm = (SEXP) x_midpoint
+    "glyph"_nm = glyph,
+    "index"_nm = glyph_id,
+    "metric_id"_nm = metric_id,
+    "string_id"_nm = string_id,
+    "x_offset"_nm = x_offset,
+    "y_offset"_nm = y_offset,
+    "font_path"_nm = fontpath,
+    "font_index"_nm = fontindex,
+    "font_size"_nm = fontsize,
+    "advance"_nm = advance,
+    "ascender"_nm = ascender,
+    "descender"_nm = descender
   });
   info_df.attr("class") = writable::strings({"tbl_df", "tbl", "data.frame"});
 
@@ -268,18 +278,23 @@ int ts_string_width(const char* string, FontSettings font_info, double size,
                     double res, int include_bearing, double* width) {
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
-  bool success = shaper.single_line_shape(
-    string, font_info, size, res
+  shaper.error_code = 0;
+  const ShapeInfo string_shape = shaper.shape_text_run(
+    string, font_info, size, res, 0
   );
 
-  if (!success) {
+  if (shaper.error_code != 0) {
     return shaper.error_code;
   }
 
-  int32_t width_tmp = shaper.last_shape_info.width;
+  int32_t width_tmp = 0;
+  for (size_t i = 0; i < string_shape.glyph_id.size(); ++i) {
+    width_tmp += string_shape.x_advance[i];
+  }
+
   if (!include_bearing) {
-    width_tmp -= shaper.last_shape_info.left_bearing;
-    width_tmp -= shaper.last_shape_info.right_bearing;
+    width_tmp -= string_shape.x_bear[0];
+    width_tmp -= string_shape.x_advance.back() - string_shape.x_bear.back() - string_shape.width.back();
   }
   *width = double(width_tmp) / 64.0;
 
@@ -294,31 +309,35 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
                     std::vector<double>& fallback_scaling) {
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
-  bool success = shaper.single_line_shape(
-    string, font_info, size, res
+  shaper.error_code = 0;
+  const ShapeInfo string_shape = shaper.shape_text_run(
+    string, font_info, size, res, 0
   );
-  if (!success) {
+
+  if (shaper.error_code != 0) {
     return shaper.error_code;
   }
-  int n_glyphs = shaper.last_shape_info.x_pos.size();
+
+  size_t n_glyphs = string_shape.glyph_id.size();
   loc.clear();
-  if (n_glyphs == 0) {
-    id.clear();
-    font.clear();
-    fallbacks.clear();
-    fallback_scaling.clear();
-  } else {
-    for (int i = 0; i < n_glyphs; ++i) {
-      loc.push_back({
-        double(shaper.last_shape_info.x_pos[i]) / 64.0,
-        0.0
-      });
-    }
-    id.assign(shaper.last_shape_info.glyph_id.begin(), shaper.last_shape_info.glyph_id.end());
-    font.assign(shaper.last_shape_info.font.begin(), shaper.last_shape_info.font.end());
-    fallbacks.assign(shaper.last_shape_info.fallbacks.begin(), shaper.last_shape_info.fallbacks.end());
-    fallback_scaling.assign(shaper.last_shape_info.fallback_scaling.begin(), shaper.last_shape_info.fallback_scaling.end());
+  id.clear();
+  font.clear();
+  fallbacks.clear();
+  fallback_scaling.clear();
+  int32_t x = 0;
+  int32_t y = 0;
+  for (size_t i = 0; i < n_glyphs; ++i) {
+    loc.push_back({
+      double(x + string_shape.x_offset[i]) / 64.0,
+      double(y + string_shape.y_offset[i]) / 64.0
+    });
+    x += string_shape.x_advance[i];
+    y += string_shape.y_advance[i];
   }
+  id.assign(string_shape.glyph_id.begin(), string_shape.glyph_id.end());
+  font.assign(string_shape.font.begin(), string_shape.font.end());
+  fallbacks.assign(string_shape.fallbacks.begin(), string_shape.fallbacks.end());
+  fallback_scaling.assign(string_shape.fallback_scaling.begin(), string_shape.fallback_scaling.end());
 
   END_CPP11_NO_RETURN
   return 0;

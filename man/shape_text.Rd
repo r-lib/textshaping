@@ -9,21 +9,24 @@ shape_text(
   id = NULL,
   family = "",
   italic = FALSE,
-  bold = FALSE,
+  weight = "normal",
+  width = "normal",
+  features = font_feature(),
   size = 12,
   res = 72,
   lineheight = 1,
   align = "left",
   hjust = 0,
   vjust = 0,
-  width = NA,
+  max_width = NA,
   tracking = 0,
   indent = 0,
   hanging = 0,
   space_before = 0,
   space_after = 0,
   path = NULL,
-  index = 0
+  index = 0,
+  bold = deprecated()
 )
 }
 \arguments{
@@ -32,24 +35,38 @@ shape_text(
 \item{id}{A vector grouping the strings together. If strings share an id the
 shaping will continue between strings}
 
-\item{family}{The name of the font family}
+\item{family}{The name of the font families to match}
 
-\item{italic}{logicals indicating the font style}
+\item{italic}{logical indicating the font slant}
 
-\item{bold}{logicals indicating the font style}
+\item{weight}{The weight to query for, either in numbers (\code{0}, \code{100}, \code{200},
+\code{300}, \code{400}, \code{500}, \code{600}, \code{700}, \code{800}, or \code{900}) or strings (\code{"undefined"},
+\code{"thin"}, \code{"ultralight"}, \code{"light"}, \code{"normal"}, \code{"medium"}, \code{"semibold"},
+\code{"bold"}, \code{"ultrabold"}, or \code{"heavy"}). \code{NA} will be interpreted as
+\code{"undefined"}/\code{0}}
 
-\item{size}{The pointsize of the font to use for size related measures}
+\item{width}{The width to query for either in numbers (\code{0}, \code{1}, \code{2},
+\code{3}, \code{4}, \code{5}, \code{6}, \code{7}, \code{8}, or \code{9}) or strings (\code{"undefined"},
+\code{"ultracondensed"}, \code{"extracondensed"}, \code{"condensed"}, \code{"semicondensed"},
+\code{"normal"}, \code{"semiexpanded"}, \code{"expanded"}, \code{"extraexpanded"}, or
+\code{"ultraexpanded"}). \code{NA} will be interpreted as \code{"undefined"}/\code{0}}
 
-\item{res}{The ppi of the size related mesures}
+\item{features}{A \code{\link[systemfonts:font_feature]{systemfonts::font_feature()}} object or a list of them,
+giving the OpenType font features to set}
+
+\item{size}{The size in points to use for the font}
+
+\item{res}{The resolution to use when doing the shaping. Should optimally
+match the resolution used when rendering the glyphs.}
 
 \item{lineheight}{A multiplier for the lineheight}
 
-\item{align}{Within text box alignment, either \code{'left'}, \code{'center'}, or
-\code{'right'}}
+\item{align}{Within text box alignment, either \code{'left'}, \code{'center'}, \code{'right'},
+\code{'justified-left'}, \code{'justified-right'}, \code{'justified-center'}, or \code{'distributed'}}
 
 \item{hjust, vjust}{The justification of the textbox surrounding the text}
 
-\item{width}{The requested with of the string in inches. Setting this to
+\item{max_width}{The requested with of the string in inches. Setting this to
 something other than \code{NA} will turn on word wrapping.}
 
 \item{tracking}{Tracking of the glyphs (space adjustment) measured in 1/1000
@@ -65,6 +82,8 @@ measured in points}
 
 \item{path, index}{path an index of a font file to circumvent lookup based on
 family and style}
+
+\item{bold}{logical indicating whether the font weight}
 }
 \value{
 A list with two element: \code{shape} contains the position of each glyph,

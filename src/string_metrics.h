@@ -6,6 +6,7 @@
 #include <cpp11/strings.hpp>
 #include <cpp11/integers.hpp>
 #include <cpp11/list.hpp>
+#include <cpp11/list_of.hpp>
 #include <cpp11/logicals.hpp>
 
 #include <systemfonts.h>
@@ -22,8 +23,9 @@ struct Point {
 
 [[cpp11::register]]
 list get_string_shape_c(strings string, integers id, strings path, integers index,
-                        doubles size, doubles res, doubles lineheight, integers align,
-                        doubles hjust, doubles vjust, doubles width, doubles tracking,
+                        list_of<list> features, doubles size, doubles res,
+                        doubles lineheight, integers align, doubles hjust,
+                        doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
                         doubles space_after);
 
