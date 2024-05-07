@@ -163,7 +163,7 @@ public:
                     double after, bool spacer);
   bool add_string(const char* string, FontSettings& font_info,
                   double size, double tracking, bool spacer);
-  bool add_spacer(double height, double width);
+  bool add_spacer(FontSettings& font_info, double height, double width);
   bool finish_string();
 
   ShapeInfo shape_text_run(const char* string, FontSettings& font_info, double size,
