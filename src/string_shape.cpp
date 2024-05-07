@@ -36,7 +36,7 @@ bool HarfBuzzShaper::shape_string(const char* string, FontSettings& font_info,
 bool HarfBuzzShaper::add_string(const char* string, FontSettings& font_info,
                                 double size, double tracking, bool spacer) {
   if (spacer) {
-    return add_spacer(size, tracking);
+    return add_spacer(font_info, size, tracking);
   }
 
   error_code = 0;
@@ -49,9 +49,24 @@ bool HarfBuzzShaper::add_string(const char* string, FontSettings& font_info,
   //FT_Done_Face(face);
   return true;
 }
-bool HarfBuzzShaper::add_spacer(double height, double width) {
+bool HarfBuzzShaper::add_spacer(FontSettings& font_info, double height, double width) {
   width *= 64.0 / 72.0;
-  double space_height = height * 64.0 * cur_res / 72.0;
+  int32_t ascend = height * 64.0 * cur_res / 72.0;
+  int32_t descend = 0;
+#if HB_VERSION_MAJOR < 2 && HB_VERSION_MINOR < 2
+#else
+  int error = 0;
+  hb_font_t *font = hb_ft_font_create(get_cached_face(font_info.file, font_info.index, height, cur_res, &error), NULL);
+  if (error != 0) {
+    Rprintf("Failed to get face: %s, %i\n", font_info.file, font_info.index);
+    error_code = error;
+  } else {
+    hb_font_extents_t fextent;
+    hb_font_get_h_extents(font, &fextent);
+    ascend = fextent.ascender;
+    descend = fextent.descender;
+  }
+#endif
   FontSettings dummy_font = {"", 0, NULL, 0};
   ShapeInfo info = {
     {0}, // glyph_id
@@ -61,11 +76,11 @@ bool HarfBuzzShaper::add_spacer(double height, double width) {
     {0}, // x_offset
     {0}, // y_offset
     {0}, // x_bear
-    {int32_t(space_height)}, // y_bear
+    {int32_t(ascend)}, // y_bear
     {int32_t(width)}, // width
-    {int32_t(space_height)}, // height
-    {int32_t(space_height)}, // ascenders
-    {0}, // descenders
+    {int32_t(ascend - descend)}, // height
+    {int32_t(ascend)}, // ascenders
+    {descend}, // descenders
     {false}, // may_break
     {false}, // must_break
     {false}, // may_stretch
