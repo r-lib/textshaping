@@ -23,7 +23,7 @@ ligatures, stylistic glyph substitutions, etc.
 For an example of a package that uses textshaping to support advanced
 text layout see [ragg](https://ragg.r-lib.org).
 
-A big thanks to [Behdad Esfahbod](http://behdad.org) who is the main
+A big thanks to [Behdad Esfahbod](https://behdad.org/) who is the main
 author of both FriBidi and HarfBuzz and has been very helpful answering
 questions during the course of development.
 
