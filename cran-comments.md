@@ -1,4 +1,4 @@
-This is a minor release with a full rewrite of the R facing shaping algorithm. .
+This is a minor release with a full rewrite of the R facing shaping algorithm.
 It breaks one reverse dependency where the maintainer are waiting for this 
 version to arrive on CRAN before fixing it
 
