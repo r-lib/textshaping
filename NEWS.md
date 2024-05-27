@@ -1,3 +1,5 @@
+# textshaping (development version)
+
 # textshaping 0.4.0
 
 * Full rewrite of `shape_text()` to allow proper font-fallback, bidi text
