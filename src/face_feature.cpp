@@ -22,7 +22,15 @@ writable::list get_face_features_c(strings path, integers index) {
 using namespace cpp11;
 
 writable::list get_face_features_c(strings path, integers index) {
+  if (path.size() != index.size()) {
+    cpp11::stop("`path` and `index` must be the same length");
+  }
+
   writable::list features(path.size());
+  if (path.size() == 0) {
+    return features; // Early exit
+  }
+
   std::vector<hb_tag_t> tags;
   unsigned int n_tags = 0;
   char tag_temp[5];

@@ -30,5 +30,6 @@ VignetteBuilder:
     knitr
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2
 SystemRequirements: freetype2, harfbuzz, fribidi
+Config/build/compilation-database: true

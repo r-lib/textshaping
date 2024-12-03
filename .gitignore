@@ -8,3 +8,5 @@ autobrew
 configure.log
 inst/doc
 O
+compile_commands.json
+.cache

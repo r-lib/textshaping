@@ -1,3 +1,4 @@
+#include "cpp11/protect.hpp"
 #define R_NO_REMAP
 
 #include "string_metrics.h"
@@ -110,6 +111,10 @@ std::vector< std::vector<FontFeature> > create_font_features(list_of<list> featu
 std::vector<FontSettings> create_font_settings(strings path, integers index, std::vector< std::vector<FontFeature> >& features) {
   std::vector<FontSettings> res;
 
+  if (path.size() != index.size() || path.size() != features.size()) {
+    cpp11::stop("`path`, `index`, and `features` must all be of the same length");
+  }
+
   for (R_xlen_t i = 0; i < path.size(); ++i) {
     res.emplace_back();
     strncpy(res.back().file, Rf_translateCharUTF8(path[i]), PATH_MAX);
@@ -129,77 +134,99 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                         doubles indent, doubles hanging, doubles space_before,
                         doubles space_after) {
   int n_strings = string.size();
-  auto all_features = create_font_features(features);
-  auto fonts = create_font_settings(path, index, all_features);
 
   // Return Columns
   writable::integers glyph, glyph_id, metric_id, string_id, fontindex;
   writable::doubles x_offset, y_offset, widths, heights, left_bearings, right_bearings,
     top_bearings, bottom_bearings, left_border, top_border, pen_x, pen_y, fontsize,
     advance, ascender, descender;
-  writable::strings fontpath;
+  writable::strings fontpath, str;
 
-  // Shape the text
-  int cur_id = id[0] - 1; // make sure it differs from first
-  bool success = false;
+  if (n_strings != 0) {
+    if (n_strings != id.size() ||
+        n_strings != path.size() ||
+        n_strings != index.size() ||
+        n_strings != features.size() ||
+        n_strings != size.size() ||
+        n_strings != res.size() ||
+        n_strings != lineheight.size() ||
+        n_strings != align.size() ||
+        n_strings != hjust.size() ||
+        n_strings != vjust.size() ||
+        n_strings != width.size() ||
+        n_strings != tracking.size() ||
+        n_strings != indent.size() ||
+        n_strings != hanging.size() ||
+        n_strings != space_before.size() ||
+        n_strings != space_after.size()
+    ) {
+      cpp11::stop("All input must be the same size");
+    }
+    auto all_features = create_font_features(features);
+    auto fonts = create_font_settings(path, index, all_features);
 
-  HarfBuzzShaper& shaper = get_hb_shaper();
-  for (int i = 0; i < n_strings; ++i) {
-    const char* this_string = Rf_translateCharUTF8(string[i]);
-    int this_id = id[i];
-    if (cur_id == this_id) {
-      success = shaper.add_string(this_string, fonts[i], size[i], tracking[i], cpp11::is_na(string[i]));
+    // Shape the text
+    int cur_id = id[0] - 1; // make sure it differs from first
+    bool success = false;
 
-      if (!success) {
-        Rf_error("Failed to shape string (%s) with font file (%s) with freetype error %i", this_string, Rf_translateCharUTF8(path[i]), shaper.error_code);
+    HarfBuzzShaper& shaper = get_hb_shaper();
+    for (int i = 0; i < n_strings; ++i) {
+      const char* this_string = Rf_translateCharUTF8(string[i]);
+      int this_id = id[i];
+      if (cur_id == this_id) {
+        success = shaper.add_string(this_string, fonts[i], size[i], tracking[i], cpp11::is_na(string[i]));
+
+        if (!success) {
+          cpp11::stop("Failed to shape string (%s) with font file (%s) with freetype error %i", this_string, Rf_translateCharUTF8(path[i]), shaper.error_code);
+        }
+      } else {
+        cur_id = this_id;
+        success = shaper.shape_string(this_string, fonts[i], size[i], res[i],
+                                      lineheight[i], align[i], hjust[i], vjust[i],
+                                      width[i] * 64.0, tracking[i], indent[i] * 64.0,
+                                      hanging[i] * 64.0, space_before[i] * 64.0,
+                                      space_after[i] * 64.0, cpp11::is_na(string[i]));
+
+        if (!success) {
+          cpp11::stop("Failed to shape string (%s) with font file (%s) with freetype error %i", this_string, Rf_translateCharUTF8(STRING_ELT(path, i)), shaper.error_code);
+        }
       }
-    } else {
-      cur_id = this_id;
-      success = shaper.shape_string(this_string, fonts[i], size[i], res[i],
-                                    lineheight[i], align[i], hjust[i], vjust[i],
-                                    width[i] * 64.0, tracking[i], indent[i] * 64.0,
-                                    hanging[i] * 64.0, space_before[i] * 64.0,
-                                    space_after[i] * 64.0, cpp11::is_na(string[i]));
-
-      if (!success) {
-        Rf_error("Failed to shape string (%s) with font file (%s) with freetype error %i", this_string, Rf_translateCharUTF8(STRING_ELT(path, i)), shaper.error_code);
+      bool store_string = i == n_strings - 1 || cur_id != INTEGER(id)[i + 1];
+      if (store_string) {
+        success = shaper.finish_string();
+        if (!success) {
+          cpp11::stop("Failed to finalise string shaping");
+        }
+        int n_glyphs = shaper.glyph_id.size();
+        for (int j = 0; j < n_glyphs; j++) {
+          if (shaper.must_break[j]) continue; // Don't add any linebreak chars as they often map to null glyph
+          glyph.push_back((int) shaper.glyph_cluster[j] + 1);
+          glyph_id.push_back((int) shaper.glyph_id[j]);
+          metric_id.push_back(pen_x.size() + 1);
+          string_id.push_back(shaper.string_id[j] + 1);
+          x_offset.push_back(double(shaper.x_pos[j]) / 64.0);
+          y_offset.push_back(double(shaper.y_pos[j]) / 64.0);
+          fontpath.push_back(shaper.fontfile[j]);
+          fontindex.push_back((int) shaper.fontindex[j]);
+          fontsize.push_back(shaper.fontsize[j]);
+          advance.push_back(double(shaper.advance[j]) / 64.0);
+          ascender.push_back(double(shaper.ascender[j]) / 64.0);
+          descender.push_back(double(shaper.descender[j]) / 64.0);
+        }
+        widths.push_back(double(shaper.width) / 64.0);
+        heights.push_back(double(shaper.height) / 64.0);
+        left_bearings.push_back(double(shaper.left_bearing) / 64.0);
+        right_bearings.push_back(double(shaper.right_bearing) / 64.0);
+        top_bearings.push_back(double(shaper.top_bearing) / 64.0);
+        bottom_bearings.push_back(double(shaper.bottom_bearing) / 64.0);
+        left_border.push_back(double(shaper.left_border) / 64.0);
+        top_border.push_back(double(shaper.top_border) / 64.0);
+        pen_x.push_back(double(shaper.pen_x) / 64.0);
+        pen_y.push_back(double(shaper.pen_y) / 64.0);
       }
     }
-    bool store_string = i == n_strings - 1 || cur_id != INTEGER(id)[i + 1];
-    if (store_string) {
-      success = shaper.finish_string();
-      if (!success) {
-        Rf_error("Failed to finalise string shaping");
-      }
-      int n_glyphs = shaper.glyph_id.size();
-      for (int j = 0; j < n_glyphs; j++) {
-        if (shaper.must_break[j]) continue; // Don't add any linebreak chars as they often map to null glyph
-        glyph.push_back((int) shaper.glyph_cluster[j] + 1);
-        glyph_id.push_back((int) shaper.glyph_id[j]);
-        metric_id.push_back(pen_x.size() + 1);
-        string_id.push_back(shaper.string_id[j] + 1);
-        x_offset.push_back(double(shaper.x_pos[j]) / 64.0);
-        y_offset.push_back(double(shaper.y_pos[j]) / 64.0);
-        fontpath.push_back(shaper.fontfile[j]);
-        fontindex.push_back((int) shaper.fontindex[j]);
-        fontsize.push_back(shaper.fontsize[j]);
-        advance.push_back(double(shaper.advance[j]) / 64.0);
-        ascender.push_back(double(shaper.ascender[j]) / 64.0);
-        descender.push_back(double(shaper.descender[j]) / 64.0);
-      }
-      widths.push_back(double(shaper.width) / 64.0);
-      heights.push_back(double(shaper.height) / 64.0);
-      left_bearings.push_back(double(shaper.left_bearing) / 64.0);
-      right_bearings.push_back(double(shaper.right_bearing) / 64.0);
-      top_bearings.push_back(double(shaper.top_bearing) / 64.0);
-      bottom_bearings.push_back(double(shaper.bottom_bearing) / 64.0);
-      left_border.push_back(double(shaper.left_border) / 64.0);
-      top_border.push_back(double(shaper.top_border) / 64.0);
-      pen_x.push_back(double(shaper.pen_x) / 64.0);
-      pen_y.push_back(double(shaper.pen_y) / 64.0);
-    }
+    str = writable::strings(pen_x.size());
   }
-  writable::strings str(pen_x.size());
 
   writable::data_frame string_df({
     "string"_nm = str,
@@ -241,34 +268,37 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
 doubles get_line_width_c(strings string, strings path, integers index, doubles size,
                          doubles res, logicals include_bearing) {
   int n_strings = string.size();
-  bool one_path = path.size() == 1;
-  const char* first_path = Rf_translateCharUTF8(path[0]);
-  int first_index = index[0];
-  bool one_size = size.size() == 1;
-  double first_size = size[0];
-  bool one_res = res.size() == 1;
-  double first_res = res[0];
-  bool one_bear = include_bearing.size() == 1;
-  int first_bear = include_bearing[0];
-
   writable::doubles widths;
-  int error = 1;
-  double width = 0;
+  if (n_strings != 0) {
+    bool one_path = path.size() == 1;
+    const char* first_path = Rf_translateCharUTF8(path[0]);
+    int first_index = index[0];
+    bool one_size = size.size() == 1;
+    double first_size = size[0];
+    bool one_res = res.size() == 1;
+    double first_res = res[0];
+    bool one_bear = include_bearing.size() == 1;
+    int first_bear = include_bearing[0];
 
-  for (int i = 0; i < n_strings; ++i) {
-    error = string_width(
-      Rf_translateCharUTF8(string[i]),
-      one_path ? first_path : Rf_translateCharUTF8(path[i]),
-      one_path ? first_index : index[i],
-      one_size ? first_size : size[i],
-      one_res ? first_res : res[i],
-      one_bear ? first_bear : static_cast<int>(include_bearing[0]),
-      &width
-    );
-    if (error) {
-      Rf_error("Failed to calculate width of string (%s) with font file (%s) with freetype error %i", Rf_translateCharUTF8(string[i]), Rf_translateCharUTF8(path[i]), error);
+
+    int error = 1;
+    double width = 0;
+
+    for (int i = 0; i < n_strings; ++i) {
+      error = string_width(
+        Rf_translateCharUTF8(string[i]),
+        one_path ? first_path : Rf_translateCharUTF8(path[i]),
+        one_path ? first_index : index[i],
+        one_size ? first_size : size[i],
+        one_res ? first_res : res[i],
+        one_bear ? first_bear : static_cast<int>(include_bearing[0]),
+        &width
+      );
+      if (error) {
+        cpp11::stop("Failed to calculate width of string (%s) with font file (%s) with freetype error %i", Rf_translateCharUTF8(string[i]), Rf_translateCharUTF8(path[i]), error);
+      }
+      widths.push_back(width);
     }
-    widths.push_back(width);
   }
 
   return widths;
