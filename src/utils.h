@@ -20,7 +20,7 @@
   if (buf[0] != '\0') {                                    \
     Rf_error("%s", buf);                                   \
   } else if (err != R_NilValue) {                          \
-    CPP11_UNWIND                                           \
+    R_ContinueUnwind(err);                                 \
   }
 
 /*
