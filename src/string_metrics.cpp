@@ -266,32 +266,33 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
 }
 
 doubles get_line_width_c(strings string, strings path, integers index, doubles size,
-                         doubles res, logicals include_bearing) {
+                         doubles res, logicals include_bearing, list_of<list> features) {
   int n_strings = string.size();
   writable::doubles widths;
   if (n_strings != 0) {
-    bool one_path = path.size() == 1;
-    const char* first_path = Rf_translateCharUTF8(path[0]);
-    int first_index = index[0];
-    bool one_size = size.size() == 1;
-    double first_size = size[0];
-    bool one_res = res.size() == 1;
-    double first_res = res[0];
-    bool one_bear = include_bearing.size() == 1;
-    int first_bear = include_bearing[0];
+    if (n_strings != path.size() ||
+        n_strings != index.size() ||
+        n_strings != features.size() ||
+        n_strings != size.size() ||
+        n_strings != res.size() ||
+        n_strings != include_bearing.size()
+    ) {
+      cpp11::stop("All input must be the same size");
+    }
 
+    auto all_features = create_font_features(features);
+    auto fonts = create_font_settings(path, index, all_features);
 
     int error = 1;
     double width = 0;
 
     for (int i = 0; i < n_strings; ++i) {
-      error = string_width(
+      error = ts_string_width(
         Rf_translateCharUTF8(string[i]),
-        one_path ? first_path : Rf_translateCharUTF8(path[i]),
-        one_path ? first_index : index[i],
-        one_size ? first_size : size[i],
-        one_res ? first_res : res[i],
-        one_bear ? first_bear : static_cast<int>(include_bearing[0]),
+        fonts[i],
+        size[i],
+        res[i],
+        static_cast<int>(include_bearing[0]),
         &width
       );
       if (error) {

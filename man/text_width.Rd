@@ -8,12 +8,15 @@ text_width(
   strings,
   family = "",
   italic = FALSE,
-  bold = FALSE,
+  weight = "normal",
+  width = "undefined",
+  features = font_feature(),
   size = 12,
   res = 72,
   include_bearing = TRUE,
   path = NULL,
-  index = 0
+  index = 0,
+  bold = deprecated()
 )
 }
 \arguments{
@@ -23,27 +26,44 @@ text_width(
 
 \item{italic}{logical indicating the font slant}
 
-\item{bold}{logical indicating whether the font weight}
+\item{weight}{The weight to query for, either in numbers (\code{0}, \code{100}, \code{200},
+\code{300}, \code{400}, \code{500}, \code{600}, \code{700}, \code{800}, or \code{900}) or strings (\code{"undefined"},
+\code{"thin"}, \code{"ultralight"}, \code{"light"}, \code{"normal"}, \code{"medium"}, \code{"semibold"},
+\code{"bold"}, \code{"ultrabold"}, or \code{"heavy"}). \code{NA} will be interpreted as
+\code{"undefined"}/\code{0}}
 
-\item{size}{The pointsize of the font to use for size related measures}
+\item{width}{The width to query for either in numbers (\code{0}, \code{1}, \code{2},
+\code{3}, \code{4}, \code{5}, \code{6}, \code{7}, \code{8}, or \code{9}) or strings (\code{"undefined"},
+\code{"ultracondensed"}, \code{"extracondensed"}, \code{"condensed"}, \code{"semicondensed"},
+\code{"normal"}, \code{"semiexpanded"}, \code{"expanded"}, \code{"extraexpanded"}, or
+\code{"ultraexpanded"}). \code{NA} will be interpreted as \code{"undefined"}/\code{0}}
 
-\item{res}{The ppi of the size related mesures}
+\item{features}{A \code{\link[systemfonts:font_feature]{systemfonts::font_feature()}} object or a list of them,
+giving the OpenType font features to set}
+
+\item{size}{The size in points to use for the font}
+
+\item{res}{The resolution to use when doing the shaping. Should optimally
+match the resolution used when rendering the glyphs.}
 
 \item{include_bearing}{Logical, should left and right bearing be included in
 the string width?}
 
 \item{path, index}{path an index of a font file to circumvent lookup based on
 family and style}
+
+\item{bold}{logical indicating whether the font weight}
 }
 \value{
 A numeric vector giving the width of the strings in pixels. Use the
 provided \code{res} value to convert it into absolute values.
 }
 \description{
-This is a very simple alternative to \code{\link[=shape_string]{shape_string()}} that simply calculates
-the width of strings without taking any newline into account. As such it is
-suitable to calculate the width of words or lines that has already been
-splitted by \verb{\\n}. Input is recycled to the length of \code{strings}.
+This is a very simple alternative to \code{\link[systemfonts:shape_string]{systemfonts::shape_string()}} that
+simply calculates the width of strings without taking any newline into
+account. As such it is suitable to calculate the width of words or lines that
+has already been splitted by \verb{\\n}. Input is recycled to the length of
+\code{strings}.
 }
 \examples{
 strings <- c('A short string', 'A very very looong string')

@@ -20,17 +20,17 @@ extern "C" SEXP _textshaping_get_string_shape_c(SEXP string, SEXP id, SEXP path,
   END_CPP11
 }
 // string_metrics.h
-doubles get_line_width_c(strings string, strings path, integers index, doubles size, doubles res, logicals include_bearing);
-extern "C" SEXP _textshaping_get_line_width_c(SEXP string, SEXP path, SEXP index, SEXP size, SEXP res, SEXP include_bearing) {
+doubles get_line_width_c(strings string, strings path, integers index, doubles size, doubles res, logicals include_bearing, list_of<list> features);
+extern "C" SEXP _textshaping_get_line_width_c(SEXP string, SEXP path, SEXP index, SEXP size, SEXP res, SEXP include_bearing, SEXP features) {
   BEGIN_CPP11
-    return cpp11::as_sexp(get_line_width_c(cpp11::as_cpp<cpp11::decay_t<strings>>(string), cpp11::as_cpp<cpp11::decay_t<strings>>(path), cpp11::as_cpp<cpp11::decay_t<integers>>(index), cpp11::as_cpp<cpp11::decay_t<doubles>>(size), cpp11::as_cpp<cpp11::decay_t<doubles>>(res), cpp11::as_cpp<cpp11::decay_t<logicals>>(include_bearing)));
+    return cpp11::as_sexp(get_line_width_c(cpp11::as_cpp<cpp11::decay_t<strings>>(string), cpp11::as_cpp<cpp11::decay_t<strings>>(path), cpp11::as_cpp<cpp11::decay_t<integers>>(index), cpp11::as_cpp<cpp11::decay_t<doubles>>(size), cpp11::as_cpp<cpp11::decay_t<doubles>>(res), cpp11::as_cpp<cpp11::decay_t<logicals>>(include_bearing), cpp11::as_cpp<cpp11::decay_t<list_of<list>>>(features)));
   END_CPP11
 }
 
 extern "C" {
 static const R_CallMethodDef CallEntries[] = {
     {"_textshaping_get_face_features_c", (DL_FUNC) &_textshaping_get_face_features_c,  2},
-    {"_textshaping_get_line_width_c",    (DL_FUNC) &_textshaping_get_line_width_c,     6},
+    {"_textshaping_get_line_width_c",    (DL_FUNC) &_textshaping_get_line_width_c,     7},
     {"_textshaping_get_string_shape_c",  (DL_FUNC) &_textshaping_get_string_shape_c,  17},
     {NULL, NULL, 0}
 };

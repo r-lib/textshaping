@@ -170,12 +170,13 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
 }
 #' Calculate the width of a string, ignoring new-lines
 #'
-#' This is a very simple alternative to [shape_string()] that simply calculates
-#' the width of strings without taking any newline into account. As such it is
-#' suitable to calculate the width of words or lines that has already been
-#' splitted by `\n`. Input is recycled to the length of `strings`.
+#' This is a very simple alternative to [systemfonts::shape_string()] that
+#' simply calculates the width of strings without taking any newline into
+#' account. As such it is suitable to calculate the width of words or lines that
+#' has already been splitted by `\n`. Input is recycled to the length of
+#' `strings`.
 #'
-#' @inheritParams systemfonts::font_info
+#' @inheritParams shape_text
 #' @param strings A character vector of strings
 #' @param include_bearing Logical, should left and right bearing be included in
 #' the string width?
@@ -190,30 +191,39 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
 #' strings <- c('A short string', 'A very very looong string')
 #' text_width(strings)
 #'
-text_width <- function(strings, family = '', italic = FALSE, bold = FALSE,
+text_width <- function(strings, family = '', italic = FALSE, weight = 'normal',
+                       width = 'undefined', features = font_feature(),
                        size = 12, res = 72, include_bearing = TRUE, path = NULL,
-                       index = 0) {
+                       index = 0, bold = deprecated()) {
   n_strings <- length(strings)
-  if (is.null(path)) {
-    fonts <- match_fonts(
-      rep_len(family, n_strings),
-      rep_len(italic, n_strings),
-      ifelse(rep_len(bold, n_strings), "bold", "normal")
-    )
-    path <- fonts$path
-    index <- fonts$index
-  } else {
-    if (!all(c(length(path), length(index)) == 1)) {
-      path <- rep_len(path, n_strings)
-      index <- rep_len(index, n_strings)
-    }
+
+  if (lifecycle::is_present(bold)) {
+    lifecycle::deprecate_soft("0.4.1", "text_width(bold)", "text_width(weight='bold')")
+    weight <- ifelse(bold, "bold", "normal")
   }
-  if (length(size) != 1) size <- rep_len(size, n_strings)
-  if (length(res) != 1) res <- rep_len(res, n_strings)
-  if (length(include_bearing) != 1) include_bearing <- rep_len(include_bearing, n_strings)
+
+  if (inherits(features, 'font_feature')) features <- list(features)
+  features <- rep_len(features, n_strings)
+
+  if (is.null(path)) {
+    family <- rep_len(family, n_strings)
+    italic <- rep_len(italic, n_strings)
+    weight <- rep_len(weight, n_strings)
+    width <- rep_len(width, n_strings)
+    loc <- match_fonts(family, italic, weight, width)
+    path <- loc$path
+    index <- loc$index
+    features <- Map(c, loc$features, features)
+  } else {
+    path <- rep_len(path, n_strings)
+    index <- rep_len(index, n_strings)
+  }
+  size <- rep_len(size, n_strings)
+  res <- rep_len(res, n_strings)
+  include_bearing <- rep_len(include_bearing, n_strings)
   if (!all(file.exists(path))) stop("path must point to a valid file", call. = FALSE)
   get_line_width_c(
     as.character(strings), path, as.integer(index), as.numeric(size),
-    as.numeric(res), as.logical(include_bearing)
+    as.numeric(res), as.logical(include_bearing), features
   )
 }

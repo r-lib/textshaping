@@ -8,6 +8,6 @@ get_string_shape_c <- function(string, id, path, index, features, size, res, lin
   .Call(`_textshaping_get_string_shape_c`, string, id, path, index, features, size, res, lineheight, align, hjust, vjust, width, tracking, indent, hanging, space_before, space_after)
 }
 
-get_line_width_c <- function(string, path, index, size, res, include_bearing) {
-  .Call(`_textshaping_get_line_width_c`, string, path, index, size, res, include_bearing)
+get_line_width_c <- function(string, path, index, size, res, include_bearing, features) {
+  .Call(`_textshaping_get_line_width_c`, string, path, index, size, res, include_bearing, features)
 }

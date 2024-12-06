@@ -5,6 +5,7 @@
   width (#45)
 * Fixed a mismatch between the default values of the `width` argument in
   `shape_text()` and `systemfonts::match_fonts()` (#44)
+* Updated `text_width()` to take the same inputs as `shape_text()`
 
 # textshaping 0.4.0
 
