@@ -893,12 +893,14 @@ size_t HarfBuzzShaper::fill_out_width(size_t from, int32_t max,
   bool has_break = false;
   breaktype = 0;
   if (shape_infos[shape].ltr) {
-    if (max < 0) return shape_infos[shape].glyph_id.size();
     for (size_t i = from; i < shape_infos[shape].glyph_id.size(); ++i) {
       if (shape_infos[shape].must_break[i]) {
         breaktype = 2;
         return i + 1;
       }
+
+      if (max < 0) continue;
+
       if (shape_infos[shape].may_break[i]) {
         last_possible_break = i;
         has_break = true;
@@ -925,12 +927,14 @@ size_t HarfBuzzShaper::fill_out_width(size_t from, int32_t max,
     }
     last_possible_break = shape_infos[shape].glyph_id.size();
   } else {
-    if (max < 0) return 0;
     for (size_t i = from - 1; i >= 0; --i) {
       if (shape_infos[shape].must_break[i]) {
         breaktype = 2;
         return i + 1;
       }
+
+      if (max < 0) continue;
+
       if (shape_infos[shape].may_break[i]) {
         last_possible_break = i;
         has_break = true;

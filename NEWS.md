@@ -1,6 +1,8 @@
 # textshaping (development version)
 
 * Make compiled code somewhat less assumptive about the correctness of the input
+* Fix a bug from too agressive early exiting shaping of strings with no max
+  width (#45)
 
 # textshaping 0.4.0
 
