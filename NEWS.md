@@ -3,6 +3,8 @@
 * Make compiled code somewhat less assumptive about the correctness of the input
 * Fix a bug from too agressive early exiting shaping of strings with no max
   width (#45)
+* Fixed a mismatch between the default values of the `width` argument in
+  `shape_text()` and `systemfonts::match_fonts()` (#44)
 
 # textshaping 0.4.0
 

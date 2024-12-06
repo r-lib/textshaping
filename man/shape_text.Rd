@@ -10,7 +10,7 @@ shape_text(
   family = "",
   italic = FALSE,
   weight = "normal",
-  width = "normal",
+  width = "undefined",
   features = font_feature(),
   size = 12,
   res = 72,

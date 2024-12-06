@@ -84,7 +84,7 @@
 #' shape_text(string, id = c(1, 1, 1), size = c(12, 24, 12))
 #'
 shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
-                       weight = 'normal', width = 'normal', features = font_feature(),
+                       weight = 'normal', width = 'undefined', features = font_feature(),
                        size = 12, res = 72, lineheight = 1, align = 'left',
                        hjust = 0, vjust = 0, max_width = NA, tracking = 0,
                        indent = 0, hanging = 0, space_before = 0, space_after = 0,
