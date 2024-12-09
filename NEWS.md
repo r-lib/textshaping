@@ -1,3 +1,5 @@
+# textshaping (development version)
+
 # textshaping 0.4.1
 
 * Make compiled code somewhat less assumptive about the correctness of the input
