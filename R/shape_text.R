@@ -294,6 +294,13 @@ plot_shape <- function(shape, id = 1) {
     stop("The current device doesn't support rendering glyphs")
   }
 
+  glyphFont <- utils::getFromNamespace("glyphFont", "grDevices")
+  glyphFontList <- utils::getFromNamespace("glyphFontList", "grDevices")
+  glyphInfo <- utils::getFromNamespace("glyphInfo", "grDevices")
+  glyphAnchor <- utils::getFromNamespace("glyphAnchor", "grDevices")
+
+  grid.glyph <- utils::getFromNamespace("grid.glyph", "grid")
+
   if (!is.numeric(id) || length(id) != 1 || id <= 0 || id %% 1 != 0 || id > nrow(shape$metrics)) {
     stop("`id` must be an integer pointing to a paragraph in `shape`")
   }
@@ -303,9 +310,9 @@ plot_shape <- function(shape, id = 1) {
   font_id <- paste0(glyphs$font_path, "&", glyphs$font_index)
   font_match <- match(font_id, unique(font_id))
   unique_font <- !duplicated(font_id)
-  fonts <- Map(grDevices::glyphFont, glyphs$font_path[unique_font], glyphs$font_index[unique_font], "", 0, "")
-  fonts <- do.call(grDevices::glyphFontList, fonts)
-  glyphs <- grDevices::glyphInfo(
+  fonts <- Map(glyphFont, glyphs$font_path[unique_font], glyphs$font_index[unique_font], "", 0, "")
+  fonts <- do.call(glyphFontList, fonts)
+  glyphs <- glyphInfo(
     id = glyphs$index,
     x = glyphs$x_offset,
     y = glyphs$y_offset,
@@ -314,8 +321,8 @@ plot_shape <- function(shape, id = 1) {
     fontList = fonts,
     width = box$width,
     height = -box$height,
-    hAnchor = grDevices::glyphAnchor(0, "left"),
-    vAnchor = grDevices::glyphAnchor(0, "bottom")
+    hAnchor = glyphAnchor(0, "left"),
+    vAnchor = glyphAnchor(0, "bottom")
   )
 
   grid::grid.newpage()
@@ -338,7 +345,7 @@ plot_shape <- function(shape, id = 1) {
     default.units = "bigpts",
     gp = grid::gpar(fill = NA, col = "darkgrey", lty = 2)
   )
-  grid::grid.glyph(
+  grid.glyph(
     glyphs,
     x = 0,
     y = 0,
