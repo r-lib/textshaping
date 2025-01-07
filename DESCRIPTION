@@ -14,11 +14,13 @@ Description: Provides access to the text shaping functionality in the
 License: MIT + file LICENSE
 URL: https://github.com/r-lib/textshaping
 BugReports: https://github.com/r-lib/textshaping/issues
-Depends: 
+Depends:
     R (>= 3.2.0)
 Imports:
     lifecycle,
     stats,
+    stringi,
+    systemfonts (>= 1.1.0),
     utils
 Suggests:
     covr,
@@ -26,10 +28,10 @@ Suggests:
     grid,
     knitr,
     rmarkdown
-LinkingTo: 
+LinkingTo:
     cpp11 (>= 0.2.1),
     systemfonts (>= 1.0.0)
-VignetteBuilder: 
+VignetteBuilder:
     knitr
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

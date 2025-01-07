@@ -3,11 +3,9 @@
 #' @description
 #' `r lifecycle::badge('experimental')`
 #'
-#' Do basic text shaping of strings. This function will use freetype to
-#' calculate advances, doing kerning if possible. It will not perform any font
-#' substitution or ligature resolving and will thus be much in line with how
-#' the standard graphic devices does text shaping. Inputs are recycled to the
-#' length of `strings`.
+#' Performs advanced text shaping of strings including font fallbacks,
+#' bidirectional script support, word wrapping and various character and
+#' paragraph level formatting settings.
 #'
 #' @param strings A character vector of strings to shape
 #' @param id A vector grouping the strings together. If strings share an id the
@@ -31,6 +29,10 @@
 #' inches.
 #' @param space_before,space_after The spacing above and below a paragraph,
 #' measured in points
+#' @param direction The overall directional flow of the text. The default
+#' (`"auto"`) will guess the direction based on the content of the string. Use
+#' `"ltr"` (left-to-right) and `"rtl"` (right-to-left) to turn detection of and
+#' set it manually.
 #' @param path,index path an index of a font file to circumvent lookup based on
 #' family and style
 #'
@@ -41,13 +43,18 @@
 #'
 #' `shape` is a data.frame with the following columns:
 #' \describe{
-#'   \item{glyph}{The glyph as a character}
+#'   \item{glyph}{The placement of the the first character contributing to the glyph within the string}
 #'   \item{index}{The index of the glyph in the font file}
 #'   \item{metric_id}{The index of the string the glyph is part of (referencing a row in the `metrics` data.frame)}
 #'   \item{string_id}{The index of the string the glyph came from (referencing an element in the `strings` input)}
 #'   \item{x_offset}{The x offset in pixels from the origin of the textbox}
 #'   \item{y_offset}{The y offset in pixels from the origin of the textbox}
-#'   \item{x_mid}{The x offset in pixels to the middle of the glyph, measured from the origin of the glyph}
+#'   \item{font_path}{The path to the font file used during shaping of the glyph}
+#'   \item{font_index}{The index of the font used to shape the glyph in the font file}
+#'   \item{font_size}{The size of the font used during shaping}
+#'   \item{advance}{The advancement amount to the next glyph}
+#'   \item{ascender}{The ascend of the font used for the glyph. This does not measure the actual glyph}
+#'   \item{descender}{The descend of the font used for the glyph. This does not measure the actual glyph}
 #' }
 #'
 #' `metrics` is a data.frame with the following columns:
@@ -63,6 +70,7 @@
 #'   \item{top_border}{The position of the topmost edge of the textbox related to the origin}
 #'   \item{pen_x}{The horizontal position of the next glyph after the string}
 #'   \item{pen_y}{The vertical position of the next glyph after the string}
+#'   \item{ltr}{The global direction of the string. If `TRUE` then it is left-to-right, otherwise it is right-to-left}
 #' }
 #'
 #' @export
@@ -85,10 +93,11 @@
 #'
 shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
                        weight = 'normal', width = 'undefined', features = font_feature(),
-                       size = 12, res = 72, lineheight = 1, align = 'left',
+                       size = 12, res = 72, lineheight = 1, align = 'auto',
                        hjust = 0, vjust = 0, max_width = NA, tracking = 0,
                        indent = 0, hanging = 0, space_before = 0, space_after = 0,
-                       path = NULL, index = 0, bold = deprecated()) {
+                       direction = "auto", path = NULL, index = 0,
+                       bold = deprecated()) {
   n_strings = length(strings)
   if (is.null(id)) id <- seq_len(n_strings)
   id <- rep_len(id, n_strings)
@@ -125,8 +134,8 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
   size <- rep_len(size, n_strings)[ido]
   res <- rep_len(res, n_strings)[ido]
   lineheight <- rep_len(lineheight, n_strings)[ido]
-  align <- match.arg(align, c('left', 'center', 'right', 'justified-left', 'justified-center', 'justified-right', 'distributed'), TRUE)
-  align <- match(align, c('left', 'center', 'right', 'justified-left', 'justified-center', 'justified-right', 'distributed'))
+  align <- if (length(align) != 0) match.arg(align, c('left', 'center', 'right', 'justified-left', 'justified-center', 'justified-right', 'distributed', 'auto', 'justified'), TRUE)
+  align <- match(align, c('left', 'center', 'right', 'justified-left', 'justified-center', 'justified-right', 'distributed', 'auto', 'justified'))
   align <- rep_len(align, n_strings)[ido]
   hjust <- rep_len(hjust, n_strings)[ido]
   vjust <- rep_len(vjust, n_strings)[ido]
@@ -137,6 +146,9 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
   hanging <- rep_len(hanging, n_strings)[ido]
   space_before <- rep_len(space_before, n_strings)[ido]
   space_after <- rep_len(space_after, n_strings)[ido]
+  direction <- if (length(direction) != 0)  match.arg(direction, c('auto', 'ltr', 'rtl'), TRUE)
+  direction <- match(direction, c('auto', 'ltr', 'rtl')) - 1L
+  direction <- rep_len(direction, n_strings)[ido]
 
   max_width <- max_width * res
   tracking <- tracking * res
@@ -145,6 +157,16 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
   space_before <- space_before * res / 72
   space_after <- space_after * res / 72
 
+  soft_wraps <- lapply(stringi::stri_locate_all_boundaries(
+    strings,
+    omit_no_match = TRUE,
+    skip_line_hard = TRUE
+  ), function(x) x[, 2])
+  hard_wraps <- lapply(stringi::stri_locate_all_boundaries(
+    strings,
+    omit_no_match = TRUE,
+    skip_line_soft = TRUE
+  ), function(x) x[, 2])
 
   if (!all(file.exists(path))) stop("path must point to a valid file", call. = FALSE)
   shape <- get_string_shape_c(
@@ -152,12 +174,12 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
     as.numeric(res), as.numeric(lineheight), as.integer(align) - 1L,
     as.numeric(hjust), as.numeric(vjust), as.numeric(max_width), as.numeric(tracking),
     as.numeric(indent), as.numeric(hanging), as.numeric(space_before),
-    as.numeric(space_after)
+    as.numeric(space_after), as.integer(direction), soft_wraps, hard_wraps
   )
   if (nrow(shape$shape) == 0) return(shape)
 
   shape$metrics$string <- vapply(split(strings, id), paste, character(1), collapse = '')
-  shape$metrics[-1] <- lapply(shape$metrics[-1], function(x) x * 72 / res[!duplicated(id)])
+  shape$metrics[-c(1, 12)] <- lapply(shape$metrics[-c(1, 12)], function(x) x * 72 / res[!duplicated(id)])
 
   shape$shape$string_id <- ido[(cumsum(c(0, rle(id)$lengths)) + 1)[shape$shape$metric_id] + shape$shape$string_id - 1]
   shape$shape <- shape$shape[order(shape$shape$string_id), , drop = FALSE]
