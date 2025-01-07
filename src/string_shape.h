@@ -1,8 +1,9 @@
 #pragma once
 
-#include <functional>
 #ifndef NO_HARFBUZZ_FRIBIDI
 
+#include <functional>
+#include <algorithm>
 #include <systemfonts.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
