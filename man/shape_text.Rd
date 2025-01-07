@@ -15,7 +15,7 @@ shape_text(
   size = 12,
   res = 72,
   lineheight = 1,
-  align = "left",
+  align = "auto",
   hjust = 0,
   vjust = 0,
   max_width = NA,
@@ -24,6 +24,7 @@ shape_text(
   hanging = 0,
   space_before = 0,
   space_after = 0,
+  direction = "auto",
   path = NULL,
   index = 0,
   bold = deprecated()
@@ -61,8 +62,10 @@ match the resolution used when rendering the glyphs.}
 
 \item{lineheight}{A multiplier for the lineheight}
 
-\item{align}{Within text box alignment, either \code{'left'}, \code{'center'}, \code{'right'},
-\code{'justified-left'}, \code{'justified-right'}, \code{'justified-center'}, or \code{'distributed'}}
+\item{align}{Within text box alignment, either \code{'auto'}, \code{'left'}, \code{'center'},
+\code{'right'}, \code{'justified'}, \code{'justified-left'}, \code{'justified-right'},
+\code{'justified-center'}, or \code{'distributed'}. \code{'auto'} and \code{'justified'} will
+chose the left or right version depending on the direction of the text.}
 
 \item{hjust, vjust}{The justification of the textbox surrounding the text}
 
@@ -80,6 +83,11 @@ inches.}
 \item{space_before, space_after}{The spacing above and below a paragraph,
 measured in points}
 
+\item{direction}{The overall directional flow of the text. The default
+(\code{"auto"}) will guess the direction based on the content of the string. Use
+\code{"ltr"} (left-to-right) and \code{"rtl"} (right-to-left) to turn detection of and
+set it manually.}
+
 \item{path, index}{path an index of a font file to circumvent lookup based on
 family and style}
 
@@ -92,13 +100,18 @@ about the full strings.
 
 \code{shape} is a data.frame with the following columns:
 \describe{
-\item{glyph}{The glyph as a character}
+\item{glyph}{The placement of the the first character contributing to the glyph within the string}
 \item{index}{The index of the glyph in the font file}
 \item{metric_id}{The index of the string the glyph is part of (referencing a row in the \code{metrics} data.frame)}
 \item{string_id}{The index of the string the glyph came from (referencing an element in the \code{strings} input)}
 \item{x_offset}{The x offset in pixels from the origin of the textbox}
 \item{y_offset}{The y offset in pixels from the origin of the textbox}
-\item{x_mid}{The x offset in pixels to the middle of the glyph, measured from the origin of the glyph}
+\item{font_path}{The path to the font file used during shaping of the glyph}
+\item{font_index}{The index of the font used to shape the glyph in the font file}
+\item{font_size}{The size of the font used during shaping}
+\item{advance}{The advancement amount to the next glyph}
+\item{ascender}{The ascend of the font used for the glyph. This does not measure the actual glyph}
+\item{descender}{The descend of the font used for the glyph. This does not measure the actual glyph}
 }
 
 \code{metrics} is a data.frame with the following columns:
@@ -114,16 +127,15 @@ about the full strings.
 \item{top_border}{The position of the topmost edge of the textbox related to the origin}
 \item{pen_x}{The horizontal position of the next glyph after the string}
 \item{pen_y}{The vertical position of the next glyph after the string}
+\item{ltr}{The global direction of the string. If \code{TRUE} then it is left-to-right, otherwise it is right-to-left}
 }
 }
 \description{
 \ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#experimental}{\figure{lifecycle-experimental.svg}{options: alt='[Experimental]'}}}{\strong{[Experimental]}}
 
-Do basic text shaping of strings. This function will use freetype to
-calculate advances, doing kerning if possible. It will not perform any font
-substitution or ligature resolving and will thus be much in line with how
-the standard graphic devices does text shaping. Inputs are recycled to the
-length of \code{strings}.
+Performs advanced text shaping of strings including font fallbacks,
+bidirectional script support, word wrapping and various character and
+paragraph level formatting settings.
 }
 \examples{
 string <- "This is a long string\nLook; It spans multiple lines\nand all"

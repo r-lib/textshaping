@@ -4,8 +4,8 @@ get_face_features_c <- function(path, index) {
   .Call(`_textshaping_get_face_features_c`, path, index)
 }
 
-get_string_shape_c <- function(string, id, path, index, features, size, res, lineheight, align, hjust, vjust, width, tracking, indent, hanging, space_before, space_after) {
-  .Call(`_textshaping_get_string_shape_c`, string, id, path, index, features, size, res, lineheight, align, hjust, vjust, width, tracking, indent, hanging, space_before, space_after)
+get_string_shape_c <- function(string, id, path, index, features, size, res, lineheight, align, hjust, vjust, width, tracking, indent, hanging, space_before, space_after, direction, soft_wrap, hard_wrap) {
+  .Call(`_textshaping_get_string_shape_c`, string, id, path, index, features, size, res, lineheight, align, hjust, vjust, width, tracking, indent, hanging, space_before, space_after, direction, soft_wrap, hard_wrap)
 }
 
 get_line_width_c <- function(string, path, index, size, res, include_bearing, features) {

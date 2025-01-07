@@ -1,5 +1,19 @@
 # textshaping (development version)
 
+* Added `lorem_text()` and `lorem_bidi()` for generating nonsense text in
+  various scripts
+* Added `plot_shape()` to plot the result of a shaping along with the metrics
+* Rewrite of the shaping engine to honor global direction of text. It introduces
+  a `direction` argument to `shape_text()` that defaults to `auto`, meaning that
+  it is deduced from the content of the shaped text. `align` gets two new
+  settings that responds to the global direction of the text. `"auto"` will
+  chose between `"left"` and `"right"` and `"justified"` will choose between
+  `"justified-left"` and `"justified-right"` depending of the global direction
+  is ltr or rtl. Lastly the soft break locations are now based on ICU and thus
+  better support ideographic scripts such as Han/Kanji/Hangul.
+* Textshaping now properly supports soft hyphens in that a hyphen is rendered if
+  a soft-wrap happens at a soft hyphen (#52)
+
 # textshaping 0.4.1
 
 * Make compiled code somewhat less assumptive about the correctness of the input

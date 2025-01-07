@@ -1,3 +1,4 @@
+#include "cpp11/logicals.hpp"
 #include "cpp11/protect.hpp"
 #define R_NO_REMAP
 
@@ -21,7 +22,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                         doubles lineheight, integers align, doubles hjust,
                         doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
-                        doubles space_after) {
+                        doubles space_after, integers direction,
+                        list_of<integers> soft_wrap, list_of<integers> hard_wrap) {
   Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
   writable::data_frame string_df({
     "string"_nm = writable::logicals(),
@@ -132,7 +134,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                         doubles lineheight, integers align, doubles hjust,
                         doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
-                        doubles space_after) {
+                        doubles space_after, integers direction,
+                        list_of<integers> soft_wrap, list_of<integers> hard_wrap) {
   int n_strings = string.size();
 
   // Return Columns
@@ -141,6 +144,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
     top_bearings, bottom_bearings, left_border, top_border, pen_x, pen_y, fontsize,
     advance, ascender, descender;
   writable::strings fontpath, str;
+  writable::logicals ltr;
 
   if (n_strings != 0) {
     if (n_strings != id.size() ||
@@ -158,7 +162,10 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
         n_strings != indent.size() ||
         n_strings != hanging.size() ||
         n_strings != space_before.size() ||
-        n_strings != space_after.size()
+        n_strings != space_after.size() ||
+        n_strings != direction.size() ||
+        n_strings != soft_wrap.size() ||
+        n_strings != hard_wrap.size()
     ) {
       cpp11::stop("All input must be the same size");
     }
@@ -170,12 +177,15 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
     bool success = false;
 
     HarfBuzzShaper& shaper = get_hb_shaper();
+    std::vector<int> soft, hard;
     shaper.init_buffer();
     for (int i = 0; i < n_strings; ++i) {
       const char* this_string = Rf_translateCharUTF8(string[i]);
       int this_id = id[i];
+      soft.assign(soft_wrap[i].begin(), soft_wrap[i].end());
+      hard.assign(hard_wrap[i].begin(), hard_wrap[i].end());
       if (cur_id == this_id) {
-        success = shaper.add_string(this_string, fonts[i], size[i], tracking[i], cpp11::is_na(string[i]));
+        success = shaper.add_string(this_string, fonts[i], size[i], tracking[i], cpp11::is_na(string[i]), soft, hard);
 
         if (!success) {
           cpp11::stop("Failed to shape string (%s) with font file (%s) with freetype error %i", this_string, Rf_translateCharUTF8(path[i]), shaper.error_code);
@@ -186,7 +196,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                                       lineheight[i], align[i], hjust[i], vjust[i],
                                       width[i] * 64.0, tracking[i], indent[i] * 64.0,
                                       hanging[i] * 64.0, space_before[i] * 64.0,
-                                      space_after[i] * 64.0, cpp11::is_na(string[i]));
+                                      space_after[i] * 64.0, cpp11::is_na(string[i]),
+                                      direction[i], soft, hard);
 
         if (!success) {
           cpp11::stop("Failed to shape string (%s) with font file (%s) with freetype error %i", this_string, Rf_translateCharUTF8(STRING_ELT(path, i)), shaper.error_code);
@@ -224,6 +235,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
         top_border.push_back(double(shaper.top_border) / 64.0);
         pen_x.push_back(double(shaper.pen_x) / 64.0);
         pen_y.push_back(double(shaper.pen_y) / 64.0);
+        ltr.push_back(shaper.dir == 1);
       }
     }
     shaper.destroy_buffer();
@@ -241,7 +253,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
     "left_border"_nm = left_border,
     "top_border"_nm = top_border,
     "pen_x"_nm = pen_x,
-    "pen_y"_nm = pen_y
+    "pen_y"_nm = pen_y,
+    "ltr"_nm = ltr
   });
   string_df.attr("class") = writable::strings({"tbl_df", "tbl", "data.frame"});
 
@@ -313,9 +326,7 @@ int ts_string_width(const char* string, FontSettings font_info, double size,
   HarfBuzzShaper& shaper = get_hb_shaper();
   shaper.init_buffer();
   shaper.error_code = 0;
-  const ShapeInfo string_shape = shaper.shape_text_run(
-    string, font_info, size, res, 0
-  );
+  EmbedInfo string_shape = shaper.shape_single_line(string, font_info, size, res);
   shaper.destroy_buffer();
 
   if (shaper.error_code != 0) {
@@ -346,9 +357,7 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
   HarfBuzzShaper& shaper = get_hb_shaper();
   shaper.init_buffer();
   shaper.error_code = 0;
-  const ShapeInfo string_shape = shaper.shape_text_run(
-    string, font_info, size, res, 0
-  );
+  EmbedInfo string_shape = shaper.shape_single_line(string, font_info, size, res);
   shaper.destroy_buffer();
 
   if (shaper.error_code != 0) {

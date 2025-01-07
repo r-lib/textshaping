@@ -3,11 +3,9 @@
 #' @description
 #' `r lifecycle::badge('experimental')`
 #'
-#' Do basic text shaping of strings. This function will use freetype to
-#' calculate advances, doing kerning if possible. It will not perform any font
-#' substitution or ligature resolving and will thus be much in line with how
-#' the standard graphic devices does text shaping. Inputs are recycled to the
-#' length of `strings`.
+#' Performs advanced text shaping of strings including font fallbacks,
+#' bidirectional script support, word wrapping and various character and
+#' paragraph level formatting settings.
 #'
 #' @param strings A character vector of strings to shape
 #' @param id A vector grouping the strings together. If strings share an id the
@@ -19,8 +17,10 @@
 #' @param res The resolution to use when doing the shaping. Should optimally
 #' match the resolution used when rendering the glyphs.
 #' @param lineheight A multiplier for the lineheight
-#' @param align Within text box alignment, either `'left'`, `'center'`, `'right'`,
-#' `'justified-left'`, `'justified-right'`, `'justified-center'`, or `'distributed'`
+#' @param align Within text box alignment, either `'auto'`, `'left'`, `'center'`,
+#' `'right'`, `'justified'`, `'justified-left'`, `'justified-right'`,
+#' `'justified-center'`, or `'distributed'`. `'auto'` and `'justified'` will
+#' chose the left or right version depending on the direction of the text.
 #' @param hjust,vjust The justification of the textbox surrounding the text
 #' @param max_width The requested with of the string in inches. Setting this to
 #' something other than `NA` will turn on word wrapping.
@@ -31,6 +31,10 @@
 #' inches.
 #' @param space_before,space_after The spacing above and below a paragraph,
 #' measured in points
+#' @param direction The overall directional flow of the text. The default
+#' (`"auto"`) will guess the direction based on the content of the string. Use
+#' `"ltr"` (left-to-right) and `"rtl"` (right-to-left) to turn detection of and
+#' set it manually.
 #' @param path,index path an index of a font file to circumvent lookup based on
 #' family and style
 #'
@@ -41,13 +45,18 @@
 #'
 #' `shape` is a data.frame with the following columns:
 #' \describe{
-#'   \item{glyph}{The glyph as a character}
+#'   \item{glyph}{The placement of the the first character contributing to the glyph within the string}
 #'   \item{index}{The index of the glyph in the font file}
 #'   \item{metric_id}{The index of the string the glyph is part of (referencing a row in the `metrics` data.frame)}
 #'   \item{string_id}{The index of the string the glyph came from (referencing an element in the `strings` input)}
 #'   \item{x_offset}{The x offset in pixels from the origin of the textbox}
 #'   \item{y_offset}{The y offset in pixels from the origin of the textbox}
-#'   \item{x_mid}{The x offset in pixels to the middle of the glyph, measured from the origin of the glyph}
+#'   \item{font_path}{The path to the font file used during shaping of the glyph}
+#'   \item{font_index}{The index of the font used to shape the glyph in the font file}
+#'   \item{font_size}{The size of the font used during shaping}
+#'   \item{advance}{The advancement amount to the next glyph}
+#'   \item{ascender}{The ascend of the font used for the glyph. This does not measure the actual glyph}
+#'   \item{descender}{The descend of the font used for the glyph. This does not measure the actual glyph}
 #' }
 #'
 #' `metrics` is a data.frame with the following columns:
@@ -63,6 +72,7 @@
 #'   \item{top_border}{The position of the topmost edge of the textbox related to the origin}
 #'   \item{pen_x}{The horizontal position of the next glyph after the string}
 #'   \item{pen_y}{The vertical position of the next glyph after the string}
+#'   \item{ltr}{The global direction of the string. If `TRUE` then it is left-to-right, otherwise it is right-to-left}
 #' }
 #'
 #' @export
@@ -85,10 +95,11 @@
 #'
 shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
                        weight = 'normal', width = 'undefined', features = font_feature(),
-                       size = 12, res = 72, lineheight = 1, align = 'left',
+                       size = 12, res = 72, lineheight = 1, align = 'auto',
                        hjust = 0, vjust = 0, max_width = NA, tracking = 0,
                        indent = 0, hanging = 0, space_before = 0, space_after = 0,
-                       path = NULL, index = 0, bold = deprecated()) {
+                       direction = "auto", path = NULL, index = 0,
+                       bold = deprecated()) {
   n_strings = length(strings)
   if (is.null(id)) id <- seq_len(n_strings)
   id <- rep_len(id, n_strings)
@@ -125,8 +136,8 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
   size <- rep_len(size, n_strings)[ido]
   res <- rep_len(res, n_strings)[ido]
   lineheight <- rep_len(lineheight, n_strings)[ido]
-  align <- match.arg(align, c('left', 'center', 'right', 'justified-left', 'justified-center', 'justified-right', 'distributed'), TRUE)
-  align <- match(align, c('left', 'center', 'right', 'justified-left', 'justified-center', 'justified-right', 'distributed'))
+  align <- if (length(align) != 0) match.arg(align, c('left', 'center', 'right', 'justified-left', 'justified-center', 'justified-right', 'distributed', 'auto', 'justified'), TRUE)
+  align <- match(align, c('left', 'center', 'right', 'justified-left', 'justified-center', 'justified-right', 'distributed', 'auto', 'justified'))
   align <- rep_len(align, n_strings)[ido]
   hjust <- rep_len(hjust, n_strings)[ido]
   vjust <- rep_len(vjust, n_strings)[ido]
@@ -137,6 +148,9 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
   hanging <- rep_len(hanging, n_strings)[ido]
   space_before <- rep_len(space_before, n_strings)[ido]
   space_after <- rep_len(space_after, n_strings)[ido]
+  direction <- if (length(direction) != 0)  match.arg(direction, c('auto', 'ltr', 'rtl'), TRUE)
+  direction <- match(direction, c('auto', 'ltr', 'rtl')) - 1L
+  direction <- rep_len(direction, n_strings)[ido]
 
   max_width <- max_width * res
   tracking <- tracking * res
@@ -145,6 +159,16 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
   space_before <- space_before * res / 72
   space_after <- space_after * res / 72
 
+  soft_wraps <- lapply(stringi::stri_locate_all_boundaries(
+    strings,
+    omit_no_match = TRUE,
+    skip_line_hard = TRUE
+  ), function(x) x[, 2])
+  hard_wraps <- lapply(stringi::stri_locate_all_boundaries(
+    strings,
+    omit_no_match = TRUE,
+    skip_line_soft = TRUE
+  ), function(x) x[, 2])
 
   if (!all(file.exists(path))) stop("path must point to a valid file", call. = FALSE)
   shape <- get_string_shape_c(
@@ -152,12 +176,12 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
     as.numeric(res), as.numeric(lineheight), as.integer(align) - 1L,
     as.numeric(hjust), as.numeric(vjust), as.numeric(max_width), as.numeric(tracking),
     as.numeric(indent), as.numeric(hanging), as.numeric(space_before),
-    as.numeric(space_after)
+    as.numeric(space_after), as.integer(direction), soft_wraps, hard_wraps
   )
   if (nrow(shape$shape) == 0) return(shape)
 
   shape$metrics$string <- vapply(split(strings, id), paste, character(1), collapse = '')
-  shape$metrics[-1] <- lapply(shape$metrics[-1], function(x) x * 72 / res[!duplicated(id)])
+  shape$metrics[-c(1, 12)] <- lapply(shape$metrics[-c(1, 12)], function(x) x * 72 / res[!duplicated(id)])
 
   shape$shape$string_id <- ido[(cumsum(c(0, rle(id)$lengths)) + 1)[shape$shape$metric_id] + shape$shape$string_id - 1]
   shape$shape <- shape$shape[order(shape$shape$string_id), , drop = FALSE]
@@ -225,5 +249,114 @@ text_width <- function(strings, family = '', italic = FALSE, weight = 'normal',
   get_line_width_c(
     as.character(strings), path, as.integer(index), as.numeric(size),
     as.numeric(res), as.logical(include_bearing), features
+  )
+}
+
+#' Preview shaped text and the metrics for the text box
+#'
+#' This function allows you to preview the layout that [shape_text()]
+#' calculates. It is purely meant as a sanity check to make sure that the values
+#' calculated are sensible and shouldn't be used as a plotting function for
+#' rendering text on its own.
+#'
+#' @param shape The output of a call to [shape_text()]
+#' @param id The index of the text run to show in case `shape` contains
+#' multiples
+#'
+#' @return This function is called for its side effects
+#'
+#' @export
+#'
+#' @examples
+#' arab_text <- lorem_text("arabic", 2)
+#' shape <- shape_text(
+#'   arab_text,
+#'   max_width = 5,
+#'   indent = 0.2
+#' )
+#'
+#' try(
+#'  plot_shape(shape)
+#' )
+#'
+plot_shape <- function(shape, id = 1) {
+  if (!requireNamespace("grDevices", quietly = TRUE) || utils::packageVersion("grDevices") < package_version("4.3.0")) {
+    stop("This function requires grDevices 4.3.0 or above")
+  }
+  if (!requireNamespace("grid", quietly = TRUE) || utils::packageVersion("grid") < package_version("4.3.0")) {
+    stop("This function requires grid 4.3.0 or above")
+  }
+
+  has_glyph_support <- grDevices::dev.capabilities()$glyphs
+  if (is.na(has_glyph_support)) {
+    warning("The device does not report whether it supports rendering glyphs")
+  } else if (!isTRUE(has_glyph_support)) {
+    stop("The current device doesn't support rendering glyphs")
+  }
+
+  glyphFont <- utils::getFromNamespace("glyphFont", "grDevices")
+  glyphFontList <- utils::getFromNamespace("glyphFontList", "grDevices")
+  glyphInfo <- utils::getFromNamespace("glyphInfo", "grDevices")
+  glyphAnchor <- utils::getFromNamespace("glyphAnchor", "grDevices")
+
+  grid.glyph <- utils::getFromNamespace("grid.glyph", "grid")
+
+  if (!is.numeric(id) || length(id) != 1 || id <= 0 || id %% 1 != 0 || id > nrow(shape$metrics)) {
+    stop("`id` must be an integer pointing to a paragraph in `shape`")
+  }
+  glyphs <- shape$shape[shape$shape$metric_id == id, ]
+  box <- shape$metrics[id, ]
+
+  font_id <- paste0(glyphs$font_path, "&", glyphs$font_index)
+  font_match <- match(font_id, unique(font_id))
+  unique_font <- !duplicated(font_id)
+  fonts <- Map(glyphFont, glyphs$font_path[unique_font], glyphs$font_index[unique_font], "", 0, "")
+  fonts <- do.call(glyphFontList, fonts)
+  glyphs <- glyphInfo(
+    id = glyphs$index,
+    x = glyphs$x_offset,
+    y = glyphs$y_offset,
+    font = font_match,
+    size = glyphs$font_size,
+    fontList = fonts,
+    width = box$width,
+    height = -box$height,
+    hAnchor = glyphAnchor(0, "left"),
+    vAnchor = glyphAnchor(0, "bottom")
+  )
+
+  grid::grid.newpage()
+
+  vp <- grid::viewport(
+    width = box$width,
+    height = box$height,
+    default.units = "bigpts"
+  )
+
+  grid::pushViewport(vp)
+  grid::grid.rect(gp = grid::gpar(fill = "lightgrey", col = NA))
+  grid::grid.rect(
+    x = box$left_bearing,
+    y = box$bottom_bearing,
+    width = box$width - box$left_bearing - box$right_bearing,
+    height = box$height - box$top_bearing - box$bottom_bearing,
+    hjust = 0,
+    vjust = 0,
+    default.units = "bigpts",
+    gp = grid::gpar(fill = NA, col = "darkgrey", lty = 2)
+  )
+  grid.glyph(
+    glyphs,
+    x = 0,
+    y = 0,
+    hjust = 0,
+    vjust = 0
+  )
+  grid::grid.points(
+    x = box$pen_x,
+    y = box$pen_y,
+    default.units = "bigpts",
+    pch = 16,
+    gp = grid::gpar(col = "red", cex = 0.5)
   )
 }
