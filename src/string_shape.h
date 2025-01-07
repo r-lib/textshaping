@@ -125,10 +125,10 @@ public:
   space_before(0),
   space_after(0)
   {
-    buffer = hb_buffer_create();
+    //buffer = hb_buffer_create();
   };
   ~HarfBuzzShaper() {
-    hb_buffer_destroy(buffer);
+    //hb_buffer_destroy(buffer);
   };
 
   std::vector<unsigned int> glyph_id;
