@@ -62,6 +62,7 @@
 <ul><li>Added <code><a href="../reference/lorem_text.html">lorem_text()</a></code> and <code><a href="../reference/lorem_text.html">lorem_bidi()</a></code> for generating nonsense text in various scripts</li>
 <li>Added <code><a href="../reference/plot_shape.html">plot_shape()</a></code> to plot the result of a shaping along with the metrics</li>
 <li>Rewrite of the shaping engine to honor global direction of text. It introduces a <code>direction</code> argument to <code><a href="../reference/shape_text.html">shape_text()</a></code> that defaults to <code>auto</code>, meaning that it is deduced from the content of the shaped text. <code>align</code> gets two new settings that responds to the global direction of the text. <code>"auto"</code> will chose between <code>"left"</code> and <code>"right"</code> and <code>"justified"</code> will choose between <code>"justified-left"</code> and <code>"justified-right"</code> depending of the global direction is ltr or rtl. Lastly the soft break locations are now based on ICU and thus better support ideographic scripts such as Han/Kanji/Hangul.</li>
+<li>Textshaping now properly supports soft hyphens in that a hyphen is rendered if a soft-wrap happens at a soft hyphen (<a href="https://github.com/r-lib/textshaping/issues/52" class="external-link">#52</a>)</li>
 </ul></div>
     <div class="section level2">
 <h2 class="page-header" data-toc-text="0.4.1" id="textshaping-041">textshaping 0.4.1<small>2024-12-06</small><a class="anchor" aria-label="anchor" href="#textshaping-041"></a></h2>
