@@ -27,7 +27,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                         doubles lineheight, integers align, doubles hjust,
                         doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
-                        doubles space_after);
+                        doubles space_after, integers direction,
+                        list_of<integers> soft_wrap, list_of<integers> hard_wrap);
 
 [[cpp11::register]]
 doubles get_line_width_c(strings string, strings path, integers index, doubles size,
