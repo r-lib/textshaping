@@ -169,6 +169,13 @@ public:
   ShapeInfo shape_text_run(const char* string, FontSettings& font_info, double size,
                            double res, double tracking);
 
+  inline void init_buffer() {
+    buffer = hb_buffer_create();
+  }
+  inline void destroy_buffer() {
+    hb_buffer_destroy(buffer);
+  }
+
 private:
   static UTF_UCS utf_converter;
   static LRU_Cache<std::string, std::vector<int> > bidi_cache;

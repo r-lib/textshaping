@@ -170,6 +170,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
     bool success = false;
 
     HarfBuzzShaper& shaper = get_hb_shaper();
+    shaper.init_buffer();
     for (int i = 0; i < n_strings; ++i) {
       const char* this_string = Rf_translateCharUTF8(string[i]);
       int this_id = id[i];
@@ -225,6 +226,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
         pen_y.push_back(double(shaper.pen_y) / 64.0);
       }
     }
+    shaper.destroy_buffer();
     str = writable::strings(pen_x.size());
   }
 
@@ -309,10 +311,12 @@ int ts_string_width(const char* string, FontSettings font_info, double size,
                     double res, int include_bearing, double* width) {
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
+  shaper.init_buffer();
   shaper.error_code = 0;
   const ShapeInfo string_shape = shaper.shape_text_run(
     string, font_info, size, res, 0
   );
+  shaper.destroy_buffer();
 
   if (shaper.error_code != 0) {
     return shaper.error_code;
@@ -340,10 +344,12 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
                     std::vector<double>& fallback_scaling) {
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
+  shaper.init_buffer();
   shaper.error_code = 0;
   const ShapeInfo string_shape = shaper.shape_text_run(
     string, font_info, size, res, 0
   );
+  shaper.destroy_buffer();
 
   if (shaper.error_code != 0) {
     return shaper.error_code;
