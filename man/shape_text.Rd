@@ -62,8 +62,10 @@ match the resolution used when rendering the glyphs.}
 
 \item{lineheight}{A multiplier for the lineheight}
 
-\item{align}{Within text box alignment, either \code{'left'}, \code{'center'}, \code{'right'},
-\code{'justified-left'}, \code{'justified-right'}, \code{'justified-center'}, or \code{'distributed'}}
+\item{align}{Within text box alignment, either \code{'auto'}, \code{'left'}, \code{'center'},
+\code{'right'}, \code{'justified'}, \code{'justified-left'}, \code{'justified-right'},
+\code{'justified-center'}, or \code{'distributed'}. \code{'auto'} and \code{'justified'} will
+chose the left or right version depending on the direction of the text.}
 
 \item{hjust, vjust}{The justification of the textbox surrounding the text}
 

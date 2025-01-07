@@ -17,8 +17,10 @@
 #' @param res The resolution to use when doing the shaping. Should optimally
 #' match the resolution used when rendering the glyphs.
 #' @param lineheight A multiplier for the lineheight
-#' @param align Within text box alignment, either `'left'`, `'center'`, `'right'`,
-#' `'justified-left'`, `'justified-right'`, `'justified-center'`, or `'distributed'`
+#' @param align Within text box alignment, either `'auto'`, `'left'`, `'center'`,
+#' `'right'`, `'justified'`, `'justified-left'`, `'justified-right'`,
+#' `'justified-center'`, or `'distributed'`. `'auto'` and `'justified'` will
+#' chose the left or right version depending on the direction of the text.
 #' @param hjust,vjust The justification of the textbox surrounding the text
 #' @param max_width The requested with of the string in inches. Setting this to
 #' something other than `NA` will turn on word wrapping.
