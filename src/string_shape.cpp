@@ -1155,9 +1155,10 @@ size_t HarfBuzzShaper::fill_out_width(size_t from, int32_t max,
   size_t last_possible_break = from;
   bool has_break = false;
   breaktype = 0;
-  if (all_embeddings[embedding].get().ltr) {
-    for (size_t i = from; i < all_embeddings[embedding].get().glyph_id.size(); ++i) {
-      if (all_embeddings[embedding].get().must_break[i]) {
+  EmbedInfo& emb = all_embeddings[embedding].get();
+  if (emb.ltr) {
+    for (size_t i = from; i < emb.glyph_id.size(); ++i) {
+      if (emb.must_break[i]) {
         breaktype = 2;
         return i + 1;
       }
@@ -1165,24 +1166,28 @@ size_t HarfBuzzShaper::fill_out_width(size_t from, int32_t max,
       if (max < 0) continue;
 
       // If the glyph is blank we don't care if it extends beyond the max width
-      if (all_embeddings[embedding].get().is_blank[i] && all_embeddings[embedding].get().may_break[i]) {
+      if (emb.is_blank[i] && emb.may_break[i]) {
         last_possible_break = i;
         has_break = true;
       }
-      w += all_embeddings[embedding].get().x_advance[i];
+      w += emb.x_advance[i];
       if (w > max) {
         breaktype = 1;
+        if (has_break && full_string[emb.glyph_cluster[last_possible_break]] == 173) {
+          // The break is a soft hyphen. Substitute a real hyphen in
+          insert_hyphen(emb, last_possible_break);
+        }
         return has_break ? last_possible_break + 1 : i;
       }
       // If it isn't blank we wait
-      if (!all_embeddings[embedding].get().is_blank[i] && all_embeddings[embedding].get().may_break[i]) {
+      if (!emb.is_blank[i] && emb.may_break[i]) {
         last_possible_break = i;
         has_break = true;
       }
     }
 
     // If width is not enforced and we made it here we can consume the whole embedding
-    if (max < 0) return all_embeddings[embedding].get().glyph_id.size();
+    if (max < 0) return emb.glyph_id.size();
 
     size_t next_embedding = embedding + 1;
     while (next_embedding < all_embeddings.size()) {
@@ -1191,14 +1196,18 @@ size_t HarfBuzzShaper::fill_out_width(size_t from, int32_t max,
         break;
       } else if (w > max) {
         breaktype = has_break ? 1 : 0;
-        return has_break ? last_possible_break + 1 : all_embeddings[embedding].get().glyph_id.size();
+        if (has_break && full_string[emb.glyph_cluster[last_possible_break]] == 173) {
+          // The break is a soft hyphen. Substitute a real hyphen in
+          insert_hyphen(emb, last_possible_break);
+        }
+        return has_break ? last_possible_break + 1 : emb.glyph_id.size();
       }
       next_embedding++;
     }
-    last_possible_break = all_embeddings[embedding].get().glyph_id.size();
+    last_possible_break = emb.glyph_id.size();
   } else {
     for (size_t i = from; i > 0; --i) {
-      if (all_embeddings[embedding].get().must_break[i - 1]) {
+      if (emb.must_break[i - 1]) {
         breaktype = 2;
         return i - 1;
       }
@@ -1206,17 +1215,21 @@ size_t HarfBuzzShaper::fill_out_width(size_t from, int32_t max,
       if (max < 0) continue;
 
       // If the glyph is blank we don't care if it extends beyond the max width
-      if (all_embeddings[embedding].get().is_blank[i - 1] && all_embeddings[embedding].get().may_break[i - 1]) {
+      if (emb.is_blank[i - 1] && emb.may_break[i - 1]) {
         last_possible_break = i - 1;
         has_break = true;
       }
-      w += all_embeddings[embedding].get().x_advance[i - 1];
+      w += emb.x_advance[i - 1];
       if (w > max) {
         breaktype = 1;
+        if (has_break && full_string[emb.glyph_cluster[last_possible_break]] == 173) {
+          // The break is a soft hyphen. Substitute a real hyphen in
+          insert_hyphen(emb, last_possible_break);
+        }
         return has_break ? last_possible_break : i;
       }
       // If it isn't blank we wait
-      if (!all_embeddings[embedding].get().is_blank[i - 1] && all_embeddings[embedding].get().may_break[i - 1]) {
+      if (!emb.is_blank[i - 1] && emb.may_break[i - 1]) {
         last_possible_break = i - 1;
         has_break = true;
       }
@@ -1232,6 +1245,10 @@ size_t HarfBuzzShaper::fill_out_width(size_t from, int32_t max,
         break;
       } else if (w > max) {
         breaktype = has_break ? 1 : 0;
+        if (has_break && full_string[emb.glyph_cluster[last_possible_break]] == 173) {
+          // The break is a soft hyphen. Substitute a real hyphen in
+          insert_hyphen(emb, last_possible_break);
+        }
         return has_break ? last_possible_break : 0;
       }
       next_embedding++;
@@ -1240,7 +1257,6 @@ size_t HarfBuzzShaper::fill_out_width(size_t from, int32_t max,
   }
   return last_possible_break;
 }
-
 
 inline FT_Face HarfBuzzShaper::get_font_sizing(FontSettings& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales) {
   int error = 0;
@@ -1255,6 +1271,55 @@ inline FT_Face HarfBuzzShaper::get_font_sizing(FontSettings& font_info, double s
   scales.push_back(scaling * fscaling);
   sizes.push_back(size * fscaling);
   return face;
+}
+
+void HarfBuzzShaper::insert_hyphen(EmbedInfo& embedding, size_t where) {
+  int error = 0;
+  // Load main font (emoji if dir is negative)
+  // Shouldn't be able to fail as we have already tried to load it in the calling function
+  FT_Face face = get_cached_face(
+    embedding.fallbacks[embedding.font[where]].file,
+    embedding.fallbacks[embedding.font[where]].index,
+    embedding.fallback_size[embedding.font[where]],
+    shape_infos[0].res,
+    &error
+  );
+  if (error) {
+    return;
+  }
+
+  double scaling = embedding.fallback_scaling[embedding.font[where]];
+  if (scaling < 0) scaling = 1.0;
+
+  hb_font_t *font = hb_ft_font_create(face, NULL);
+  hb_codepoint_t glyph = 0;
+  hb_bool_t found = hb_font_get_glyph(font, 8208, 0, &glyph); // True hyphen;
+  if (!found) found = hb_font_get_glyph(font, 45, 0, &glyph); // Hyphen minus
+
+  if (!found) return; // No hyphen-like glyph in font
+
+  embedding.glyph_id[where] = glyph;
+
+  hb_position_t x = hb_font_get_glyph_h_advance(font, glyph);
+  hb_position_t y = 0;
+
+  embedding.x_advance[where] = x * scaling;
+  if (embedding.glyph_cluster[where] > 0) {
+    hb_font_get_glyph_kerning_for_direction(font, full_string[embedding.glyph_cluster[where] - 1], glyph, embedding.ltr ? HB_DIRECTION_LTR : HB_DIRECTION_RTL, &x, &y);
+  } else {
+    x = 0;
+  }
+  embedding.x_offset[where] = x * scaling;
+  embedding.y_offset[where] = y * scaling;
+
+  hb_glyph_extents_t extent;
+  hb_font_get_glyph_extents(font, glyph, &extent);
+  embedding.x_bear[where] = extent.x_bearing * scaling;
+  embedding.y_bear[where] = extent.y_bearing * scaling;
+  embedding.width[where] = extent.width * scaling;
+  embedding.height[where] = extent.height * scaling;
+
+  hb_font_destroy(font);
 }
 
 #endif

@@ -11,6 +11,8 @@
   `"justified-left"` and `"justified-right"` depending of the global direction
   is ltr or rtl. Lastly the soft break locations are now based on ICU and thus
   better support ideographic scripts such as Han/Kanji/Hangul.
+* Textshaping now properly supports soft hyphens in that a hyphen is rendered if
+  a soft-wrap happens at a soft hyphen (#52)
 
 # textshaping 0.4.1
 

@@ -321,6 +321,7 @@ private:
   void fill_glyph_info(EmbedInfo& embedding);
   size_t fill_out_width(size_t from, int32_t max, size_t embedding, int& breaktype, std::vector< std::reference_wrapper<EmbedInfo> >& all_embeddings);
   FT_Face get_font_sizing(FontSettings& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales);
+  void insert_hyphen(EmbedInfo& embedding, size_t where);
 
   inline double family_scaling(const char* family) {
     if (strcmp("Apple Color Emoji", family) == 0) {
@@ -348,7 +349,7 @@ private:
     switch (id) {
     case 9: return true;     // Horizontal tab
     case 32: return true;    // Space
-    case 45: return true;    // Hyphen
+    case 45: return true;    // Hyphen-minus
     case 173: return true;   // Soft hyphen
     case 5760: return true;  // Ogham Space Mark
     case 6158: return true;  // Mongolian Vowel Separator
