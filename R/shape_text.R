@@ -227,3 +227,105 @@ text_width <- function(strings, family = '', italic = FALSE, weight = 'normal',
     as.numeric(res), as.logical(include_bearing), features
   )
 }
+
+#' Preview shaped text and the metrics for the text box
+#'
+#' This function allows you to preview the layout that [shape_text()]
+#' calculates. It is purely meant as a sanity check to make sure that the values
+#' calculated are sensible and shouldn't be used as a plotting function for
+#' rendering text on its own.
+#'
+#' @param shape The output of a call to [shape_text()]
+#' @param id The index of the text run to show in case `shape` contains
+#' multiples
+#'
+#' @return This function is called for its side effects
+#'
+#' @export
+#'
+#' @examples
+#' arab_text <- lorem_text("arabic", 2)
+#' shape <- shape_text(
+#'   arab_text,
+#'   max_width = 5,
+#'   indent = 0.2
+#' )
+#'
+#' try(
+#'  plot_shape(shape)
+#' )
+#'
+plot_shape <- function(shape, id = 1) {
+  if (!requireNamespace("grDevices", quietly = TRUE) || utils::packageVersion("grDevices") < package_version("4.3.0")) {
+    stop("This function requires grDevices 4.3.0 or above")
+  }
+  if (!requireNamespace("grid", quietly = TRUE) || utils::packageVersion("grid") < package_version("4.3.0")) {
+    stop("This function requires grid 4.3.0 or above")
+  }
+
+  has_glyph_support <- grDevices::dev.capabilities()$glyphs
+  if (is.na(has_glyph_support)) {
+    warning("The device does not report whether it supports rendering glyphs")
+  } else if (!isTRUE(has_glyph_support)) {
+    stop("The current device doesn't support rendering glyphs")
+  }
+
+  if (!is.numeric(id) || length(id) != 1 || id <= 0 || id %% 1 != 0 || id > nrow(shape$metrics)) {
+    stop("`id` must be an integer pointing to a paragraph in `shape`")
+  }
+  glyphs <- shape$shape[shape$shape$metric_id == id, ]
+  box <- shape$metrics[id, ]
+
+  font_id <- paste0(glyphs$font_path, "&", glyphs$font_index)
+  font_match <- match(font_id, unique(font_id))
+  unique_font <- !duplicated(font_id)
+  fonts <- Map(grDevices::glyphFont, glyphs$font_path[unique_font], glyphs$font_index[unique_font], "", 0, "")
+  fonts <- do.call(grDevices::glyphFontList, fonts)
+  glyphs <- grDevices::glyphInfo(
+    id = glyphs$index,
+    x = glyphs$x_offset,
+    y = glyphs$y_offset,
+    font = font_match,
+    size = glyphs$font_size,
+    fontList = fonts,
+    width = box$width,
+    height = -box$height,
+    hAnchor = grDevices::glyphAnchor(0, "left"),
+    vAnchor = grDevices::glyphAnchor(0, "bottom")
+  )
+
+  grid::grid.newpage()
+
+  vp <- grid::viewport(
+    width = box$width,
+    height = box$height,
+    default.units = "bigpts"
+  )
+
+  grid::pushViewport(vp)
+  grid::grid.rect(gp = grid::gpar(fill = "lightgrey", col = NA))
+  grid::grid.rect(
+    x = box$left_bearing,
+    y = box$bottom_bearing,
+    width = box$width - box$left_bearing - box$right_bearing,
+    height = box$height - box$top_bearing - box$bottom_bearing,
+    hjust = 0,
+    vjust = 0,
+    default.units = "bigpts",
+    gp = grid::gpar(fill = NA, col = "darkgrey", lty = 2)
+  )
+  grid::grid.glyph(
+    glyphs,
+    x = 0,
+    y = 0,
+    hjust = 0,
+    vjust = 0
+  )
+  grid::grid.points(
+    x = box$pen_x,
+    y = box$pen_y,
+    default.units = "bigpts",
+    pch = 16,
+    gp = grid::gpar(col = "red", cex = 0.5)
+  )
+}

@@ -19,7 +19,11 @@ Depends:
 Imports:
     lifecycle,
     stats,
+    utils
+Suggests:
     covr,
+    grDevices,
+    grid,
     knitr,
     rmarkdown
 LinkingTo: 
