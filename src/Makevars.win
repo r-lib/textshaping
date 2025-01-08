@@ -1,9 +1,4 @@
-RWINLIB = ../windows/harfbuzz
-
-all: clean winlibs
-
-winlibs:
-	"${R_HOME}/bin${R_ARCH_BIN}/Rscript.exe" "../tools/winlibs.R"
+all: clean
 
 clean:
 	rm -f $(OBJECTS) $(SHLIB)
