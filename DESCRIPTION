@@ -28,8 +28,6 @@ Suggests:
     grid,
     knitr,
     rmarkdown
-LinkingTo:
-    cpp11 (>= 0.2.1)
 VignetteBuilder:
     knitr
 Encoding: UTF-8
