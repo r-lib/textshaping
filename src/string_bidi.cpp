@@ -1,7 +1,7 @@
 #include "string_bidi.h"
 #include <cstdint>
 
-#ifdef NO_HARFBUZZ_FRIBIDI
+#ifndef NO_HARFBUZZ_FRIBIDI
 
 std::vector<int> get_bidi_embeddings(const uint32_t* string, int n_chars) {
   return {};

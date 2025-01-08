@@ -1,6 +1,6 @@
 #include "hb_shaper.h"
 
-#ifdef NO_HARFBUZZ_FRIBIDI
+#ifndef NO_HARFBUZZ_FRIBIDI
 
 void init_hb_shaper(DllInfo* dll) {
 

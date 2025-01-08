@@ -15,7 +15,7 @@
 
 using namespace cpp11;
 
-#ifdef NO_HARFBUZZ_FRIBIDI
+#ifndef NO_HARFBUZZ_FRIBIDI
 
 list get_string_shape_c(strings string, integers id, strings path, integers index,
                         list_of<list> features, doubles size, doubles res,

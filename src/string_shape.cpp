@@ -1,4 +1,4 @@
-#ifndef NO_HARFBUZZ_FRIBIDI
+#ifdef NO_HARFBUZZ_FRIBIDI
 
 #include <climits>
 #include <functional>
