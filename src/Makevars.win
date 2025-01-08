@@ -1,7 +1,5 @@
 RWINLIB = ../windows/harfbuzz
 
-PKG_LIBS = -L$(RWINLIB)/lib$(R_ARCH) -L$(RWINLIB)/lib
-
 all: clean winlibs
 
 winlibs:
