@@ -5,13 +5,6 @@
 #include "cpp11/declarations.hpp"
 #include <R_ext/Visibility.h>
 
-// face_feature.h
-cpp11::writable::list get_face_features_c(cpp11::strings path, cpp11::integers index);
-extern "C" SEXP _textshaping_get_face_features_c(SEXP path, SEXP index) {
-  BEGIN_CPP11
-    return cpp11::as_sexp(get_face_features_c(cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(path), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(index)));
-  END_CPP11
-}
 // string_metrics.h
 list get_string_shape_c(strings string, integers id, strings path, integers index, list_of<list> features, doubles size, doubles res, doubles lineheight, integers align, doubles hjust, doubles vjust, doubles width, doubles tracking, doubles indent, doubles hanging, doubles space_before, doubles space_after, integers direction, list_of<integers> soft_wrap, list_of<integers> hard_wrap);
 extern "C" SEXP _textshaping_get_string_shape_c(SEXP string, SEXP id, SEXP path, SEXP index, SEXP features, SEXP size, SEXP res, SEXP lineheight, SEXP align, SEXP hjust, SEXP vjust, SEXP width, SEXP tracking, SEXP indent, SEXP hanging, SEXP space_before, SEXP space_after, SEXP direction, SEXP soft_wrap, SEXP hard_wrap) {
@@ -29,20 +22,17 @@ extern "C" SEXP _textshaping_get_line_width_c(SEXP string, SEXP path, SEXP index
 
 extern "C" {
 static const R_CallMethodDef CallEntries[] = {
-    {"_textshaping_get_face_features_c", (DL_FUNC) &_textshaping_get_face_features_c,  2},
-    {"_textshaping_get_line_width_c",    (DL_FUNC) &_textshaping_get_line_width_c,     7},
-    {"_textshaping_get_string_shape_c",  (DL_FUNC) &_textshaping_get_string_shape_c,  20},
+    {"_textshaping_get_line_width_c",   (DL_FUNC) &_textshaping_get_line_width_c,    7},
+    {"_textshaping_get_string_shape_c", (DL_FUNC) &_textshaping_get_string_shape_c, 20},
     {NULL, NULL, 0}
 };
 }
 
-void init_hb_shaper(DllInfo* dll);
 void export_string_metrics(DllInfo* dll);
 
 extern "C" attribute_visible void R_init_textshaping(DllInfo* dll){
   R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
   R_useDynamicSymbols(dll, FALSE);
-  init_hb_shaper(dll);
   export_string_metrics(dll);
   R_forceSymbols(dll, TRUE);
 }
