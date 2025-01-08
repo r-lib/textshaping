@@ -219,37 +219,37 @@ text_width <- function(strings, family = '', italic = FALSE, weight = 'normal',
                        width = 'undefined', features = font_feature(),
                        size = 12, res = 72, include_bearing = TRUE, path = NULL,
                        index = 0, bold = deprecated()) {
-  n_strings <- length(strings)
-
-  if (lifecycle::is_present(bold)) {
-    lifecycle::deprecate_soft("0.4.1", "text_width(bold)", "text_width(weight='bold')")
-    weight <- ifelse(bold, "bold", "normal")
-  }
-
-  if (inherits(features, 'font_feature')) features <- list(features)
-  features <- rep_len(features, n_strings)
-
-  if (is.null(path)) {
-    family <- rep_len(family, n_strings)
-    italic <- rep_len(italic, n_strings)
-    weight <- rep_len(weight, n_strings)
-    width <- rep_len(width, n_strings)
-    loc <- match_fonts(family, italic, weight, width)
-    path <- loc$path
-    index <- loc$index
-    features <- Map(c, loc$features, features)
-  } else {
-    path <- rep_len(path, n_strings)
-    index <- rep_len(index, n_strings)
-  }
-  size <- rep_len(size, n_strings)
-  res <- rep_len(res, n_strings)
-  include_bearing <- rep_len(include_bearing, n_strings)
-  if (!all(file.exists(path))) stop("path must point to a valid file", call. = FALSE)
-  get_line_width_c(
-    as.character(strings), path, as.integer(index), as.numeric(size),
-    as.numeric(res), as.logical(include_bearing), features
-  )
+  #n_strings <- length(strings)
+#
+  #if (lifecycle::is_present(bold)) {
+  #  lifecycle::deprecate_soft("0.4.1", "text_width(bold)", "text_width(weight='bold')")
+  #  weight <- ifelse(bold, "bold", "normal")
+  #}
+#
+  #if (inherits(features, 'font_feature')) features <- list(features)
+  #features <- rep_len(features, n_strings)
+#
+  #if (is.null(path)) {
+  #  family <- rep_len(family, n_strings)
+  #  italic <- rep_len(italic, n_strings)
+  #  weight <- rep_len(weight, n_strings)
+  #  width <- rep_len(width, n_strings)
+  #  loc <- match_fonts(family, italic, weight, width)
+  #  path <- loc$path
+  #  index <- loc$index
+  #  features <- Map(c, loc$features, features)
+  #} else {
+  #  path <- rep_len(path, n_strings)
+  #  index <- rep_len(index, n_strings)
+  #}
+  #size <- rep_len(size, n_strings)
+  #res <- rep_len(res, n_strings)
+  #include_bearing <- rep_len(include_bearing, n_strings)
+  #if (!all(file.exists(path))) stop("path must point to a valid file", call. = FALSE)
+  #get_line_width_c(
+  #  as.character(strings), path, as.integer(index), as.numeric(size),
+  #  as.numeric(res), as.logical(include_bearing), features
+  #)
 }
 
 #' Preview shaped text and the metrics for the text box
@@ -280,83 +280,83 @@ text_width <- function(strings, family = '', italic = FALSE, weight = 'normal',
 #' )
 #'
 plot_shape <- function(shape, id = 1) {
-  if (!requireNamespace("grDevices", quietly = TRUE) || utils::packageVersion("grDevices") < package_version("4.3.0")) {
-    stop("This function requires grDevices 4.3.0 or above")
-  }
-  if (!requireNamespace("grid", quietly = TRUE) || utils::packageVersion("grid") < package_version("4.3.0")) {
-    stop("This function requires grid 4.3.0 or above")
-  }
-
-  has_glyph_support <- grDevices::dev.capabilities()$glyphs
-  if (is.na(has_glyph_support)) {
-    warning("The device does not report whether it supports rendering glyphs")
-  } else if (!isTRUE(has_glyph_support)) {
-    stop("The current device doesn't support rendering glyphs")
-  }
-
-  glyphFont <- utils::getFromNamespace("glyphFont", "grDevices")
-  glyphFontList <- utils::getFromNamespace("glyphFontList", "grDevices")
-  glyphInfo <- utils::getFromNamespace("glyphInfo", "grDevices")
-  glyphAnchor <- utils::getFromNamespace("glyphAnchor", "grDevices")
-
-  grid.glyph <- utils::getFromNamespace("grid.glyph", "grid")
-
-  if (!is.numeric(id) || length(id) != 1 || id <= 0 || id %% 1 != 0 || id > nrow(shape$metrics)) {
-    stop("`id` must be an integer pointing to a paragraph in `shape`")
-  }
-  glyphs <- shape$shape[shape$shape$metric_id == id, ]
-  box <- shape$metrics[id, ]
-
-  font_id <- paste0(glyphs$font_path, "&", glyphs$font_index)
-  font_match <- match(font_id, unique(font_id))
-  unique_font <- !duplicated(font_id)
-  fonts <- Map(glyphFont, glyphs$font_path[unique_font], glyphs$font_index[unique_font], "", 0, "")
-  fonts <- do.call(glyphFontList, fonts)
-  glyphs <- glyphInfo(
-    id = glyphs$index,
-    x = glyphs$x_offset,
-    y = glyphs$y_offset,
-    font = font_match,
-    size = glyphs$font_size,
-    fontList = fonts,
-    width = box$width,
-    height = -box$height,
-    hAnchor = glyphAnchor(0, "left"),
-    vAnchor = glyphAnchor(0, "bottom")
-  )
-
-  grid::grid.newpage()
-
-  vp <- grid::viewport(
-    width = box$width,
-    height = box$height,
-    default.units = "bigpts"
-  )
-
-  grid::pushViewport(vp)
-  grid::grid.rect(gp = grid::gpar(fill = "lightgrey", col = NA))
-  grid::grid.rect(
-    x = box$left_bearing,
-    y = box$bottom_bearing,
-    width = box$width - box$left_bearing - box$right_bearing,
-    height = box$height - box$top_bearing - box$bottom_bearing,
-    hjust = 0,
-    vjust = 0,
-    default.units = "bigpts",
-    gp = grid::gpar(fill = NA, col = "darkgrey", lty = 2)
-  )
-  grid.glyph(
-    glyphs,
-    x = 0,
-    y = 0,
-    hjust = 0,
-    vjust = 0
-  )
-  grid::grid.points(
-    x = box$pen_x,
-    y = box$pen_y,
-    default.units = "bigpts",
-    pch = 16,
-    gp = grid::gpar(col = "red", cex = 0.5)
-  )
+  #if (!requireNamespace("grDevices", quietly = TRUE) || utils::packageVersion("grDevices") < package_version("4.3.0")) {
+  #  stop("This function requires grDevices 4.3.0 or above")
+  #}
+  #if (!requireNamespace("grid", quietly = TRUE) || utils::packageVersion("grid") < package_version("4.3.0")) {
+  #  stop("This function requires grid 4.3.0 or above")
+  #}
+#
+  #has_glyph_support <- grDevices::dev.capabilities()$glyphs
+  #if (is.na(has_glyph_support)) {
+  #  warning("The device does not report whether it supports rendering glyphs")
+  #} else if (!isTRUE(has_glyph_support)) {
+  #  stop("The current device doesn't support rendering glyphs")
+  #}
+#
+  #glyphFont <- utils::getFromNamespace("glyphFont", "grDevices")
+  #glyphFontList <- utils::getFromNamespace("glyphFontList", "grDevices")
+  #glyphInfo <- utils::getFromNamespace("glyphInfo", "grDevices")
+  #glyphAnchor <- utils::getFromNamespace("glyphAnchor", "grDevices")
+#
+  #grid.glyph <- utils::getFromNamespace("grid.glyph", "grid")
+#
+  #if (!is.numeric(id) || length(id) != 1 || id <= 0 || id %% 1 != 0 || id > nrow(shape$metrics)) {
+  #  stop("`id` must be an integer pointing to a paragraph in `shape`")
+  #}
+  #glyphs <- shape$shape[shape$shape$metric_id == id, ]
+  #box <- shape$metrics[id, ]
+#
+  #font_id <- paste0(glyphs$font_path, "&", glyphs$font_index)
+  #font_match <- match(font_id, unique(font_id))
+  #unique_font <- !duplicated(font_id)
+  #fonts <- Map(glyphFont, glyphs$font_path[unique_font], glyphs$font_index[unique_font], "", 0, "")
+  #fonts <- do.call(glyphFontList, fonts)
+  #glyphs <- glyphInfo(
+  #  id = glyphs$index,
+  #  x = glyphs$x_offset,
+  #  y = glyphs$y_offset,
+  #  font = font_match,
+  #  size = glyphs$font_size,
+  #  fontList = fonts,
+  #  width = box$width,
+  #  height = -box$height,
+  #  hAnchor = glyphAnchor(0, "left"),
+  #  vAnchor = glyphAnchor(0, "bottom")
+  #)
+#
+  #grid::grid.newpage()
+#
+  #vp <- grid::viewport(
+  #  width = box$width,
+  #  height = box$height,
+  #  default.units = "bigpts"
+  #)
+#
+  #grid::pushViewport(vp)
+  #grid::grid.rect(gp = grid::gpar(fill = "lightgrey", col = NA))
+  #grid::grid.rect(
+  #  x = box$left_bearing,
+  #  y = box$bottom_bearing,
+  #  width = box$width - box$left_bearing - box$right_bearing,
+  #  height = box$height - box$top_bearing - box$bottom_bearing,
+  #  hjust = 0,
+  #  vjust = 0,
+  #  default.units = "bigpts",
+  #  gp = grid::gpar(fill = NA, col = "darkgrey", lty = 2)
+  #)
+  #grid.glyph(
+  #  glyphs,
+  #  x = 0,
+  #  y = 0,
+  #  hjust = 0,
+  #  vjust = 0
+  #)
+  #grid::grid.points(
+  #  x = box$pen_x,
+  #  y = box$pen_y,
+  #  default.units = "bigpts",
+  #  pch = 16,
+  #  gp = grid::gpar(col = "red", cex = 0.5)
+  #)
 }
