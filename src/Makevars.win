@@ -2,11 +2,10 @@ RWINLIB = ../windows/harfbuzz
 
 PKG_CPPFLAGS = \
 	-I$(RWINLIB)/include/harfbuzz \
-	-I$(RWINLIB)/include/fribidi \
-	-I$(RWINLIB)/include/freetype2
+	-I$(RWINLIB)/include/fribidi
 
 PKG_LIBS = -L$(RWINLIB)/lib$(R_ARCH) -L$(RWINLIB)/lib \
-	-lfribidi -lfreetype -lharfbuzz -lfreetype -lpng -lbz2 -lz -lrpcrt4 -lgdi32 -luuid
+	-lfribidi -lfreetype -lharfbuzz
 
 all: clean winlibs
 
