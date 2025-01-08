@@ -40,9 +40,9 @@ void init_hb_shaper(DllInfo* dll);
 void export_string_metrics(DllInfo* dll);
 
 extern "C" attribute_visible void R_init_textshaping(DllInfo* dll){
-  //R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
-  //R_useDynamicSymbols(dll, FALSE);
-  //init_hb_shaper(dll);
-  //export_string_metrics(dll);
-  //R_forceSymbols(dll, TRUE);
+  R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
+  R_useDynamicSymbols(dll, FALSE);
+  init_hb_shaper(dll);
+  export_string_metrics(dll);
+  R_forceSymbols(dll, TRUE);
 }

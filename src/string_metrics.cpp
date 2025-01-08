@@ -58,7 +58,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
 }
 
 doubles get_line_width_c(strings string, strings path, integers index, doubles size,
-                         doubles res, logicals include_bearing) {
+                         doubles res, logicals include_bearing, list_of<list> features) {
   Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
   return {};
 }
