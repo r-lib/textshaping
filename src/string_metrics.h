@@ -9,7 +9,7 @@
 #include <cpp11/list_of.hpp>
 #include <cpp11/logicals.hpp>
 
-#include <systemfonts.h>
+//#include <systemfonts.h>
 #include <vector>
 
 using namespace cpp11;
@@ -20,6 +20,9 @@ struct Point {
   double y;
 };
 }
+struct FontSettings {
+
+};
 
 [[cpp11::register]]
 list get_string_shape_c(strings string, integers id, strings path, integers index,
