@@ -19,11 +19,11 @@ HarfBuzzShaper& get_hb_shaper() {
 }
 
 void init_hb_shaper(DllInfo* dll) {
-  hb_shaper = new HarfBuzzShaper();
+  //hb_shaper = new HarfBuzzShaper();
 }
 
 void unload_hb_shaper(DllInfo *dll) {
-  delete hb_shaper;
+  //delete hb_shaper;
 }
 
 #endif
