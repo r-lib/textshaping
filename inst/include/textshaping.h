@@ -26,7 +26,7 @@ static inline int string_width(const char* string, FontSettings font_info,
                                double* width) {
   static int (*p_ts_string_width)(const char*, FontSettings, double, double, int, double*) = NULL;
   if (p_ts_string_width == NULL) {
-    p_ts_string_width = (int (*)(const char*, FontSettings, double, double, int, double*)) R_GetCCallable("textshaping", "ts_string_width");
+    p_ts_string_width = (int (*)(const char*, FontSettings, double, double, int, double*)) R_GetCCallable("textshaping2", "ts_string_width");
   }
   return p_ts_string_width(string, font_info, size, res, include_bearing, width);
 }
@@ -41,7 +41,7 @@ static inline int string_shape(const char* string, FontSettings font_info,
                                std::vector<double>& fallback_scaling) {
   static int (*p_ts_string_shape)(const char*, FontSettings, double, double, std::vector<Point>&, std::vector<uint32_t>&, std::vector<int>&, std::vector<unsigned int>&, std::vector<FontSettings>&, std::vector<double>&) = NULL;
   if (p_ts_string_shape == NULL) {
-    p_ts_string_shape = (int (*)(const char*, FontSettings, double, double, std::vector<Point>&, std::vector<uint32_t>&, std::vector<int>&, std::vector<unsigned int>&, std::vector<FontSettings>&, std::vector<double>&)) R_GetCCallable("textshaping", "ts_string_shape_new");
+    p_ts_string_shape = (int (*)(const char*, FontSettings, double, double, std::vector<Point>&, std::vector<uint32_t>&, std::vector<int>&, std::vector<unsigned int>&, std::vector<FontSettings>&, std::vector<double>&)) R_GetCCallable("textshaping2", "ts_string_shape_new");
   }
   return p_ts_string_shape(string, font_info, size, res, loc, id, cluster, font, fallbacks, fallback_scaling);
 }
@@ -60,7 +60,7 @@ static inline int ts_string_shape(const char* string, FontSettings font_info,
                                   unsigned int max_length) {
   static int (*p_ts_string_shape)(const char*, FontSettings, double, double, double*, double*, int*, int*, unsigned int) = NULL;
   if (p_ts_string_shape == NULL) {
-    p_ts_string_shape = (int (*)(const char*, FontSettings, double, double, double*, double*, int*, int*, unsigned int)) R_GetCCallable("textshaping", "ts_string_shape");
+    p_ts_string_shape = (int (*)(const char*, FontSettings, double, double, double*, double*, int*, int*, unsigned int)) R_GetCCallable("textshaping2", "ts_string_shape");
   }
   return p_ts_string_shape(string, font_info, size, res, x, y, id, n_glyphs, max_length);
 }

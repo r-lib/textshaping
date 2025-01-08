@@ -6,6 +6,6 @@
 ## usethis namespace: start
 #' @importFrom lifecycle deprecated
 #' @importFrom systemfonts system_fonts
-#' @useDynLib textshaping, .registration = TRUE
+#' @useDynLib textshaping2, .registration = TRUE
 ## usethis namespace: end
 NULL

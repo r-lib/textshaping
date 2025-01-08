@@ -412,7 +412,7 @@ int ts_string_shape_old(const char* string, FontSettings font_info, double size,
 #endif
 
 void export_string_metrics(DllInfo* dll) {
-  R_RegisterCCallable("textshaping", "ts_string_width", (DL_FUNC)ts_string_width);
-  R_RegisterCCallable("textshaping", "ts_string_shape_new", (DL_FUNC)ts_string_shape);
-  R_RegisterCCallable("textshaping", "ts_string_shape", (DL_FUNC)ts_string_shape_old);
+  R_RegisterCCallable("textshaping2", "ts_string_width", (DL_FUNC)ts_string_width);
+  R_RegisterCCallable("textshaping2", "ts_string_shape_new", (DL_FUNC)ts_string_shape);
+  R_RegisterCCallable("textshaping2", "ts_string_shape", (DL_FUNC)ts_string_shape_old);
 }

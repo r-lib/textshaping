@@ -1,4 +1,4 @@
-Package: textshaping
+Package: textshaping2
 Title: Bindings to the 'HarfBuzz' and 'Fribidi' Libraries for Text Shaping
 Version: 0.4.1.9000
 Authors@R: c(
