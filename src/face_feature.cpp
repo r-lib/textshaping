@@ -1,6 +1,6 @@
 #include "face_feature.h"
 
-#ifdef NO_HARFBUZZ_FRIBIDI
+#ifndef NO_HARFBUZZ_FRIBIDI
 
 using namespace cpp11;
 
