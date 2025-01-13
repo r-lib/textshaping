@@ -1,7 +1,8 @@
 #ifndef NO_HARFBUZZ_FRIBIDI
 
 #include <climits>
-#include <functional>
+#include <iterator>
+#include <list>
 #include <vector>
 
 #include <hb-ft.h>
@@ -56,6 +57,11 @@ bool HarfBuzzShaper::add_string(const char* string, FontSettings& font_info,
   int n_chars = 0;
   const uint32_t* utc_string = utf_converter.convert_to_ucs(string, n_chars);
 
+  if (n_chars == 0) {
+    // Empty run - we treat is as a 0-width spacer to capture the font ascend and descend
+    return add_spacer(font_info, size, 0);
+  }
+
   full_string.insert(full_string.end(), utc_string, utc_string + n_chars);
 
   size_t run_end = full_string.size();
@@ -104,7 +110,7 @@ bool HarfBuzzShaper::add_spacer(FontSettings& font_info, double height, double w
   //  width/x-advance giving the width
   info.font_info = font_info;
   info.embeddings.push_back({
-    {0}, // glyph_id
+    {SPACER_CHAR}, // glyph_id
     {0}, // glyph_cluster
     {info.index}, // string_id
     {int32_t(width)}, // x_advance
@@ -112,20 +118,21 @@ bool HarfBuzzShaper::add_spacer(FontSettings& font_info, double height, double w
     {0}, // x_offset
     {0}, // y_offset
     {0}, // x_bear
-    {int32_t(ascend)}, // y_bear
+    {ascend}, // y_bear
     {int32_t(width)}, // width
-    {int32_t(ascend - descend)}, // height
-    {int32_t(ascend)}, // ascenders
+    {ascend - descend}, // height
+    {ascend}, // ascenders
     {descend}, // descenders
     {false}, // is_blank
     {false}, // may_break
-    {false}, // must_break
     {false}, // may_stretch
     {0}, // font
     {dummy_font}, // fallbacks
     {height}, // fallback_size
     {-1}, // fallback_scaling
-    true // ltr
+    0, // ltr
+    int32_t(width), // full_width
+    false // Not a line breaker in itself
   });
   shape_infos.push_back(info);
   return true;
@@ -136,31 +143,15 @@ bool HarfBuzzShaper::finish_string() {
     return true;
   }
 
-  bool vertical = false;
-
-  if (vertical) {
-    pen_y = indent;
-    pen_x = 0;
-  } else {
-    pen_x = indent;
-    pen_y = 0;
-  }
-
-  bool first_char = true;
-  bool first_line = true;
-  bool first_embedding = true;
-  int cur_line = 0;
-  int32_t max_descend = 0;
-  int32_t max_ascend = 0;
-  int32_t max_top_extend = 0;
-  int32_t max_bottom_extend = 0;
-  int32_t last_max_descend = 0;
-  int breaktype = 0;
-  int32_t cur_linewidth = 0;
-  int32_t cur_line_left_indent = 0;
-  int32_t cur_left_bear = 0;
-  int32_t cur_right_bear = 0;
-  size_t last_line_start = 0;
+  pen_x = 0;
+  pen_y = -space_before;
+  int32_t cur_line_indent = indent;
+  int32_t previous_line_descend = 0;
+  int32_t line_ascend = 0;
+  bool hard_break = false;
+  uint32_t break_char;
+  int32_t line_left_extra = 0;
+  std::list<EmbedInfo> line;
 
   auto final_embeddings = combine_embeddings(shape_infos, dir);
   bool ltr = dir != 2;
@@ -168,288 +159,136 @@ bool HarfBuzzShaper::finish_string() {
   if (cur_align == 7) cur_align = ltr ? 0 : 2;
   if (cur_align == 8) cur_align = ltr ? 3 : 5;
 
-  // Combine all embeddings into a single shape with x and y position for each glyph
-  for (size_t j = 0; j < final_embeddings.size(); ++j) {
-    EmbedInfo& cur_embed = final_embeddings[j];
-    bool last_embed = j == final_embeddings.size() - 1;
-    size_t start = cur_embed.ltr ? 0 : cur_embed.glyph_id.size();
+  // Lay out one line at a time
+  while (!final_embeddings.empty()) {
+    // Retrieve the next line from the embedding list
+    line = get_next_line_at_width(max_width - cur_line_indent, final_embeddings, hard_break, break_char);
+    bool first_char = true;
 
-    while (true) {
-      size_t end;
-      bool last;
-      if (cur_embed.glyph_id.size() == 0) {
-        // No glyphs to add but need to take into account the ascender and descender
-        // for the line spacing
-        end = 0;
-        last = last_embed;
-        max_ascend = std::max(max_ascend, cur_embed.ascenders[0]);
-        max_descend = std::min(max_descend, cur_embed.descenders[0]);
-      } else {
-        // Get part of embedding that fits on the remainder of the current line
-        end = fill_out_width(start, max_width - pen_x, j, breaktype, final_embeddings);
-        // Is this the very last part to be handled (last section of last embedding)
-        last = last_embed && end == (cur_embed.ltr ? cur_embed.glyph_id.size() : 0);
-        // These two are used for reshuffling shape in case of rtl
-        size_t prior_end = glyph_id.size();
-        int32_t prior_width = pen_x;
-        if (!ltr) first_char = true; // if rtl every start is the first char
-        cur_line_left_indent = 0;    // Used for rtl to keep track of the amount of whitespace in the end of a line
-        for (size_t i = std::min(start, end); i < std::max(start, end); ++i) {
-          // We know all of these fits on the line so we just add the info to the
-          // global shape info
-          glyph_id.push_back(cur_embed.glyph_id[i]);
-          glyph_cluster.push_back(cur_embed.glyph_cluster[i]);
-          fontfile.push_back(cur_embed.fallbacks[cur_embed.font[i]].file);
-          fontindex.push_back(cur_embed.fallbacks[cur_embed.font[i]].index);
-          fontsize.push_back(cur_embed.fallback_size[cur_embed.font[i]]);
-          advance.push_back(cur_embed.x_advance[i]);
-          ascender.push_back(cur_embed.ascenders[i]);
-          descender.push_back(cur_embed.descenders[i]);
+    // If ltr indent goes to the left
+    if (ltr) pen_x += cur_line_indent;
 
-          string_id.push_back(cur_embed.string_id[i]);
-          line_id.push_back(cur_line);
-          x_pos.push_back(pen_x + cur_embed.x_offset[i]);
-          y_pos.push_back(pen_y + cur_embed.y_offset[i]);
+    // Initialise line stats
+    line_width.push_back(pen_x);
+    line_left_bear.push_back(0);
+    line_right_bear.push_back(0);
+    line_must_break.push_back(hard_break);
+    size_t line_start_index = x_pos.size();
+    line_left_extra = 0;
 
-          must_break.push_back(cur_embed.must_break[i]);
-          may_stretch.push_back(cur_embed.may_stretch[i]);
-
-          if (vertical) {
-            pen_y += cur_embed.y_advance[i];
-            if (first_char) cur_left_bear = cur_embed.y_bear[i];
-            if (!cur_embed.may_break[i] || (cur_embed.ltr && first_char)) {
-              cur_linewidth += pen_y;
-              cur_right_bear = cur_embed.y_bear[i] + cur_embed.height[i];
-            }
-
-            // TODO: Awaiting knowledge on glyph metrics returned with vertical layouts
-            max_ascend = std::max(max_ascend, cur_embed.ascenders[i]);
-            max_top_extend = std::max(max_top_extend, cur_embed.y_bear[i]);
-            max_descend = std::max(max_descend, cur_embed.descenders[i]);
-            max_bottom_extend = std::max(max_bottom_extend, cur_embed.height[i] + cur_embed.y_bear[i]);
-
-
+    for (auto iter = line.begin(); iter != line.end(); ++iter) {
+      for (size_t i = 0; i < iter->glyph_id.size(); ++i) {
+        // If rtl we need to treat preceding blank glyphs like we treat terminal
+        // blank glyphs in ltr. We record how long we are in the line and move it
+        // all backwards once we hit the first non-blank
+        if (first_char && !ltr) {
+          if (iter->is_blank[i]) {
+            line_left_extra = pen_x;
           } else {
-            // If first character record left bearing
-            if (first_char) {
-              cur_left_bear = cur_embed.x_bear[i];
-              if (!ltr) {
-                // Linewidth needs to take into account the blank lines in the first part of the last embedding on the line
-                // We don't know this a priori so we continually update this and subtract it in the end
-                cur_line_left_indent = pen_x - prior_width;
-              }
+            for (size_t j = line_start_index; j < x_pos.size(); ++j) {
+              x_pos[j] -= line_left_extra;
             }
-            // Advance pen to next position
-            pen_x += cur_embed.x_advance[i];
-            if (ltr) {
-              // If ltr we can continually update this info because the glyphs comes to us in order
-              if (!cur_embed.is_blank[i] || (cur_embed.ltr && first_char)) {
-                cur_linewidth = pen_x;
-                cur_right_bear = cur_embed.x_advance[i] - cur_embed.x_bear[i] - cur_embed.width[i];
-              }
-            } else {
-              // For rtl it is more involved
-              // Right bearing will always be in the first embedding as it will end up the rightmost part
-              if (first_embedding && !cur_embed.is_blank[i]) {
-                cur_right_bear = cur_embed.x_advance[i] - cur_embed.x_bear[i] - cur_embed.width[i];
-              }
-              cur_linewidth = pen_x;
-            }
-
-
-            max_ascend = std::max(max_ascend, cur_embed.ascenders[i]);
-            max_top_extend = std::max(max_top_extend, cur_embed.y_bear[i]);
-            max_descend = std::min(max_descend, cur_embed.descenders[i]);
-            max_bottom_extend = std::min(max_bottom_extend, cur_embed.height[i] + cur_embed.y_bear[i]);
-          }
-
-          if (!cur_embed.may_break[i]) first_char = false;
-        }
-
-        // We are no longer working on the first embedding
-        first_embedding = false;
-
-        // If we are still at "first_char" we zero the left_indent as it is possible there are no characters on the line
-        if (first_char) cur_line_left_indent = 0;
-
-        if (!ltr && !vertical) {
-          // If global direction is rtl then move the new block in front of the old
-          int32_t added_width = pen_x - prior_width;
-          std::for_each(x_pos.begin() + last_line_start, x_pos.begin() + prior_end, [&added_width](int32_t& w) { w+=added_width;});
-          std::for_each(x_pos.begin() + prior_end, x_pos.end(), [&prior_width](int32_t& w) { w-=prior_width;});
-        }
-      }
-
-      if (breaktype != 0 || last) {
-        // We have reached the end of this line
-        // Record line stats
-        line_width.push_back(cur_linewidth - cur_line_left_indent);
-        if (cur_line_left_indent != 0) {
-          // Move line to the beginning of first char (will only happen for rtl)
-          std::for_each(x_pos.begin() + last_line_start, x_pos.end(), [&cur_line_left_indent](int32_t& w) { w-=cur_line_left_indent;});
-        }
-        line_left_bear.push_back(cur_left_bear);
-        line_right_bear.push_back(cur_right_bear);
-
-        if (first_line) {
-          // Record stats for top extend
-          top_border = max_ascend + space_before;
-          top_bearing = top_border - max_top_extend;
-        }
-
-        // Move the whole line down to it's proper position based on the final height of the line
-        double line_height = first_line ? 0 : (max_ascend - last_max_descend) * cur_lineheight;
-        for (size_t k = last_line_start; k < y_pos.size(); ++k) {
-          if (vertical) {
-            x_pos[k] -= line_height;
-          } else {
-            y_pos[k] -= line_height;
+            pen_x = 0;
           }
         }
-        // Move the pen to the correct starting place for the next line
-        if (vertical) {
-          pen_x -= line_height + (breaktype == 2 ? space_after + (last ? 0 : space_before) : 0);
-          pen_y = last ? (breaktype != 0 ? 0 : pen_y) : (breaktype == 2 ? indent : hanging);
-        } else {
-          pen_y -= line_height + (breaktype == 2 ? space_after + (last ? 0 : space_before) : 0);
-          pen_x = last ? (breaktype != 0 ? 0 : pen_x) : (breaktype == 2 ? indent : hanging);
+        if (iter->glyph_id[i] != SPACER_CHAR) {
+          glyph_id.push_back(iter->glyph_id[i]);
+          glyph_cluster.push_back(iter->glyph_cluster[i]);
+          fontfile.push_back(iter->fallbacks[iter->font[i]].file);
+          fontindex.push_back(iter->fallbacks[iter->font[i]].index);
+          fontsize.push_back(iter->fallback_size[iter->font[i]]);
+          advance.push_back(iter->x_advance[i]);
+          ascender.push_back(iter->ascenders[i]);
+          descender.push_back(iter->descenders[i]);
+
+          string_id.push_back(iter->string_id[i]);
+          line_id.push_back(line_width.size() - 1);
+          x_pos.push_back(pen_x + iter->x_offset[i]);
+
+          may_stretch.push_back(iter->may_stretch[i]);
         }
 
-        // Nullify all line stats
-        last_max_descend = max_descend;
-        cur_linewidth = 0;
-        cur_left_bear = 0;
-        cur_right_bear = 0;
-        first_line = false;
-        cur_line++;
-        first_char = true;
-        first_embedding = true;
-        if (!last) { // We need this for calculating box dimensions
-          max_ascend = 0;
-          max_descend = 0;
-          max_top_extend = 0;
-          max_bottom_extend = 0;
-          cur_line_left_indent = 0;
-        } else if (breaktype == 2) {
-          // If last line ends whith a carriage return we initiate a new line
-          pen_y -= (max_ascend - last_max_descend) * cur_lineheight + space_before;
-          max_bottom_extend = 0;
+
+        line_ascend = std::max(line_ascend, iter->ascenders[i]);
+
+        // Only needed for first line
+        if (line_width.size() == 1) {
+          top_bearing = std::max(top_bearing, iter->y_bear[i]);
         }
+        // Only needed for last line
+        if (final_embeddings.empty()) {
+          bottom_bearing = std::min(bottom_bearing, iter->height[i] + iter->y_bear[i]);
+        }
+
+        // If first character record left bearing
+        if (first_char) {
+          line_left_bear.back() = iter->x_bear[i];
+        }
+
+        // Advance pen to next position
+        pen_x += iter->x_advance[i];
+
+        // Continuously update this info
+        if (!iter->is_blank[i]) {
+          line_right_bear.back() = iter->x_advance[i] - iter->x_bear[i] - iter->width[i];
+          line_width.back() = pen_x;
+        }
+
+        // Set to false at the first non-blank glyph
+        if (!iter->is_blank[i]) first_char = false;
       }
-      if (breaktype != 0) {
-        // Record when the following line begins in the vector
-        last_line_start = y_pos.size();
+    }
+    // We now know the height of the line. Update pen_y and record y_pos
+    // Also update max_descend for next line to use
+    pen_y -= (line_ascend - previous_line_descend) * (line_width.size() == 1 ? 1 : cur_lineheight);
+    for (auto iter = line.begin(); iter != line.end(); ++iter) {
+      for (size_t i = 0; i < iter->glyph_id.size(); ++i) {
+        if (iter->glyph_id[i] != SPACER_CHAR) {
+          y_pos.push_back(pen_y + iter->y_offset[i]);
+        }
+        previous_line_descend = std::min(previous_line_descend, iter->descenders[i]);
       }
-      if ((end == 0 && !cur_embed.ltr) || (end == cur_embed.glyph_id.size() && cur_embed.ltr)) {
-        // We have exhausted this embedding
-        break;
-      }
-      start = end;
+    }
+
+    // If first line, normalise top_bearing to 0
+    if (line_width.size() == 1) top_bearing = -pen_y - top_bearing;
+
+    // If rtl indent goes to the right
+    if (!ltr) {
+      line_width.back() = pen_x + cur_line_indent;
+    }
+
+    // Reset pen to next line
+    if (!final_embeddings.empty() || hard_break) {
+      cur_line_indent = hard_break ? indent : hanging;
+      pen_x = 0;
+      if (hard_break) pen_y -= space_after + space_before;
     }
   }
-  // If rtl move the pen to the left side of the line
-  if (!ltr) {
-    pen_x = -cur_line_left_indent;
+
+  if (hard_break) {
+    // Last line ended with a line break. We move pen_y down based on last glyph size
+    size_t last_glyph = line.back().embedding_level % 2 == 0 ? line.back().glyph_id.size() : 0;
+    int32_t line_height = (line.back().ascenders[last_glyph] - line.back().descenders[last_glyph]) * cur_lineheight;
+    pen_y -= line_height;
+    bottom_bearing += line_height;
+    pen_x = indent;
+    line_left_extra = 0;
+    line_width.push_back(pen_x);
   }
 
-  // All embeddings have been handled
+  // If rtl, the pen is placed at the left
+  if (!ltr) pen_x = -line_left_extra;
+
   // Calculate overall box stats
-  int32_t bottom = pen_y + max_descend - space_after;
-  height = top_border - bottom;
-  bottom_bearing = max_bottom_extend - max_descend + space_after;
+  bottom_bearing += space_after - previous_line_descend;
+  int32_t bottom = pen_y + previous_line_descend - space_after;
   int max_width_ind = std::max_element(line_width.begin(), line_width.end()) - line_width.begin();
   width = max_width < 0 ? line_width[max_width_ind] : max_width;
-  if (cur_align == 1 || cur_align == 2) {
-    // Standard center or right justify
-    // Move x_pos based on the linewidth of the line and the full width of the text
-    for (size_t i = 0; i < x_pos.size(); ++i) {
-      int index = line_id[i];
-      int32_t lwd = line_width[index];
-      x_pos[i] = cur_align == 1 ? x_pos[i] + width/2 - lwd/2 : x_pos[i] + width - lwd;
-    }
-    // Do the same with pen position
-    pen_x = cur_align == 1 ? pen_x + width/2 - line_width.back()/2 : pen_x + width - line_width.back();
-  }
-  if (cur_align == 3 || cur_align == 4 || cur_align == 5) {
-    // Justified alignment
-    std::vector<size_t> n_stretches(line_width.size(), 0);
-    std::vector<bool> no_stretch(line_width.size(), false);
-    for (size_t i = 0; i < x_pos.size(); ++i) {
-      // Loop through all glyphs to figure out number of stretches per line and if
-      // stretches are allowed (not for last line or lines with forced linebreak)
-      int index = line_id[i];
-      no_stretch[index] = no_stretch[index] || index == line_width.size() - 1 || must_break[i];
-      if (may_stretch[i] && i-1 < x_pos.size() && index == line_id[i+1]) {
-        n_stretches[index]++;
-      }
-    }
-    int32_t cum_move = 0;
-    for (size_t i = 0; i < x_pos.size(); ++i) {
-      // Loop through glyphs, spreading them out
-      int index = line_id[i];
-      int32_t lwd = line_width[index];
-      if (no_stretch[index] || n_stretches[index] == 0) {
-        // If line may not stretch insted move it according to alignment
-        if (cur_align == 4) {
-          x_pos[i] = x_pos[i] + width/2 - lwd/2;
-        } else if (cur_align == 5) {
-          x_pos[i] = x_pos[i] + width - lwd;
-        }
-        continue;
-      }
-      if (i == 0 || line_id[i-1] != index) {
-        // New line, reset stretch counter
-        cum_move = 0;
-      }
-      // Move x_pos according to the cummulative move counter
-      x_pos[i] += cum_move;
-      if (may_stretch[i]) {
-        // If white space the counter gets increased
-        cum_move += (width - line_width[index]) / n_stretches[index];
-      }
-    }
-    // Update pen_x to match position of last line
-    if (ltr) {
-      pen_x += cum_move;
-    }
-    if (no_stretch.back() || n_stretches.back() == 0) {
-      if (cur_align == 4) {
-        pen_x += width/2 - line_width.back()/2;
-      } else if (cur_align == 5) {
-        pen_x += width - line_width.back();
-      }
-    }
-    // Update line width of all stretched lines to match the full width of the textbox
-    for (size_t i = 0; i < line_width.size(); ++i) {
-      if (!no_stretch[i] && n_stretches[i] != 0) line_width[i] = width;
-    }
-  }
-  if (cur_align == 6) {
-    // Distribute glyphs evenly over line
-    std::vector<size_t> n_glyphs(line_width.size(), 0);
-    for (size_t i = 0; i < x_pos.size(); ++i) {
-      // Count number of glyphs on each line (not including carriage return)
-      int index = line_id[i];
-      if (!must_break[i] && (i == x_pos.size()-1 || index == line_id[i+1])) {
-        n_glyphs[index]++;
-      }
-    }
-    // Spread out glyphs according to an accumulating spread factor
-    int32_t cum_move = 0;
-    for (size_t i = 0; i < x_pos.size(); ++i) {
-      int index = line_id[i];
-      if (i == 0 || line_id[i-1] != index) {
-        cum_move = 0;
-      }
-      x_pos[i] += cum_move;
-      cum_move += (width - line_width[index]) / (n_glyphs[index]-1);
-    }
-    pen_x += cum_move;
-    // Update line width of all stretched lines to match the full width of the textbox
-    for (size_t i = 0; i < line_width.size(); ++i) {
-      if (n_glyphs[i] != 0) line_width[i] = width;
-    }
-  }
+  height = -bottom;
+
+  do_alignment(ltr);
+
   // Figure out additional space to left or right to add to bearing
   double width_diff = width - line_width[max_width_ind];
   if (cur_align == 1) {
@@ -490,7 +329,7 @@ void HarfBuzzShaper::reset() {
   line_right_bear.clear();
   line_width.clear();
   line_id.clear();
-  must_break.clear();
+  line_must_break.clear();
   may_stretch.clear();
   shape_infos.clear();
   soft_break.clear();
@@ -532,7 +371,7 @@ void HarfBuzzShaper::reset() {
   space_after = 0;
 }
 
-std::vector< std::reference_wrapper<EmbedInfo> > HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& shapes, int& direction) {
+std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& shapes, int& direction) {
   // Find bidi embeddings and determine the overall direction of the text
   if (full_string.size() > 1) {
     // If we have more than one char we find bidi embeddings
@@ -555,16 +394,19 @@ std::vector< std::reference_wrapper<EmbedInfo> > HarfBuzzShaper::combine_embeddi
   bool ltr = direction != 2;
 
   // Shape all embeddings and collect them in a single vector
-  std::vector<std::reference_wrapper<EmbedInfo>> all_embeddings;
+  std::list<EmbedInfo> all_embeddings;
   unsigned int i = 0;
   for (auto iter = shapes.begin(); iter != shapes.end(); ++iter) {
     if (iter->embeddings.size() == 0) { // avoid shaping spacers
       shape_text_run(*iter, ltr);
+    } else {
+      // We adopt the embedding level of the prior embedding for spacers
+      int level = all_embeddings.size() == 0 ? (ltr ? 0 : 1) : all_embeddings.back().embedding_level;
+      iter->embeddings[0].embedding_level = level;
     }
     iter->add_index(i++);
-    for (auto iter2 = iter->embeddings.begin(); iter2 != iter->embeddings.end(); ++iter2) {
-      all_embeddings.push_back(std::ref(*iter2));
-    }
+    all_embeddings.insert(all_embeddings.end(), std::make_move_iterator(iter->embeddings.begin()), std::make_move_iterator(iter->embeddings.end()));
+    iter->embeddings.clear();
   }
 
   // Shortcut for simplest case
@@ -574,33 +416,29 @@ std::vector< std::reference_wrapper<EmbedInfo> > HarfBuzzShaper::combine_embeddi
   // This is needed to keep their internal order during shaping
   // Further collapses all consequtive runs into one embedding to simplify the final shapping operation
   auto run_start = all_embeddings.begin();
-  bool rtl_run = !run_start->get().ltr;
-  std::vector<std::reference_wrapper<EmbedInfo>> final_embeddings;
-  for (auto iter = run_start + 1; iter != all_embeddings.end(); ++iter) {
-    bool is_rtl = !iter->get().ltr;
-    bool finish_run = false;
+  int run_embed_level = run_start->embedding_level;
+  std::list<EmbedInfo> final_embeddings;
+  for (auto iter = std::next(run_start); iter != all_embeddings.end(); ++iter) {
+    int cur_embed_level = iter->embedding_level;
 
-    if (is_rtl && !rtl_run) {
-      rtl_run = true;
-      finish_run = true;
-    } else if (!is_rtl && rtl_run) {
-      rtl_run = false;
-      std::reverse(run_start, iter);
-      finish_run = true;
-    }
-    if (finish_run && run_start != iter) {
-      for (auto iter2 = run_start + 1; iter2 != iter; ++iter2) {
-        run_start->get().add(*iter2);
+    if (std::prev(iter)->terminates_paragraph || run_embed_level != cur_embed_level) {
+      if (run_embed_level % 2 != 0) {
+        std::reverse(run_start, iter);
       }
-      final_embeddings.push_back(*run_start);
+      run_embed_level = cur_embed_level;
+
+      for (auto iter2 = std::next(run_start); iter2 != iter; ++iter2) {
+        run_start->add(*iter2);
+      }
+      final_embeddings.push_back(std::move(*run_start));
       run_start = iter;
     }
   }
-  if (rtl_run) std::reverse(run_start, all_embeddings.end());
-  for (auto iter2 = run_start + 1; iter2 != all_embeddings.end(); ++iter2) {
-    run_start->get().add(*iter2);
+  if (run_embed_level % 2 != 0) std::reverse(run_start, all_embeddings.end());
+  for (auto iter2 = std::next(run_start); iter2 != all_embeddings.end(); ++iter2) {
+    run_start->add(*iter2);
   }
-  final_embeddings.push_back(*run_start);
+  final_embeddings.push_back(std::move(*run_start));
 
   return final_embeddings;
 }
@@ -701,7 +539,8 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
   size_t embedding_start = text_run.run_start;
   for (size_t i = text_run.run_start + 1; i <= text_run.run_end; ++i) {
     // Shape all embeddings separately
-    if (i == text_run.run_end || bidi_embedding[i] != bidi_embedding[i - 1]) {
+    bool terminal = glyph_must_hard_break(i - 1);
+    if (terminal || i == text_run.run_end || bidi_embedding[i] != bidi_embedding[i - 1]) {
       bool success = shape_embedding(
         embedding_start,
         i,
@@ -713,6 +552,9 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
         fallback_scaling
       );
       if (!success) return;
+      if (!text_run.embeddings.empty() && terminal) {
+        text_run.embeddings.back().terminates_paragraph = terminal;
+      }
       embedding_start = i;
     }
   }
@@ -730,6 +572,8 @@ EmbedInfo HarfBuzzShaper::shape_single_line(const char* string, FontSettings& fo
   // Fast version when we know we don't need word wrap and alignment
   // Used by graphics devices
 
+  reset();
+
   int n_chars = 0;
   const uint32_t* utc_string = utf_converter.convert_to_ucs(string, n_chars);
 
@@ -739,19 +583,15 @@ EmbedInfo HarfBuzzShaper::shape_single_line(const char* string, FontSettings& fo
   int direction = 0;
   auto final_embeddings = combine_embeddings(shapes, direction);
 
-  // Only one embedding - use as-is
-  if (final_embeddings.size() == 1) return final_embeddings[0].get();
+  if (final_embeddings.size() == 0) return EmbedInfo();
 
-  // If global direction is rtl reverse the vector of embeddings
-  if (direction == 2) {
-    std::reverse(final_embeddings.begin(), final_embeddings.end());
-  }
+  rearrange_embeddings(final_embeddings);
 
   // Combined all embeddings into one
-  for (auto iter = final_embeddings.begin() + 1; iter != final_embeddings.end(); ++iter) {
-    final_embeddings[0].get().add(*iter);
+  for (auto iter = std::next(final_embeddings.begin()); iter != final_embeddings.end(); ++iter) {
+    final_embeddings.front().add(*iter);
   }
-  return final_embeddings[0].get();
+  return final_embeddings.front();
 }
 
 bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
@@ -800,15 +640,17 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
   }
 
   shape_info.embeddings.emplace_back();
-
-  shape_info.embeddings.back().ltr = dir % 2 == 0;
+  shape_info.embeddings.back().embedding_level = std::abs(dir);
+  shape_info.embeddings.back().terminates_paragraph = false;
+  shape_info.embeddings.back().full_width = 0;
+  bool embed_is_ltr = dir % 2 == 0;
 
   // See if all characters hav been found in the default font
   unsigned int current_font = dir < 0 ? 1 : 0;
   std::vector<unsigned int> char_font(embedding_size, current_font);
   bool needs_fallback = false;
   bool any_resolved = false;
-  annotate_fallbacks(current_font + 1, 0, char_font, glyph_info, n_glyphs, needs_fallback, any_resolved, shape_info.embeddings.back().ltr, start);
+  annotate_fallbacks(current_font + 1, 0, char_font, glyph_info, n_glyphs, needs_fallback, any_resolved, embed_is_ltr, start);
 
   if (!needs_fallback) { // Short route - use existing shaping
     glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
@@ -861,7 +703,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
       if (n_glyphs > 0) {
         bool needs_fallback_2 = false;
         bool any_resolved_2 = false;
-        annotate_fallbacks(current_font + 1, fallback_start, char_font, glyph_info, n_glyphs, needs_fallback_2, any_resolved_2, shape_info.embeddings.back().ltr, start);
+        annotate_fallbacks(current_font + 1, fallback_start, char_font, glyph_info, n_glyphs, needs_fallback_2, any_resolved_2, embed_is_ltr, start);
         if (needs_fallback_2) needs_fallback = true;
         if (any_resolved_2) any_resolved = true;
       }
@@ -880,7 +722,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
   }
 
   // The following two blocks only differ in the direction of operation
-  if (shape_info.embeddings.back().ltr) {
+  if (embed_is_ltr) {
     current_font = char_font[0];
     unsigned int text_run_start = 0;
     for (unsigned int i = 1; i <= embedding_size; ++i) {
@@ -1094,6 +936,7 @@ void HarfBuzzShaper::fill_shape_info(hb_glyph_info_t* glyph_info,
     embedding.y_offset.push_back(glyph_pos[i].y_offset * scaling);
     embedding.x_advance.push_back(glyph_pos[i].x_advance * scaling + tracking);
     embedding.y_advance.push_back(glyph_pos[i].y_advance * scaling);
+    embedding.full_width += embedding.x_advance.back();
 
     hb_font_get_glyph_extents(font, glyph_info[i].codepoint, &extent);
     embedding.x_bear.push_back(extent.x_bearing * scaling);
@@ -1110,152 +953,18 @@ void HarfBuzzShaper::fill_shape_info(hb_glyph_info_t* glyph_info,
 
 // Add line breaking/stretching info to embedding structure
 void HarfBuzzShaper::fill_glyph_info(EmbedInfo& embedding) {
-  for (size_t i = embedding.must_break.size(); i < embedding.glyph_cluster.size(); ++i) {
+  for (size_t i = embedding.is_blank.size(); i < embedding.glyph_cluster.size(); ++i) {
     int32_t cluster = embedding.glyph_cluster[i];
     if (cluster < full_string.size()) {
       embedding.is_blank.push_back(glyph_is_blank(full_string[cluster]));
-      embedding.must_break.push_back(glyph_must_hard_break(cluster));
       embedding.may_break.push_back(glyph_may_soft_break(cluster));
       embedding.may_stretch.push_back(glyph_may_stretch(full_string[cluster]));
     } else {
       embedding.is_blank.push_back(false);
-      embedding.must_break.push_back(false);
       embedding.may_break.push_back(false);
       embedding.may_stretch.push_back(false);
     }
   }
-}
-
-inline bool width_to_breaker(EmbedInfo& embedding, int32_t& width) {
-  if (embedding.ltr) {
-    for (size_t i = 0; i < embedding.glyph_id.size(); ++i) {
-      if (embedding.must_break[i] || embedding.may_break[i]) {
-        if (!embedding.is_blank[i]) width += embedding.x_advance[i];
-        return true;
-      }
-      width += embedding.x_advance[i];
-    }
-  } else {
-    for (size_t i = embedding.glyph_id.size(); i > 0; --i) {
-      if (embedding.must_break[i - 1] || embedding.may_break[i - 1]) {
-        if (!embedding.is_blank[i - 1]) width += embedding.x_advance[i - 1];
-        return true;
-      }
-      width += embedding.x_advance[i - 1];
-    }
-  }
-
-  return false;
-}
-
-size_t HarfBuzzShaper::fill_out_width(size_t from, int32_t max,
-                                      size_t embedding, int& breaktype,
-                                      std::vector< std::reference_wrapper<EmbedInfo> >& all_embeddings) {
-  int32_t w = 0;
-  size_t last_possible_break = from;
-  bool has_break = false;
-  breaktype = 0;
-  EmbedInfo& emb = all_embeddings[embedding].get();
-  if (emb.ltr) {
-    for (size_t i = from; i < emb.glyph_id.size(); ++i) {
-      if (emb.must_break[i]) {
-        breaktype = 2;
-        return i + 1;
-      }
-
-      if (max < 0) continue;
-
-      // If the glyph is blank we don't care if it extends beyond the max width
-      if (emb.is_blank[i] && emb.may_break[i]) {
-        last_possible_break = i;
-        has_break = true;
-      }
-      w += emb.x_advance[i];
-      if (w > max) {
-        breaktype = 1;
-        if (has_break && full_string[emb.glyph_cluster[last_possible_break]] == 173) {
-          // The break is a soft hyphen. Substitute a real hyphen in
-          insert_hyphen(emb, last_possible_break);
-        }
-        return has_break ? last_possible_break + 1 : i;
-      }
-      // If it isn't blank we wait
-      if (!emb.is_blank[i] && emb.may_break[i]) {
-        last_possible_break = i;
-        has_break = true;
-      }
-    }
-
-    // If width is not enforced and we made it here we can consume the whole embedding
-    if (max < 0) return emb.glyph_id.size();
-
-    size_t next_embedding = embedding + 1;
-    while (next_embedding < all_embeddings.size()) {
-      bool can_break = width_to_breaker(all_embeddings[next_embedding].get(), w);
-      if (w <= max && can_break) {
-        break;
-      } else if (w > max) {
-        breaktype = has_break ? 1 : 0;
-        if (has_break && full_string[emb.glyph_cluster[last_possible_break]] == 173) {
-          // The break is a soft hyphen. Substitute a real hyphen in
-          insert_hyphen(emb, last_possible_break);
-        }
-        return has_break ? last_possible_break + 1 : emb.glyph_id.size();
-      }
-      next_embedding++;
-    }
-    last_possible_break = emb.glyph_id.size();
-  } else {
-    for (size_t i = from; i > 0; --i) {
-      if (emb.must_break[i - 1]) {
-        breaktype = 2;
-        return i - 1;
-      }
-
-      if (max < 0) continue;
-
-      // If the glyph is blank we don't care if it extends beyond the max width
-      if (emb.is_blank[i - 1] && emb.may_break[i - 1]) {
-        last_possible_break = i - 1;
-        has_break = true;
-      }
-      w += emb.x_advance[i - 1];
-      if (w > max) {
-        breaktype = 1;
-        if (has_break && full_string[emb.glyph_cluster[last_possible_break]] == 173) {
-          // The break is a soft hyphen. Substitute a real hyphen in
-          insert_hyphen(emb, last_possible_break);
-        }
-        return has_break ? last_possible_break : i;
-      }
-      // If it isn't blank we wait
-      if (!emb.is_blank[i - 1] && emb.may_break[i - 1]) {
-        last_possible_break = i - 1;
-        has_break = true;
-      }
-    }
-
-    // If width is not enforced and we made it here we can consume the whole embedding
-    if (max < 0) return 0;
-
-    size_t next_embedding = embedding + 1;
-    while (next_embedding < all_embeddings.size()) {
-      bool can_break = width_to_breaker(all_embeddings[next_embedding].get(), w);
-      if (w <= max && can_break) {
-        break;
-      } else if (w > max) {
-        breaktype = has_break ? 1 : 0;
-        if (has_break && full_string[emb.glyph_cluster[last_possible_break]] == 173) {
-          // The break is a soft hyphen. Substitute a real hyphen in
-          insert_hyphen(emb, last_possible_break);
-        }
-        return has_break ? last_possible_break : 0;
-      }
-      next_embedding++;
-    }
-    last_possible_break = 0;
-  }
-  return last_possible_break;
 }
 
 inline FT_Face HarfBuzzShaper::get_font_sizing(FontSettings& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales) {
@@ -1305,7 +1014,7 @@ void HarfBuzzShaper::insert_hyphen(EmbedInfo& embedding, size_t where) {
 
   embedding.x_advance[where] = x * scaling;
   if (embedding.glyph_cluster[where] > 0) {
-    hb_font_get_glyph_kerning_for_direction(font, full_string[embedding.glyph_cluster[where] - 1], glyph, embedding.ltr ? HB_DIRECTION_LTR : HB_DIRECTION_RTL, &x, &y);
+    hb_font_get_glyph_kerning_for_direction(font, full_string[embedding.glyph_cluster[where] - 1], glyph, embedding.embedding_level % 2 == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL, &x, &y);
   } else {
     x = 0;
   }
@@ -1320,6 +1029,274 @@ void HarfBuzzShaper::insert_hyphen(EmbedInfo& embedding, size_t where) {
   embedding.height[where] = extent.height * scaling;
 
   hb_font_destroy(font);
+}
+
+bool HarfBuzzShaper::has_valid_break(const EmbedInfo& embedding, int32_t width, size_t& break_pos, bool force) {
+  bool has_break = false;
+  int32_t w = 0;
+  if (embedding.embedding_level % 2 == 0) { // ltr
+    break_pos = 0;
+    for (size_t i = 0; i < embedding.glyph_id.size(); ++i) {
+      // If the glyph is blank we don't care if it extends beyond the max width
+      if (embedding.is_blank[i] && embedding.may_break[i]) {
+        break_pos = i;
+        has_break = true;
+      }
+      w += embedding.x_advance[i];
+      if (w > width) {
+        if (force) {
+          // If forcing we need to consume at least one glyph
+          break_pos = std::max(i - 1, size_t(1));
+          return true;
+        }
+        return has_break;
+      }
+      // If it isn't blank we wait
+      if (!embedding.is_blank[i] && embedding.may_break[i]) {
+        break_pos = i;
+        has_break = true;
+      }
+    }
+  } else {
+    for (size_t i = embedding.glyph_id.size(); i > 0; --i) {
+      // If the glyph is blank we don't care if it extends beyond the max width
+      if (embedding.is_blank[i - 1] && embedding.may_break[i - 1]) {
+        break_pos = i - 1;
+        has_break = true;
+      }
+      w += embedding.x_advance[i - 1];
+      if (w > width) {
+        if (force) {
+          // If forcing we need to consume at least one glyph
+          break_pos = std::min(i, embedding.glyph_id.size() - 2);
+          return true;
+        }
+        return has_break;
+      }
+      // If it isn't blank we wait
+      if (!embedding.is_blank[i - 1] && embedding.may_break[i - 1]) {
+        break_pos = i - 1;
+        has_break = true;
+      }
+    }
+  }
+  return has_break;
+}
+
+void HarfBuzzShaper::rearrange_embeddings(std::list<EmbedInfo>& line) {
+  static std::vector<std::list<EmbedInfo>::iterator> embed_stack(125); // Max nesting level allowed by ICU bidi algo
+
+  if (line.size() < 2) return; // Nothing to do
+
+  embed_stack[0] = line.begin();
+  size_t current_embed = 0;
+  for (auto iter = line.begin(); iter != line.end(); ++iter) {
+    size_t cur_embed_level = iter->embedding_level;
+    // Nothing to do here but also shouldn't happen
+    if (cur_embed_level == current_embed) continue;
+
+    if (cur_embed_level > current_embed) {
+      // We fill the stack with current position up to the embeddings level
+      while (current_embed != cur_embed_level) {
+        ++current_embed;
+        embed_stack[current_embed] = iter;
+      }
+    } else {
+      // We are exiting a run. Need to reverse everything above
+      while (current_embed != cur_embed_level) {
+        std::reverse(embed_stack[current_embed], iter);
+        --current_embed;
+      }
+    }
+  }
+  // We need to reverse until we hit 0
+  while (current_embed != 0) {
+    std::reverse(embed_stack[current_embed], line.end());
+    --current_embed;
+  }
+}
+
+std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::list<EmbedInfo>& all_embeddings, bool& hard_break, uint32_t& break_char) {
+  std::list<EmbedInfo> line;
+
+  if (width < 0) { // No limit on width
+    auto has_break = all_embeddings.end();
+    for (auto iter = all_embeddings.begin(); iter != all_embeddings.end(); ++iter) {
+      if (iter->terminates_paragraph) {
+        has_break = iter;
+        break;
+      }
+    }
+    if (has_break == all_embeddings.end()) {
+      // No line breaks. Use the full embedding
+      line.swap(all_embeddings);
+      hard_break = false;
+    } else {
+      line.splice(line.begin(), all_embeddings, all_embeddings.begin(), std::next(has_break));
+      hard_break = true;
+      break_char = has_break->pop();
+    }
+  } else {
+    auto iter = all_embeddings.begin();
+    int32_t cum_width = 0;
+    while (cum_width <= width && iter != all_embeddings.end()) {
+      cum_width += iter->full_width;
+      ++iter;
+      if (std::prev(iter)->terminates_paragraph) break;
+    }
+    if (cum_width > width) {
+      // Last embedding needs to be cut if possible
+      hard_break = false;
+      auto orig_iter = iter;
+      auto orig_width = cum_width;
+      size_t break_at = 0;
+      size_t from, to;
+      bool force = false;
+      while (true) {
+        --iter;
+        cum_width -= iter->full_width;
+        // Search for a break in the embedding that satisfies our width constraint
+        if (has_valid_break(*iter, width - cum_width, break_at, force)) {
+          if (iter->embedding_level % 2 == 0) {
+            from = 0;
+            to = break_at + 1;
+          } else {
+            from = break_at;
+            to = iter->glyph_id.size();
+          }
+          // Did we break at soft hyphen?
+          bool is_shy = full_string[iter->glyph_cluster[break_at]] == 173;
+          // We found one. Split the first part into half tail and assemble line
+          line.splice(line.begin(), all_embeddings, all_embeddings.begin(), iter);
+          line.emplace_back();
+          iter->split(from, to, line.back());
+          if (is_shy) { // Substitute soft hyphen with hyphen
+            size_t at = line.back().embedding_level % 2 == 0 ? line.back().glyph_id.size() - 1 : 0;
+            insert_hyphen(line.back(), at);
+          }
+          break;
+        }
+        // We shouldn't hit the below condition since force == true should find a break immediately
+        if (iter == all_embeddings.begin() && force) break;
+
+        if (iter == all_embeddings.begin()) {
+          // We didn't find a break. Reset and set force = true
+          iter = orig_iter;
+          cum_width = orig_width;
+          force = true;
+        }
+      }
+      if (line.empty()) {
+        // If we end here we completely failed to fit a single glyph to the line
+        cpp11::stop("Failed to wrap lines");
+      }
+    } else if (iter == all_embeddings.end()) {
+      hard_break = all_embeddings.back().terminates_paragraph;
+      line.swap(all_embeddings); // It all fits on the line
+    } else {
+      // It got stopped by a hard line break
+      hard_break = true;
+      break_char = std::prev(iter)->pop();
+      line.splice(line.begin(), all_embeddings, all_embeddings.begin(), iter);
+    }
+  }
+  rearrange_embeddings(line);
+  return line;
+}
+
+void HarfBuzzShaper::do_alignment(bool ltr) {
+  if (cur_align == 1 || cur_align == 2) {
+    // Standard center or right justify
+    // Move x_pos based on the linewidth of the line and the full width of the text
+    for (size_t i = 0; i < x_pos.size(); ++i) {
+      int index = line_id[i];
+      int32_t lwd = line_width[index];
+      x_pos[i] = cur_align == 1 ? x_pos[i] + width/2 - lwd/2 : x_pos[i] + width - lwd;
+    }
+    // Do the same with pen position
+    pen_x = cur_align == 1 ? pen_x + width/2 - line_width.back()/2 : pen_x + width - line_width.back();
+  }
+  if (cur_align == 3 || cur_align == 4 || cur_align == 5) {
+    // Justified alignment
+    std::vector<size_t> n_stretches(line_width.size(), 0);
+    std::vector<bool> no_stretch(line_width.size(), false);
+    for (size_t i = 0; i < x_pos.size(); ++i) {
+      // Loop through all glyphs to figure out number of stretches per line and if
+      // stretches are allowed (not for last line or lines with forced linebreak)
+      int index = line_id[i];
+      no_stretch[index] = no_stretch[index] || index == line_width.size() - 1 || line_must_break[index];
+      if (may_stretch[i] && i-1 < x_pos.size() && index == line_id[i+1]) {
+        n_stretches[index]++;
+      }
+    }
+    int32_t cum_move = 0;
+    for (size_t i = 0; i < x_pos.size(); ++i) {
+      // Loop through glyphs, spreading them out
+      int index = line_id[i];
+      int32_t lwd = line_width[index];
+      if (no_stretch[index] || n_stretches[index] == 0) {
+        // If line may not stretch instead move it according to alignment
+        if (cur_align == 4) {
+          x_pos[i] = x_pos[i] + width/2 - lwd/2;
+        } else if (cur_align == 5) {
+          x_pos[i] = x_pos[i] + width - lwd;
+        }
+        continue;
+      }
+      if (i == 0 || line_id[i-1] != index) {
+        // New line, reset stretch counter
+        cum_move = 0;
+      }
+      // Move x_pos according to the cummulative move counter
+      x_pos[i] += cum_move;
+      if (may_stretch[i]) {
+        // If white space the counter gets increased
+        cum_move += (width - line_width[index]) / n_stretches[index];
+      }
+    }
+    // Update pen_x to match position of last line
+    if (ltr) {
+      // If last line is empty ignore cum_move
+      pen_x += line_id.back() == line_width.size() - 1 ? cum_move : 0;
+    }
+    if (no_stretch.back() || n_stretches.back() == 0) {
+      if (cur_align == 4) {
+        pen_x += width/2 - line_width.back()/2;
+      } else if (cur_align == 5) {
+        pen_x += width - line_width.back();
+      }
+    }
+    // Update line width of all stretched lines to match the full width of the textbox
+    for (size_t i = 0; i < line_width.size(); ++i) {
+      if (!no_stretch[i] && n_stretches[i] != 0) line_width[i] = width;
+    }
+  }
+  if (cur_align == 6) {
+    // Distribute glyphs evenly over line
+    std::vector<size_t> n_glyphs(line_width.size(), 0);
+    for (size_t i = 0; i < x_pos.size(); ++i) {
+      // Count number of glyphs on each line (not including carriage return)
+      int index = line_id[i];
+      if (!line_must_break[index] && (i == x_pos.size()-1 || index == line_id[i+1])) {
+        n_glyphs[index]++;
+      }
+    }
+    // Spread out glyphs according to an accumulating spread factor
+    int32_t cum_move = 0;
+    for (size_t i = 0; i < x_pos.size(); ++i) {
+      int index = line_id[i];
+      if (i == 0 || line_id[i-1] != index) {
+        cum_move = 0;
+      }
+      x_pos[i] += cum_move;
+      cum_move += (width - line_width[index]) / (n_glyphs[index]-1);
+    }
+    pen_x += cum_move;
+    // Update line width of all stretched lines to match the full width of the textbox
+    for (size_t i = 0; i < line_width.size(); ++i) {
+      if (n_glyphs[i] != 0) line_width[i] = width;
+    }
+  }
 }
 
 #endif

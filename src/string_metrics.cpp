@@ -210,7 +210,6 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
         }
         int n_glyphs = shaper.glyph_id.size();
         for (int j = 0; j < n_glyphs; j++) {
-          if (shaper.must_break[j]) continue; // Don't add any linebreak chars as they often map to null glyph
           glyph.push_back((int) shaper.glyph_cluster[j] + 1);
           glyph_id.push_back((int) shaper.glyph_id[j]);
           metric_id.push_back(pen_x.size() + 1);
