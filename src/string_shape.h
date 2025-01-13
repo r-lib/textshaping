@@ -2,6 +2,8 @@
 
 #ifndef NO_HARFBUZZ_FRIBIDI
 
+#include "cpp11/protect.hpp"
+#include <numeric>
 #include <functional>
 #include <algorithm>
 #include <systemfonts.h>
@@ -13,6 +15,8 @@
 #include <hb.h>
 #include "utils.h"
 #include "cache_lru.h"
+
+static const uint32_t SPACER_CHAR = 0xffffffff; // Largest possible value. Unlikely any font would use that
 
 struct ShapeID {
   size_t string_hash;
@@ -51,9 +55,9 @@ struct BidiID {
 };
 
 struct EmbedInfo {
-  std::vector<unsigned int> glyph_id;
-  std::vector<unsigned int> glyph_cluster;
-  std::vector<unsigned int> string_id;
+  std::vector<size_t> glyph_id;
+  std::vector<size_t> glyph_cluster;
+  std::vector<size_t> string_id;
   std::vector<int32_t> x_advance;
   std::vector<int32_t> y_advance;
   std::vector<int32_t> x_offset;
@@ -66,14 +70,21 @@ struct EmbedInfo {
   std::vector<int32_t> descenders;
   std::vector<bool> is_blank;
   std::vector<bool> may_break;
-  std::vector<bool> must_break;
   std::vector<bool> may_stretch;
   std::vector<unsigned int> font;
   std::vector<FontSettings> fallbacks;
   std::vector<double> fallback_size;
   std::vector<double> fallback_scaling;
-  bool ltr;
+  size_t embedding_level;
+  int32_t full_width;
+  bool terminates_paragraph;
   void add(const EmbedInfo& other) {
+    if (embedding_level != other.embedding_level) {
+      cpp11::stop("Unable to merge embeddings of different levels");
+    }
+    if (terminates_paragraph) {
+      cpp11::stop("Can't combine embeddings past termination point");
+    }
     glyph_id.insert(glyph_id.end(), other.glyph_id.begin(), other.glyph_id.end());
     glyph_cluster.insert(glyph_cluster.end(), other.glyph_cluster.begin(), other.glyph_cluster.end());
     string_id.insert(string_id.end(), other.string_id.begin(), other.string_id.end());
@@ -89,7 +100,6 @@ struct EmbedInfo {
     descenders.insert(descenders.end(), other.descenders.begin(), other.descenders.end());
     is_blank.insert(is_blank.end(), other.is_blank.begin(), other.is_blank.end());
     may_break.insert(may_break.end(), other.may_break.begin(), other.may_break.end());
-    must_break.insert(must_break.end(), other.must_break.begin(), other.must_break.end());
     may_stretch.insert(may_stretch.end(), other.may_stretch.begin(), other.may_stretch.end());
     size_t current_font_size = font.size();
     font.insert(font.end(), other.font.begin(), other.font.end());
@@ -97,6 +107,95 @@ struct EmbedInfo {
     fallbacks.insert(fallbacks.end(), other.fallbacks.begin(), other.fallbacks.end());
     fallback_size.insert(fallback_size.end(), other.fallback_size.begin(), other.fallback_size.end());
     fallback_scaling.insert(fallback_scaling.end(), other.fallback_scaling.begin(), other.fallback_scaling.end());
+    full_width += other.full_width;
+  }
+  void split(size_t from, size_t to, EmbedInfo& into) {
+    into.embedding_level = embedding_level;
+    into.terminates_paragraph = false;
+
+    into.glyph_id.insert(into.glyph_id.end(), glyph_id.begin() + from, glyph_id.begin() + to);
+    glyph_id.erase(glyph_id.begin() + from, glyph_id.begin() + to);
+    into.glyph_cluster.insert(into.glyph_cluster.end(), glyph_cluster.begin() + from, glyph_cluster.begin() + to);
+    glyph_cluster.erase(glyph_cluster.begin() + from, glyph_cluster.begin() + to);
+    into.string_id.insert(into.string_id.end(), string_id.begin() + from, string_id.begin() + to);
+    string_id.erase(string_id.begin() + from, string_id.begin() + to);
+    into.x_advance.insert(into.x_advance.end(), x_advance.begin() + from, x_advance.begin() + to);
+    x_advance.erase(x_advance.begin() + from, x_advance.begin() + to);
+    into.y_advance.insert(into.y_advance.end(), y_advance.begin() + from, y_advance.begin() + to);
+    y_advance.erase(y_advance.begin() + from, y_advance.begin() + to);
+    into.x_offset.insert(into.x_offset.end(), x_offset.begin() + from, x_offset.begin() + to);
+    x_offset.erase(x_offset.begin() + from, x_offset.begin() + to);
+    into.y_offset.insert(into.y_offset.end(), y_offset.begin() + from, y_offset.begin() + to);
+    y_offset.erase(y_offset.begin() + from, y_offset.begin() + to);
+    into.x_bear.insert(into.x_bear.end(), x_bear.begin() + from, x_bear.begin() + to);
+    x_bear.erase(x_bear.begin() + from, x_bear.begin() + to);
+    into.y_bear.insert(into.y_bear.end(), y_bear.begin() + from, y_bear.begin() + to);
+    y_bear.erase(y_bear.begin() + from, y_bear.begin() + to);
+    into.width.insert(into.width.end(), width.begin() + from, width.begin() + to);
+    width.erase(width.begin() + from, width.begin() + to);
+    into.height.insert(into.height.end(), height.begin() + from, height.begin() + to);
+    height.erase(height.begin() + from, height.begin() + to);
+    into.ascenders.insert(into.ascenders.end(), ascenders.begin() + from, ascenders.begin() + to);
+    ascenders.erase(ascenders.begin() + from, ascenders.begin() + to);
+    into.descenders.insert(into.descenders.end(), descenders.begin() + from, descenders.begin() + to);
+    descenders.erase(descenders.begin() + from, descenders.begin() + to);
+    into.is_blank.insert(into.is_blank.end(), is_blank.begin() + from, is_blank.begin() + to);
+    is_blank.erase(is_blank.begin() + from, is_blank.begin() + to);
+    into.may_break.insert(into.may_break.end(), may_break.begin() + from, may_break.begin() + to);
+    may_break.erase(may_break.begin() + from, may_break.begin() + to);
+    into.may_stretch.insert(into.may_stretch.end(), may_stretch.begin() + from, may_stretch.begin() + to);
+    may_stretch.erase(may_stretch.begin() + from, may_stretch.begin() + to);
+    into.font.insert(into.font.end(), font.begin() + from, font.begin() + to);
+    font.erase(font.begin() + from, font.begin() + to);
+    into.fallbacks.insert(into.fallbacks.end(), fallbacks.begin(), fallbacks.end());
+    into.fallback_size.insert(into.fallback_size.end(), fallback_size.begin(), fallback_size.end());
+    into.fallback_scaling.insert(into.fallback_scaling.end(), fallback_scaling.begin(), fallback_scaling.end());
+    into.full_width = std::accumulate(into.x_advance.begin(), into.x_advance.end(), int32_t(0));
+    full_width -= into.full_width;
+  }
+  uint32_t pop() {
+    uint32_t cluster;
+    if (embedding_level % 2 == 0) {
+      cluster = glyph_cluster.back();
+      glyph_id.pop_back();
+      glyph_cluster.pop_back();
+      string_id.pop_back();
+      x_advance.pop_back();
+      y_advance.pop_back();
+      x_offset.pop_back();
+      y_offset.pop_back();
+      x_bear.pop_back();
+      y_bear.pop_back();
+      width.pop_back();
+      height.pop_back();
+      ascenders.pop_back();
+      descenders.pop_back();
+      is_blank.pop_back();
+      may_break.pop_back();
+      may_stretch.pop_back();
+      font.pop_back();
+    } else {
+      // This is not efficient but we would generally only do this on small embeddings
+      cluster = glyph_cluster.front();
+      glyph_id.erase(glyph_id.begin());
+      glyph_cluster.erase(glyph_cluster.begin());
+      string_id.erase(string_id.begin());
+      x_advance.erase(x_advance.begin());
+      y_advance.erase(y_advance.begin());
+      x_offset.erase(x_offset.begin());
+      y_offset.erase(y_offset.begin());
+      x_bear.erase(x_bear.begin());
+      y_bear.erase(y_bear.begin());
+      width.erase(width.begin());
+      height.erase(height.begin());
+      ascenders.erase(ascenders.begin());
+      descenders.erase(descenders.begin());
+      is_blank.erase(is_blank.begin());
+      may_break.erase(may_break.begin());
+      may_stretch.erase(may_stretch.begin());
+      font.erase(font.begin());
+    }
+    return cluster;
   }
 };
 struct ShapeInfo {
@@ -177,7 +276,7 @@ public:
   advance(),
   ascender(),
   descender(),
-  must_break(),
+  line_must_break(),
   width(0),
   height(0),
   left_bearing(0),
@@ -234,7 +333,7 @@ public:
   std::vector<int32_t> advance;
   std::vector<int32_t> ascender;
   std::vector<int32_t> descender;
-  std::vector<bool> must_break;
+  std::vector<bool> line_must_break;
   int32_t width;
   int32_t height;
   int32_t left_bearing;
@@ -297,7 +396,7 @@ private:
   int32_t space_after;
 
   void reset();
-  std::vector< std::reference_wrapper<EmbedInfo> > combine_embeddings(std::vector<ShapeInfo>& shapes, int& direction);
+  std::list<EmbedInfo> combine_embeddings(std::vector<ShapeInfo>& shapes, int& direction);
   bool shape_embedding(unsigned int start, unsigned int end, std::vector<hb_feature_t>& features,
                        int dir, ShapeInfo& shape_info, std::vector<FontSettings>& fallbacks,
                        std::vector<double>& fallback_sizes, std::vector<double>& fallback_scales);
@@ -319,9 +418,12 @@ private:
                        std::vector<double>& fallback_sizes,
                        std::vector<double>& fallback_scales);
   void fill_glyph_info(EmbedInfo& embedding);
-  size_t fill_out_width(size_t from, int32_t max, size_t embedding, int& breaktype, std::vector< std::reference_wrapper<EmbedInfo> >& all_embeddings);
   FT_Face get_font_sizing(FontSettings& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales);
   void insert_hyphen(EmbedInfo& embedding, size_t where);
+  bool has_valid_break(const EmbedInfo& embedding, int32_t width, size_t& break_pos, bool force);
+  void rearrange_embeddings(std::list<EmbedInfo>& line);
+  std::list<EmbedInfo> get_next_line_at_width(int32_t width, std::list<EmbedInfo>& all_embeddings, bool& hard_break, uint32_t& break_char);
+  void do_alignment(bool ltr);
 
   inline double family_scaling(const char* family) {
     if (strcmp("Apple Color Emoji", family) == 0) {
