@@ -627,6 +627,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
   hb_buffer_reset(buffer);
   hb_buffer_add_utf32(buffer, full_string.data(), full_string.size(), start, embedding_size);
   hb_buffer_guess_segment_properties(buffer);
+  hb_buffer_set_direction(buffer, dir % 2 == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL);
   hb_glyph_info_t *glyph_info = NULL;
 
   hb_shape(font, buffer, features.data(), features.size());
@@ -697,6 +698,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
       hb_buffer_reset(buffer);
       hb_buffer_add_utf32(buffer, full_string.data(), full_string.size(), start + fallback_start, fallback_end - fallback_start);
       hb_buffer_guess_segment_properties(buffer);
+      hb_buffer_set_direction(buffer, dir % 2 == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL);
       hb_shape(font, buffer, features.data(), features.size());
       glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
 
@@ -744,6 +746,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
         hb_buffer_reset(buffer);
         hb_buffer_add_utf32(buffer, full_string.data(), full_string.size(), start + text_run_start, i - text_run_start);
         hb_buffer_guess_segment_properties(buffer);
+        hb_buffer_set_direction(buffer, dir % 2 == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL);
         hb_shape(font, buffer, features.data(), features.size());
         glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
         glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
@@ -778,6 +781,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
         hb_buffer_reset(buffer);
         hb_buffer_add_utf32(buffer, full_string.data(), full_string.size(), start + i, text_run_end - i);
         hb_buffer_guess_segment_properties(buffer);
+        hb_buffer_set_direction(buffer, dir % 2 == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL);
         hb_shape(font, buffer, features.data(), features.size());
         glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
         glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
