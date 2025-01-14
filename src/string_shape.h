@@ -16,7 +16,8 @@
 #include "utils.h"
 #include "cache_lru.h"
 
-static const uint32_t SPACER_CHAR = 0xffffffff; // Largest possible value. Unlikely any font would use that
+static const uint32_t EMPTY_CHAR = 0xffffffff; // Largest possible value. Unlikely any font would use that
+static const uint32_t SPACER_CHAR = 0xffffffff - 1; // Second largest possible value. Also unlikely any font would use that
 
 struct ShapeID {
   size_t string_hash;
@@ -357,7 +358,7 @@ public:
   bool add_string(const char* string, FontSettings& font_info,
                   double size, double tracking, bool spacer,
                   std::vector<int>& soft_wrap, std::vector<int>& hard_wrap);
-  bool add_spacer(FontSettings& font_info, double height, double width);
+  bool add_spacer(FontSettings& font_info, double height, double width, uint32_t filler = SPACER_CHAR);
   bool finish_string();
 
   void shape_text_run(ShapeInfo &text_run, bool ltr);

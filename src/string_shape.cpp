@@ -59,7 +59,7 @@ bool HarfBuzzShaper::add_string(const char* string, FontSettings& font_info,
 
   if (n_chars == 0) {
     // Empty run - we treat is as a 0-width spacer to capture the font ascend and descend
-    return add_spacer(font_info, size, 0);
+    return add_spacer(font_info, size, 0, EMPTY_CHAR);
   }
 
   full_string.insert(full_string.end(), utc_string, utc_string + n_chars);
@@ -83,7 +83,7 @@ bool HarfBuzzShaper::add_string(const char* string, FontSettings& font_info,
   return true;
 }
 
-bool HarfBuzzShaper::add_spacer(FontSettings& font_info, double height, double width) {
+bool HarfBuzzShaper::add_spacer(FontSettings& font_info, double height, double width, uint32_t filler) {
   width *= 64.0 / 72.0;
   int32_t ascend = height * 64.0 * cur_res / 72.0;
   int32_t descend = 0;
@@ -110,7 +110,7 @@ bool HarfBuzzShaper::add_spacer(FontSettings& font_info, double height, double w
   //  width/x-advance giving the width
   info.font_info = font_info;
   info.embeddings.push_back({
-    {SPACER_CHAR}, // glyph_id
+    {filler}, // glyph_id
     {0}, // glyph_cluster
     {info.index}, // string_id
     {int32_t(width)}, // x_advance
@@ -191,7 +191,7 @@ bool HarfBuzzShaper::finish_string() {
             pen_x = 0;
           }
         }
-        if (iter->glyph_id[i] != SPACER_CHAR) {
+        if (iter->glyph_id[i] != EMPTY_CHAR) { // Avoid adding made up glyph info for empty text runs
           glyph_id.push_back(iter->glyph_id[i]);
           glyph_cluster.push_back(iter->glyph_cluster[i]);
           fontfile.push_back(iter->fallbacks[iter->font[i]].file);
@@ -243,7 +243,7 @@ bool HarfBuzzShaper::finish_string() {
     pen_y -= (line_ascend - previous_line_descend) * (line_width.size() == 1 ? 1 : cur_lineheight);
     for (auto iter = line.begin(); iter != line.end(); ++iter) {
       for (size_t i = 0; i < iter->glyph_id.size(); ++i) {
-        if (iter->glyph_id[i] != SPACER_CHAR) {
+        if (iter->glyph_id[i] != EMPTY_CHAR) { // Avoid adding made up glyph info for empty text runs
           y_pos.push_back(pen_y + iter->y_offset[i]);
         }
         previous_line_descend = std::min(previous_line_descend, iter->descenders[i]);

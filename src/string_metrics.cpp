@@ -1,3 +1,4 @@
+#include "R_ext/Arith.h"
 #include "cpp11/logicals.hpp"
 #include "cpp11/protect.hpp"
 #define R_NO_REMAP
@@ -211,7 +212,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
         int n_glyphs = shaper.glyph_id.size();
         for (int j = 0; j < n_glyphs; j++) {
           glyph.push_back((int) shaper.glyph_cluster[j] + 1);
-          glyph_id.push_back((int) shaper.glyph_id[j]);
+          glyph_id.push_back((int) (shaper.glyph_id[j] == SPACER_CHAR ? R_NaInt : shaper.glyph_id[j]));
           metric_id.push_back(pen_x.size() + 1);
           string_id.push_back(shaper.string_id[j] + 1);
           x_offset.push_back(double(shaper.x_pos[j]) / 64.0);
