@@ -131,8 +131,6 @@ about the full strings.
 }
 }
 \description{
-\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#experimental}{\figure{lifecycle-experimental.svg}{options: alt='[Experimental]'}}}{\strong{[Experimental]}}
-
 Performs advanced text shaping of strings including font fallbacks,
 bidirectional script support, word wrapping and various character and
 paragraph level formatting settings.

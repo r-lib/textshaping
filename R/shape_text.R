@@ -1,8 +1,5 @@
 #' Calculate glyph positions for strings
 #'
-#' @description
-#' `r lifecycle::badge('experimental')`
-#'
 #' Performs advanced text shaping of strings including font fallbacks,
 #' bidirectional script support, word wrapping and various character and
 #' paragraph level formatting settings.
