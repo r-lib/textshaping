@@ -1,5 +1,6 @@
-This is a patch release with a bug fix in the shaping code along with better
-guards around indexing zero-length arrays and vectors in the compiled code
+This is a major release with an almost fully rewritten shaping engine that
+improves on the bidirectional text handling, as well as wrapping of ideographic
+scripts.
 
 ## revdepcheck results
 
@@ -7,4 +8,3 @@ We checked 4 reverse dependencies, comparing R CMD check results across CRAN and
 
  * We saw 0 new problems
  * We failed to check 0 packages
-
