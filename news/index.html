@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">textshaping</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.4.1.9000</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.0</span>
       </span>
     </div>
 
@@ -58,7 +58,7 @@
     </div>
 
     <div class="section level2">
-<h2 class="page-header" data-toc-text="development version" id="textshaping-development-version">textshaping (development version)<a class="anchor" aria-label="anchor" href="#textshaping-development-version"></a></h2>
+<h2 class="page-header" data-toc-text="1.0.0" id="textshaping-100">textshaping 1.0.0<a class="anchor" aria-label="anchor" href="#textshaping-100"></a></h2>
 <ul><li>Added <code><a href="../reference/lorem_text.html">lorem_text()</a></code> and <code><a href="../reference/lorem_text.html">lorem_bidi()</a></code> for generating nonsense text in various scripts</li>
 <li>Added <code><a href="../reference/plot_shape.html">plot_shape()</a></code> to plot the result of a shaping along with the metrics</li>
 <li>Rewrite of the shaping engine to honor global direction of text. It introduces a <code>direction</code> argument to <code><a href="../reference/shape_text.html">shape_text()</a></code> that defaults to <code>auto</code>, meaning that it is deduced from the content of the shaped text. <code>align</code> gets two new settings that responds to the global direction of the text. <code>"auto"</code> will chose between <code>"left"</code> and <code>"right"</code> and <code>"justified"</code> will choose between <code>"justified-left"</code> and <code>"justified-right"</code> depending of the global direction is ltr or rtl. Lastly the soft break locations are now based on ICU and thus better support ideographic scripts such as Han/Kanji/Hangul.</li>
