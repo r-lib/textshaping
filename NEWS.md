@@ -1,4 +1,4 @@
-# textshaping (development version)
+# textshaping 1.0.0
 
 * Added `lorem_text()` and `lorem_bidi()` for generating nonsense text in
   various scripts
