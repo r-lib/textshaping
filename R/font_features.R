@@ -20,8 +20,13 @@
 #' # Get the features
 #' get_font_features(random_font)
 #'
-get_font_features <- function(family = '', italic = FALSE, bold = FALSE,
-                              path = NULL, index = 0) {
+get_font_features <- function(
+  family = '',
+  italic = FALSE,
+  bold = FALSE,
+  path = NULL,
+  index = 0
+) {
   if (is.null(path)) {
     full_length <- max(length(family), length(italic), length(bold))
     fonts <- match_fonts(
