@@ -90,13 +90,31 @@
 #'
 #' shape_text(string, id = c(1, 1, 1), size = c(12, 24, 12))
 #'
-shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
-                       weight = 'normal', width = 'undefined', features = font_feature(),
-                       size = 12, res = 72, lineheight = 1, align = 'auto',
-                       hjust = 0, vjust = 0, max_width = NA, tracking = 0,
-                       indent = 0, hanging = 0, space_before = 0, space_after = 0,
-                       direction = "auto", path = NULL, index = 0,
-                       bold = deprecated()) {
+shape_text <- function(
+  strings,
+  id = NULL,
+  family = '',
+  italic = FALSE,
+  weight = 'normal',
+  width = 'undefined',
+  features = font_feature(),
+  size = 12,
+  res = 72,
+  lineheight = 1,
+  align = 'auto',
+  hjust = 0,
+  vjust = 0,
+  max_width = NA,
+  tracking = 0,
+  indent = 0,
+  hanging = 0,
+  space_before = 0,
+  space_after = 0,
+  direction = "auto",
+  path = NULL,
+  index = 0,
+  bold = deprecated()
+) {
   n_strings = length(strings)
   if (is.null(id)) id <- seq_len(n_strings)
   id <- rep_len(id, n_strings)
@@ -109,7 +127,11 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
   strings <- as.character(strings)[ido]
 
   if (lifecycle::is_present(bold)) {
-    lifecycle::deprecate_soft("0.4.0", "shape_text(bold)", "shape_text(weight='bold')")
+    lifecycle::deprecate_soft(
+      "0.4.0",
+      "shape_text(bold)",
+      "shape_text(weight='bold')"
+    )
     weight <- ifelse(bold, "bold", "normal")
   }
 
@@ -133,8 +155,36 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
   size <- rep_len(size, n_strings)[ido]
   res <- rep_len(res, n_strings)[ido]
   lineheight <- rep_len(lineheight, n_strings)[ido]
-  align <- if (length(align) != 0) match.arg(align, c('left', 'center', 'right', 'justified-left', 'justified-center', 'justified-right', 'distributed', 'auto', 'justified'), TRUE)
-  align <- match(align, c('left', 'center', 'right', 'justified-left', 'justified-center', 'justified-right', 'distributed', 'auto', 'justified'))
+  align <- if (length(align) != 0)
+    match.arg(
+      align,
+      c(
+        'left',
+        'center',
+        'right',
+        'justified-left',
+        'justified-center',
+        'justified-right',
+        'distributed',
+        'auto',
+        'justified'
+      ),
+      TRUE
+    )
+  align <- match(
+    align,
+    c(
+      'left',
+      'center',
+      'right',
+      'justified-left',
+      'justified-center',
+      'justified-right',
+      'distributed',
+      'auto',
+      'justified'
+    )
+  )
   align <- rep_len(align, n_strings)[ido]
   hjust <- rep_len(hjust, n_strings)[ido]
   vjust <- rep_len(vjust, n_strings)[ido]
@@ -145,7 +195,8 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
   hanging <- rep_len(hanging, n_strings)[ido]
   space_before <- rep_len(space_before, n_strings)[ido]
   space_after <- rep_len(space_after, n_strings)[ido]
-  direction <- if (length(direction) != 0)  match.arg(direction, c('auto', 'ltr', 'rtl'), TRUE)
+  direction <- if (length(direction) != 0)
+    match.arg(direction, c('auto', 'ltr', 'rtl'), TRUE)
   direction <- match(direction, c('auto', 'ltr', 'rtl')) - 1L
   direction <- rep_len(direction, n_strings)[ido]
 
@@ -156,37 +207,72 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
   space_before <- space_before * res / 72
   space_after <- space_after * res / 72
 
-  soft_wraps <- lapply(stringi::stri_locate_all_boundaries(
-    strings,
-    omit_no_match = TRUE,
-    skip_line_hard = TRUE
-  ), function(x) x[, 2])
-  hard_wraps <- lapply(stringi::stri_locate_all_boundaries(
-    strings,
-    omit_no_match = TRUE,
-    skip_line_soft = TRUE
-  ), function(x) x[, 2])
+  soft_wraps <- lapply(
+    stringi::stri_locate_all_boundaries(
+      strings,
+      omit_no_match = TRUE,
+      skip_line_hard = TRUE
+    ),
+    function(x) x[, 2]
+  )
+  hard_wraps <- lapply(
+    stringi::stri_locate_all_boundaries(
+      strings,
+      omit_no_match = TRUE,
+      skip_line_soft = TRUE
+    ),
+    function(x) x[, 2]
+  )
 
-  if (!all(file.exists(path))) stop("path must point to a valid file", call. = FALSE)
+  if (!all(file.exists(path)))
+    stop("path must point to a valid file", call. = FALSE)
   shape <- get_string_shape_c(
-    strings, id, path, as.integer(index), features, as.numeric(size),
-    as.numeric(res), as.numeric(lineheight), as.integer(align) - 1L,
-    as.numeric(hjust), as.numeric(vjust), as.numeric(max_width), as.numeric(tracking),
-    as.numeric(indent), as.numeric(hanging), as.numeric(space_before),
-    as.numeric(space_after), as.integer(direction), soft_wraps, hard_wraps
+    strings,
+    id,
+    path,
+    as.integer(index),
+    features,
+    as.numeric(size),
+    as.numeric(res),
+    as.numeric(lineheight),
+    as.integer(align) - 1L,
+    as.numeric(hjust),
+    as.numeric(vjust),
+    as.numeric(max_width),
+    as.numeric(tracking),
+    as.numeric(indent),
+    as.numeric(hanging),
+    as.numeric(space_before),
+    as.numeric(space_after),
+    as.integer(direction),
+    soft_wraps,
+    hard_wraps
   )
   if (nrow(shape$shape) == 0) return(shape)
 
-  shape$metrics$string <- vapply(split(strings, id), paste, character(1), collapse = '')
-  shape$metrics[-c(1, 12)] <- lapply(shape$metrics[-c(1, 12)], function(x) x * 72 / res[!duplicated(id)])
+  shape$metrics$string <- vapply(
+    split(strings, id),
+    paste,
+    character(1),
+    collapse = ''
+  )
+  shape$metrics[-c(1, 12)] <- lapply(
+    shape$metrics[-c(1, 12)],
+    function(x) x * 72 / res[!duplicated(id)]
+  )
 
-  shape$shape$string_id <- ido[(cumsum(c(0, rle(id)$lengths)) + 1)[shape$shape$metric_id] + shape$shape$string_id - 1]
+  shape$shape$string_id <- ido[
+    (cumsum(c(0, rle(id)$lengths)) + 1)[shape$shape$metric_id] +
+      shape$shape$string_id -
+      1
+  ]
   shape$shape <- shape$shape[order(shape$shape$string_id), , drop = FALSE]
-  shape$shape$x_offset <- shape$shape$x_offset * (72 / res[shape$shape$string_id])
-  shape$shape$y_offset <- shape$shape$y_offset * (72 / res[shape$shape$string_id])
-  shape$shape$advance <- shape$shape$advance * (72 / res[shape$shape$string_id])
-  shape$shape$ascender <- shape$shape$ascender * (72 / res[shape$shape$string_id])
-  shape$shape$descender <- shape$shape$descender * (72 / res[shape$shape$string_id])
+  res_mod <- (72 / res[shape$shape$string_id])
+  shape$shape$x_offset <- shape$shape$x_offset * res_mod
+  shape$shape$y_offset <- shape$shape$y_offset * res_mod
+  shape$shape$advance <- shape$shape$advance * res_mod
+  shape$shape$ascender <- shape$shape$ascender * res_mod
+  shape$shape$descender <- shape$shape$descender * res_mod
   shape
 }
 #' Calculate the width of a string, ignoring new-lines
@@ -212,14 +298,28 @@ shape_text <- function(strings, id = NULL, family = '', italic = FALSE,
 #' strings <- c('A short string', 'A very very looong string')
 #' text_width(strings)
 #'
-text_width <- function(strings, family = '', italic = FALSE, weight = 'normal',
-                       width = 'undefined', features = font_feature(),
-                       size = 12, res = 72, include_bearing = TRUE, path = NULL,
-                       index = 0, bold = deprecated()) {
+text_width <- function(
+  strings,
+  family = '',
+  italic = FALSE,
+  weight = 'normal',
+  width = 'undefined',
+  features = font_feature(),
+  size = 12,
+  res = 72,
+  include_bearing = TRUE,
+  path = NULL,
+  index = 0,
+  bold = deprecated()
+) {
   n_strings <- length(strings)
 
   if (lifecycle::is_present(bold)) {
-    lifecycle::deprecate_soft("0.4.1", "text_width(bold)", "text_width(weight='bold')")
+    lifecycle::deprecate_soft(
+      "0.4.1",
+      "text_width(bold)",
+      "text_width(weight='bold')"
+    )
     weight <- ifelse(bold, "bold", "normal")
   }
 
@@ -242,10 +342,16 @@ text_width <- function(strings, family = '', italic = FALSE, weight = 'normal',
   size <- rep_len(size, n_strings)
   res <- rep_len(res, n_strings)
   include_bearing <- rep_len(include_bearing, n_strings)
-  if (!all(file.exists(path))) stop("path must point to a valid file", call. = FALSE)
+  if (!all(file.exists(path)))
+    stop("path must point to a valid file", call. = FALSE)
   get_line_width_c(
-    as.character(strings), path, as.integer(index), as.numeric(size),
-    as.numeric(res), as.logical(include_bearing), features
+    as.character(strings),
+    path,
+    as.integer(index),
+    as.numeric(size),
+    as.numeric(res),
+    as.logical(include_bearing),
+    features
   )
 }
 
@@ -277,10 +383,16 @@ text_width <- function(strings, family = '', italic = FALSE, weight = 'normal',
 #' )
 #'
 plot_shape <- function(shape, id = 1) {
-  if (!requireNamespace("grDevices", quietly = TRUE) || utils::packageVersion("grDevices") < package_version("4.3.0")) {
+  if (
+    !requireNamespace("grDevices", quietly = TRUE) ||
+      utils::packageVersion("grDevices") < package_version("4.3.0")
+  ) {
     stop("This function requires grDevices 4.3.0 or above")
   }
-  if (!requireNamespace("grid", quietly = TRUE) || utils::packageVersion("grid") < package_version("4.3.0")) {
+  if (
+    !requireNamespace("grid", quietly = TRUE) ||
+      utils::packageVersion("grid") < package_version("4.3.0")
+  ) {
     stop("This function requires grid 4.3.0 or above")
   }
 
@@ -298,7 +410,13 @@ plot_shape <- function(shape, id = 1) {
 
   grid.glyph <- utils::getFromNamespace("grid.glyph", "grid")
 
-  if (!is.numeric(id) || length(id) != 1 || id <= 0 || id %% 1 != 0 || id > nrow(shape$metrics)) {
+  if (
+    !is.numeric(id) ||
+      length(id) != 1 ||
+      id <= 0 ||
+      id %% 1 != 0 ||
+      id > nrow(shape$metrics)
+  ) {
     stop("`id` must be an integer pointing to a paragraph in `shape`")
   }
   glyphs <- shape$shape[shape$shape$metric_id == id, ]
@@ -307,7 +425,14 @@ plot_shape <- function(shape, id = 1) {
   font_id <- paste0(glyphs$font_path, "&", glyphs$font_index)
   font_match <- match(font_id, unique(font_id))
   unique_font <- !duplicated(font_id)
-  fonts <- Map(glyphFont, glyphs$font_path[unique_font], glyphs$font_index[unique_font], "", 0, "")
+  fonts <- Map(
+    glyphFont,
+    glyphs$font_path[unique_font],
+    glyphs$font_index[unique_font],
+    "",
+    0,
+    ""
+  )
   fonts <- do.call(glyphFontList, fonts)
   glyphs <- glyphInfo(
     id = glyphs$index,
