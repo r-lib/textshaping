@@ -1,5 +1,8 @@
 # textshaping (development version)
 
+* Fixed a bug where hard line breaks where ignored if the line consisted of
+  multiple embeddings (marquee#58)
+
 # textshaping 1.0.0
 
 * Added `lorem_text()` and `lorem_bidi()` for generating nonsense text in

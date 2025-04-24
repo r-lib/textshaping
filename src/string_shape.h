@@ -109,6 +109,7 @@ struct EmbedInfo {
     fallback_size.insert(fallback_size.end(), other.fallback_size.begin(), other.fallback_size.end());
     fallback_scaling.insert(fallback_scaling.end(), other.fallback_scaling.begin(), other.fallback_scaling.end());
     full_width += other.full_width;
+    terminates_paragraph = other.terminates_paragraph;
   }
   void split(size_t from, size_t to, EmbedInfo& into) {
     into.embedding_level = embedding_level;
