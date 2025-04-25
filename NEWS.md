@@ -2,6 +2,8 @@
 
 * Fixed a bug where hard line breaks where ignored if the line consisted of
   multiple embeddings (marquee#58)
+* Fixed a bug where newline characters would increase the width of a line and
+  lead to an empty line getting inserted in some situations (marquee#55)
 
 # textshaping 1.0.0
 

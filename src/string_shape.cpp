@@ -554,6 +554,7 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
       if (!success) return;
       if (!text_run.embeddings.empty() && terminal) {
         text_run.embeddings.back().terminates_paragraph = terminal;
+        text_run.embeddings.back().full_width -= text_run.embeddings.back().x_advance.back();
       }
       embedding_start = i;
     }
