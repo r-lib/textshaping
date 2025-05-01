@@ -1,4 +1,4 @@
-# textshaping (development version)
+# textshaping 1.0.1
 
 * Fixed a bug where hard line breaks where ignored if the line consisted of
   multiple embeddings (marquee#58)
