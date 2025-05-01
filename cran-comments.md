@@ -1,6 +1,4 @@
-This is a major release with an almost fully rewritten shaping engine that
-improves on the bidirectional text handling, as well as wrapping of ideographic
-scripts.
+Small patch release with bug fixes
 
 ## revdepcheck results
 
