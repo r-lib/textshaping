@@ -62,7 +62,7 @@ provided \code{res} value to convert it into absolute values.
 This is a very simple alternative to \code{\link[systemfonts:shape_string]{systemfonts::shape_string()}} that
 simply calculates the width of strings without taking any newline into
 account. As such it is suitable to calculate the width of words or lines that
-has already been splitted by \verb{\\n}. Input is recycled to the length of
+have already been split by \verb{\\n}. Input is recycled to the length of
 \code{strings}.
 }
 \examples{
