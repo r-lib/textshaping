@@ -10,7 +10,7 @@
 #' @param n The number of paragraphs to fetch. Each paragraph will be its own
 #' element in the returned character vector.
 #'
-#' @return a charactor vector of length `n`
+#' @return a character vector of length `n`
 #'
 #' @export
 #'

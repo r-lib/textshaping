@@ -441,7 +441,7 @@ private:
     case 10: return true;    // Line feed
     case 11: return true;    // Vertical tab
     case 12: return true;    // Form feed
-    case 13: return true;    // Cariage return
+    case 13: return true;    // Carriage return
     case 133: return true;   // Next line
     case 8232: return true;  // Line Separator
     case 8233: return true;  // Paragraph Separator
@@ -483,7 +483,7 @@ private:
     case 10: return true;    // Line feed
     case 11: return true;    // Vertical tab
     case 12: return true;    // Form feed
-    case 13: return true;    // Cariage return
+    case 13: return true;    // Carriage return
     case 32: return true;    // Space
     case 133: return true;   // Next line
     case 5760: return true;  // Ogham Space Mark

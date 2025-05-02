@@ -280,7 +280,7 @@ shape_text <- function(
 #' This is a very simple alternative to [systemfonts::shape_string()] that
 #' simply calculates the width of strings without taking any newline into
 #' account. As such it is suitable to calculate the width of words or lines that
-#' has already been splitted by `\n`. Input is recycled to the length of
+#' have already been split by `\n`. Input is recycled to the length of
 #' `strings`.
 #'
 #' @inheritParams shape_text
