@@ -588,9 +588,9 @@ EmbedInfo HarfBuzzShaper::shape_single_line(const char* string, FontSettings& fo
 
   rearrange_embeddings(final_embeddings);
 
-  // Combined all embeddings into one
+  // Combine all embeddings into one
   for (auto iter = std::next(final_embeddings.begin()); iter != final_embeddings.end(); ++iter) {
-    final_embeddings.front().add(*iter);
+    final_embeddings.front().add(*iter, false);
   }
   return final_embeddings.front();
 }

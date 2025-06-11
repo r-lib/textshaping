@@ -79,11 +79,11 @@ struct EmbedInfo {
   size_t embedding_level;
   int32_t full_width;
   bool terminates_paragraph;
-  void add(const EmbedInfo& other) {
-    if (embedding_level != other.embedding_level) {
+  void add(const EmbedInfo& other, bool check = true) {
+    if (check && embedding_level != other.embedding_level) {
       cpp11::stop("Unable to merge embeddings of different levels");
     }
-    if (terminates_paragraph) {
+    if (check && terminates_paragraph) {
       cpp11::stop("Can't combine embeddings past termination point");
     }
     glyph_id.insert(glyph_id.end(), other.glyph_id.begin(), other.glyph_id.end());

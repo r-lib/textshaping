@@ -1,5 +1,8 @@
 # textshaping (development version)
 
+* Fixed a bug in bidi embedding arrangement when shaping a single line
+  (ggplot2#6497)
+
 # textshaping 1.0.1
 
 * Fixed a bug where hard line breaks where ignored if the line consisted of
