@@ -16,10 +16,10 @@ knitr::opts_chunk$set(
 ```
 
 textshaping is predominantly intended to be used by other packages implementing
-graphic devicees and calling it from the C level. As such it exports a set of
+graphic devices and calling it from the C level. As such it exports a set of
 functions that match the needs of graphic devices. The C API builds upon that of
 systemfonts and you'll thus need to link to both packages to access it 
-succesfully. This is done with the `LinkingTo` field in the `DESCRIPTION` file:
+successfully. This is done with the `LinkingTo` field in the `DESCRIPTION` file:
 
 ```
 LinkingTo: 

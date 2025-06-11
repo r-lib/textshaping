@@ -31,7 +31,7 @@ element in the returned character vector.}
 string}
 }
 \value{
-a charactor vector of length \code{n}
+a character vector of length \code{n}
 }
 \description{
 Textshaping exists partly to allow all the various scripts that exists in the
