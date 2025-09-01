@@ -1,3 +1,5 @@
+# textshaping (development version)
+
 # textshaping 1.0.2
 
 * Fixed a bug in bidi embedding arrangement when shaping a single line
