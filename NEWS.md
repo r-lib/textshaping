@@ -4,6 +4,7 @@
   (ggplot2#6497)
 * Fixed a bug in shape caching due to a weak vector hash implementation
   (ragg#193)
+* Fixed a bug in line positioning when line containes mix of different sizes
 
 # textshaping 1.0.1
 

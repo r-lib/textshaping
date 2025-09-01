@@ -262,6 +262,7 @@ bool HarfBuzzShaper::finish_string() {
     if (!final_embeddings.empty() || hard_break) {
       cur_line_indent = hard_break ? indent : hanging;
       pen_x = 0;
+      line_ascend = 0;
       if (hard_break) pen_y -= space_after + space_before;
     }
   }
