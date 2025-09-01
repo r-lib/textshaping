@@ -17,7 +17,7 @@ get_font_features(
 
 \item{italic}{logical indicating the font slant}
 
-\item{bold}{logical indicating whether the font weight}
+\item{bold}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} Use \code{weight = "bold"} instead}
 
 \item{path, index}{path an index of a font file to circumvent lookup based on
 family and style}
