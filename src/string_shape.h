@@ -235,10 +235,13 @@ struct ShapeInfo {
 template<typename Iterator>
 inline size_t vector_hash(Iterator begin, Iterator end) {
   typedef typename std::iterator_traits<Iterator>::value_type Type;
-  const std::hash<Type> hasher;
-  size_t answer = 0;
+  size_t answer = end - begin;
   for (auto iter = begin; iter != end; ++iter) {
-    answer ^= hasher(*iter) + 0x9e3779b9 + (answer << 6) + (answer >> 2);
+    Type x = *iter;
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = (x >> 16) ^ x;
+    answer ^= x + 0x9e3779b9 + (answer << 6) + (answer >> 2);
   }
   return answer;
 }

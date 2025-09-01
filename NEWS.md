@@ -2,6 +2,8 @@
 
 * Fixed a bug in bidi embedding arrangement when shaping a single line
   (ggplot2#6497)
+* Fixed a bug in shape caching due to a weak vector hash implementation
+  (ragg#193)
 
 # textshaping 1.0.1
 
