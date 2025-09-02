@@ -1,5 +1,7 @@
 # textshaping (development version)
 
+* Fixed a signed integer overflow in the the fix for ragg#193
+
 # textshaping 1.0.2
 
 * Fixed a bug in bidi embedding arrangement when shaping a single line

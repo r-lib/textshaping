@@ -1,4 +1,4 @@
-Small patch release with bug fixes
+Small patch release fixing a sanitiser issue reported by CRAN
 
 ## revdepcheck results
 
