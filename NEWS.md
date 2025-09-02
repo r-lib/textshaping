@@ -1,4 +1,4 @@
-# textshaping (development version)
+# textshaping 1.0.3
 
 * Fixed a signed integer overflow in the the fix for ragg#193
 
