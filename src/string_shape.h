@@ -234,7 +234,6 @@ struct ShapeInfo {
 
 template<typename Iterator>
 inline size_t vector_hash(Iterator begin, Iterator end) {
-  typedef typename std::iterator_traits<Iterator>::value_type Type;
   size_t answer = end - begin;
   for (auto iter = begin; iter != end; ++iter) {
     uint32_t x = *iter;
