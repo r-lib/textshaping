@@ -16,6 +16,62 @@ UTF_UCS HarfBuzzShaper::utf_converter = UTF_UCS();
 LRU_Cache<BidiID, std::vector<int> > HarfBuzzShaper::bidi_cache = {1000};
 LRU_Cache<ShapeID, ShapeInfo> HarfBuzzShaper::shape_cache = {1000};
 
+FT_Face get_cached_or_new_face(const char* fontfile, int index, double size, double res, int* error) {
+  if (ft_compat) {
+    return get_cached_face(fontfile, index, size, res, error);
+  }
+  FT_Face new_face;
+  FT_Error err = FT_New_Face(ft.library, fontfile, index, &new_face);
+  if (err != 0) {
+    err = FT_New_Face(ft.library, fontfile, 0, &new_face);
+    if (err != 0) {
+      *error = err;
+      return new_face;
+    }
+  }
+
+  if (FT_IS_SCALABLE(new_face)) {
+    err = FT_Set_Char_Size(new_face, 0, size * 64, res, res);
+    if (err != 0) {
+      *error = err;
+      FT_Done_Face(new_face);
+    }
+  } else {
+    if (new_face->num_fixed_sizes == 0) {
+      *error = 23;
+      FT_Done_Face(new_face);
+      return new_face;
+    }
+    int best_match = 0;
+    int diff = 1e6;
+    int scaled_size = 64 * size * res / 72;
+    int largest_size = 0;
+    int largest_ind = -1;
+    bool found_match = false;
+    for (int i = 0; i < new_face->num_fixed_sizes; ++i) {
+      if (new_face->available_sizes[i].size > largest_size) {
+        largest_ind = i;
+      }
+      int ndiff = new_face->available_sizes[i].size - scaled_size;
+      if (ndiff >= 0 && ndiff < diff) {
+        best_match = i;
+        diff = ndiff;
+        found_match = true;
+      }
+    }
+    if (!found_match && scaled_size >= largest_size) {
+      best_match = largest_ind;
+    }
+
+    err = FT_Select_Size(new_face, best_match);
+    if (err != 0) {
+      *error = err;
+      FT_Done_Face(new_face);
+    }
+  }
+  return new_face;
+}
+
 bool HarfBuzzShaper::shape_string(const char* string, FontSettings& font_info,
                                   double size, double res, double lineheight,
                                   int align, double hjust, double vjust, double width,
@@ -90,16 +146,19 @@ bool HarfBuzzShaper::add_spacer(FontSettings& font_info, double height, double w
 #if HB_VERSION_MAJOR < 2 && HB_VERSION_MINOR < 2
 #else
   int error = 0;
-  hb_font_t *font = hb_ft_font_create(get_cached_face(font_info.file, font_info.index, height, cur_res, &error), NULL);
+  FT_Face face = get_cached_or_new_face(font_info.file, font_info.index, height, cur_res, &error);
   if (error != 0) {
     Rprintf("Failed to get face: %s, %i\n", font_info.file, font_info.index);
     error_code = error;
   } else {
+    hb_font_t *font = hb_ft_font_create_referenced(face);
     hb_font_extents_t fextent;
     hb_font_get_h_extents(font, &fextent);
     ascend = fextent.ascender;
     descend = fextent.descender;
+    hb_font_destroy(font);
   }
+  FT_Done_Face(face);
 #endif
   FontSettings dummy_font = {"", 0, NULL, 0};
   ShapeInfo info;
@@ -490,16 +549,19 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
 #if HB_VERSION_MAJOR < 2 && HB_VERSION_MINOR < 2
 #else
     int error = 0;
-    hb_font_t *font = hb_ft_font_create(get_cached_face(text_run.font_info.file, text_run.font_info.index, text_run.size, text_run.res, &error), NULL);
+    FT_Face face = get_cached_or_new_face(text_run.font_info.file, text_run.font_info.index, text_run.size, text_run.res, &error);
     if (error != 0) {
       Rprintf("Failed to get face: %s, %i\n", text_run.font_info.file, text_run.font_info.index);
       error_code = error;
     } else {
+      hb_font_t *font = hb_ft_font_create_referenced(face);
       hb_font_extents_t fextent;
       hb_font_get_h_extents(font, &fextent);
       embedding.ascenders[0] = fextent.ascender;
       embedding.descenders[0] = fextent.descender;
+      hb_font_destroy(font);
     }
+    FT_Done_Face(face);
 #endif
     text_run.embeddings.push_back(embedding);
     return;
@@ -611,7 +673,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
   int error = 0;
   // Load main font (emoji if dir is negative)
   // Shouldn't be able to fail as we have already tried to load it in the calling function
-  FT_Face face = get_cached_face(
+  FT_Face face = get_cached_or_new_face(
     fallbacks[dir < 0 ? 1 : 0].file,
     fallbacks[dir < 0 ? 1 : 0].index,
     shape_info.size,
@@ -622,7 +684,8 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
     return false;
   }
 
-  hb_font_t *font = hb_ft_font_create(face, NULL);
+  hb_font_t *font = hb_ft_font_create_referenced(face);
+  FT_Done_Face(face);
 
   // Do a first run of shaping. Hopefully it's enough
   unsigned int n_glyphs = 0;
@@ -734,16 +797,17 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
         // Move on until we hit a new font. Then shape everything up until current point
         // and add to embedding struct
         int error = 0;
-        FT_Face face = get_cached_face(fallbacks[current_font].file,
-                                       fallbacks[current_font].index,
-                                       shape_info.size, shape_info.res, &error);
+        FT_Face face = get_cached_or_new_face(fallbacks[current_font].file,
+                                              fallbacks[current_font].index,
+                                              shape_info.size, shape_info.res, &error);
         if (error != 0) {
           Rprintf("Failed to get face: %s, %i\n", fallbacks[current_font].file, fallbacks[current_font].index);
           error_code = error;
           return false;
         }
 
-        font = hb_ft_font_create(face, NULL);
+        font = hb_ft_font_create_referenced(face);
+        FT_Done_Face(face);
 
         hb_buffer_reset(buffer);
         hb_buffer_add_utf32(buffer, full_string.data(), full_string.size(), start + text_run_start, i - text_run_start);
@@ -769,16 +833,17 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
     for (int i = text_run_end - 1; i >= 0; --i) {
       if (i <= 0 || char_font[i - 1] != current_font) {
         int error = 0;
-        FT_Face face = get_cached_face(fallbacks[current_font].file,
-                                       fallbacks[current_font].index,
-                                       shape_info.size, shape_info.res, &error);
+        FT_Face face = get_cached_or_new_face(fallbacks[current_font].file,
+                                              fallbacks[current_font].index,
+                                              shape_info.size, shape_info.res, &error);
         if (error != 0) {
           Rprintf("Failed to get face: %s, %i\n", fallbacks[current_font].file, fallbacks[current_font].index);
           error_code = error;
           return false;
         }
 
-        font = hb_ft_font_create(face, NULL);
+        font = hb_ft_font_create_referenced(face);
+        FT_Done_Face(face);
 
         hb_buffer_reset(buffer);
         hb_buffer_add_utf32(buffer, full_string.data(), full_string.size(), start + i, text_run_end - i);
@@ -828,7 +893,9 @@ hb_font_t*  HarfBuzzShaper::load_fallback(unsigned int font, unsigned int start,
   }
   FT_Face face = get_font_sizing(fallbacks[font], shape_info.size, shape_info.res, fallback_sizes, fallback_scales);
 
-  return hb_ft_font_create(face, NULL);
+  hb_font_t* hbfont = hb_ft_font_create_referenced(face);
+  FT_Done_Face(face);
+  return hbfont;
 }
 
 // Find the next run of text for a specific fallback font
@@ -975,7 +1042,7 @@ void HarfBuzzShaper::fill_glyph_info(EmbedInfo& embedding) {
 
 inline FT_Face HarfBuzzShaper::get_font_sizing(FontSettings& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales) {
   int error = 0;
-  FT_Face face = get_cached_face(font_info.file, font_info.index, size, res, &error);
+  FT_Face face = get_cached_or_new_face(font_info.file, font_info.index, size, res, &error);
   if (error != 0) {
     Rprintf("Failed to get face: %s, %i\n", font_info.file, font_info.index);
     error_code = error;
@@ -992,7 +1059,7 @@ void HarfBuzzShaper::insert_hyphen(EmbedInfo& embedding, size_t where) {
   int error = 0;
   // Load main font (emoji if dir is negative)
   // Shouldn't be able to fail as we have already tried to load it in the calling function
-  FT_Face face = get_cached_face(
+  FT_Face face = get_cached_or_new_face(
     embedding.fallbacks[embedding.font[where]].file,
     embedding.fallbacks[embedding.font[where]].index,
     embedding.fallback_size[embedding.font[where]],
@@ -1006,7 +1073,8 @@ void HarfBuzzShaper::insert_hyphen(EmbedInfo& embedding, size_t where) {
   double scaling = embedding.fallback_scaling[embedding.font[where]];
   if (scaling < 0) scaling = 1.0;
 
-  hb_font_t *font = hb_ft_font_create(face, NULL);
+  hb_font_t *font = hb_ft_font_create_referenced(face);
+  FT_Done_Face(face);
   hb_codepoint_t glyph = 0;
   hb_bool_t found = hb_font_get_glyph(font, 8208, 0, &glyph); // True hyphen;
   if (!found) found = hb_font_get_glyph(font, 45, 0, &glyph); // Hyphen minus

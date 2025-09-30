@@ -1,5 +1,6 @@
 #pragma once
 
+#include "R_ext/Error.h"
 #ifndef NO_HARFBUZZ_FRIBIDI
 
 #include "cpp11/protect.hpp"
@@ -7,8 +8,10 @@
 #include <functional>
 #include <algorithm>
 #include <systemfonts.h>
+#include <systemfonts-ft.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_SIZES_H
 #include <vector>
 #include <set>
 #include <cstdint>
@@ -19,6 +22,19 @@
 static const uint32_t EMPTY_CHAR = 0xffffffff; // Largest possible value. Unlikely any font would use that
 static const uint32_t SPACER_CHAR = 0xffffffff - 1; // Second largest possible value. Also unlikely any font would use that
 
+static const bool ft_compat = systemfonts::ver2::check_ft_version();
+
+struct FT_Library_Safe {
+  FT_Library library;
+  FT_Library_Safe() {
+    if (!ft_compat) FT_Init_FreeType(&library);
+  }
+  ~FT_Library_Safe() {
+    if (!ft_compat) FT_Done_FreeType(library);
+  }
+};
+
+static const FT_Library_Safe ft;
 struct ShapeID {
   size_t string_hash;
   size_t embed_hash;
@@ -320,6 +336,9 @@ public:
   space_before(0),
   space_after(0)
   {
+    if (!ft_compat) {
+      Rprintf("systemfonts and textshaping have been compiled with different versions of Freetype. Because of this, textshaping will not use the font cache provided by systemfonts");
+    }
     buffer = hb_buffer_create();
   };
   ~HarfBuzzShaper() {
