@@ -1,4 +1,4 @@
-# textshaping (development version)
+# textshaping 1.0.4
 
 * Guard against issues related to incompatible versions of freetype in
   systemfonts and textshaping (#68).
