@@ -1,4 +1,4 @@
-Small patch release fixing a sanitiser issue reported by CRAN
+Small patch to improve interoperability between textshaping and systemfonts
 
 ## revdepcheck results
 
