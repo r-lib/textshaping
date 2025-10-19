@@ -424,7 +424,7 @@ private:
                        int dir, ShapeInfo& shape_info, std::vector<FontSettings>& fallbacks,
                        std::vector<double>& fallback_sizes, std::vector<double>& fallback_scales);
   hb_font_t* load_fallback(unsigned int font, unsigned int start, unsigned int end,
-                           int& error, bool& new_added, ShapeInfo& shape_info,
+                           bool& new_added, ShapeInfo& shape_info,
                            std::vector<FontSettings>& fallbacks,
                            std::vector<double>& fallback_sizes,
                            std::vector<double>& fallback_scales);
@@ -441,7 +441,7 @@ private:
                        std::vector<double>& fallback_sizes,
                        std::vector<double>& fallback_scales);
   void fill_glyph_info(EmbedInfo& embedding);
-  FT_Face get_font_sizing(FontSettings& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales);
+  FT_Face get_font_sizing(FontSettings& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales, bool deref = false);
   void insert_hyphen(EmbedInfo& embedding, size_t where);
   bool has_valid_break(const EmbedInfo& embedding, int32_t width, size_t& break_pos, bool force);
   void rearrange_embeddings(std::list<EmbedInfo>& line);
