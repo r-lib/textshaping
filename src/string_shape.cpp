@@ -1,6 +1,7 @@
 #ifndef NO_HARFBUZZ_FRIBIDI
 
 #include <climits>
+#include <cmath> // for std::abs
 #include <iterator>
 #include <list>
 #include <vector>
