@@ -1,4 +1,4 @@
-# textshaping (development version)
+# textshaping 1.0.5
 
 * Fixed a bug when reverting back from one fallback to the previous one (#76)
 
