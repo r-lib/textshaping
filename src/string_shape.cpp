@@ -717,7 +717,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
   std::vector<unsigned int> char_font(embedding_size, current_font);
   bool needs_fallback = false;
   bool any_resolved = false;
-  annotate_fallbacks(current_font + 1, 0, char_font, glyph_info, n_glyphs, needs_fallback, any_resolved, embed_is_ltr, start);
+  annotate_fallbacks(current_font + 1, embedding_size, char_font, glyph_info, n_glyphs, needs_fallback, any_resolved, embed_is_ltr, start);
 
   if (!needs_fallback) { // Short route - use existing shaping
     glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
@@ -769,7 +769,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
       if (n_glyphs > 0) {
         bool needs_fallback_2 = false;
         bool any_resolved_2 = false;
-        annotate_fallbacks(current_font + 1, fallback_start, char_font, glyph_info, n_glyphs, needs_fallback_2, any_resolved_2, embed_is_ltr, start);
+        annotate_fallbacks(current_font + 1, fallback_end, char_font, glyph_info, n_glyphs, needs_fallback_2, any_resolved_2, embed_is_ltr, start);
         if (needs_fallback_2) needs_fallback = true;
         if (any_resolved_2) any_resolved = true;
       }
@@ -920,7 +920,7 @@ bool HarfBuzzShaper::fallback_cluster(unsigned int font, std::vector<unsigned in
 }
 
 // Find areas in the string that aren't covered by current font
-void HarfBuzzShaper::annotate_fallbacks(unsigned int font, unsigned int offset,
+void HarfBuzzShaper::annotate_fallbacks(unsigned int font, unsigned int buffer_end,
                                         std::vector<unsigned int>& char_font,
                                         hb_glyph_info_t* glyph_info,
                                         unsigned int n_glyphs,
@@ -933,9 +933,9 @@ void HarfBuzzShaper::annotate_fallbacks(unsigned int font, unsigned int offset,
     if (i == n_glyphs || glyph_info[i].cluster != current_cluster) {
       unsigned int next_cluster;
       if (ltr) {
-        next_cluster = i < n_glyphs ? glyph_info[i].cluster : char_font.size() + string_offset;
+        next_cluster = i < n_glyphs ? glyph_info[i].cluster : buffer_end + string_offset;
       } else {
-        next_cluster = cluster_start > 0 ? glyph_info[cluster_start - 1].cluster : char_font.size() + string_offset;
+        next_cluster = cluster_start > 0 ? glyph_info[cluster_start - 1].cluster : buffer_end + string_offset;
       }
       bool has_glyph = true;
       for (unsigned int j = cluster_start; j < i; ++j) {

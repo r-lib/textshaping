@@ -430,7 +430,7 @@ private:
                            std::vector<double>& fallback_scales);
   bool fallback_cluster(unsigned int font, std::vector<unsigned int>& char_font,
                         unsigned int from, unsigned int& start, unsigned int& end);
-  void annotate_fallbacks(unsigned int font, unsigned int offset,
+  void annotate_fallbacks(unsigned int font, unsigned int buffer_end,
                           std::vector<unsigned int>& char_font,
                           hb_glyph_info_t* glyph_info, unsigned int n_glyphs,
                           bool& needs_fallback, bool& any_resolved, bool ltr,

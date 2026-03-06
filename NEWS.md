@@ -1,5 +1,7 @@
 # textshaping (development version)
 
+* Fixed a bug when reverting back from one fallback to the previous one (#76)
+
 # textshaping 1.0.4
 
 * Guard against issues related to incompatible versions of freetype in
