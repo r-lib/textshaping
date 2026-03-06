@@ -11,3 +11,7 @@ get_string_shape_c <- function(string, id, path, index, features, size, res, lin
 get_line_width_c <- function(string, path, index, size, res, include_bearing, features) {
   .Call(`_textshaping_get_line_width_c`, string, path, index, size, res, include_bearing, features)
 }
+
+get_systemfont_cache_compat <- function() {
+  .Call(`_textshaping_get_systemfont_cache_compat`)
+}

@@ -411,6 +411,10 @@ int ts_string_shape_old(const char* string, FontSettings font_info, double size,
 
 #endif
 
+bool get_systemfont_cache_compat() {
+  return ft_compat;
+}
+
 void export_string_metrics(DllInfo* dll) {
   R_RegisterCCallable("textshaping", "ts_string_width", (DL_FUNC)ts_string_width);
   R_RegisterCCallable("textshaping", "ts_string_shape_new", (DL_FUNC)ts_string_shape);

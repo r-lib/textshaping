@@ -336,9 +336,6 @@ public:
   space_before(0),
   space_after(0)
   {
-    if (!ft_compat) {
-      Rprintf("systemfonts and textshaping have been compiled with different versions of Freetype. Because of this, textshaping will not use the font cache provided by systemfonts");
-    }
     buffer = hb_buffer_create();
   };
   ~HarfBuzzShaper() {

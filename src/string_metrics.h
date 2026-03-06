@@ -33,6 +33,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
 [[cpp11::register]]
 doubles get_line_width_c(strings string, strings path, integers index, doubles size,
                          doubles res, logicals include_bearing, list_of<list> features);
+[[cpp11::register]]
+bool get_systemfont_cache_compat();
 int ts_string_width(const char* string, FontSettings font_info,
                     double size, double res, int include_bearing, double* width);
 int ts_string_shape(const char* string, FontSettings font_info, double size,

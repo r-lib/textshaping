@@ -26,12 +26,20 @@ extern "C" SEXP _textshaping_get_line_width_c(SEXP string, SEXP path, SEXP index
     return cpp11::as_sexp(get_line_width_c(cpp11::as_cpp<cpp11::decay_t<strings>>(string), cpp11::as_cpp<cpp11::decay_t<strings>>(path), cpp11::as_cpp<cpp11::decay_t<integers>>(index), cpp11::as_cpp<cpp11::decay_t<doubles>>(size), cpp11::as_cpp<cpp11::decay_t<doubles>>(res), cpp11::as_cpp<cpp11::decay_t<logicals>>(include_bearing), cpp11::as_cpp<cpp11::decay_t<list_of<list>>>(features)));
   END_CPP11
 }
+// string_metrics.h
+bool get_systemfont_cache_compat();
+extern "C" SEXP _textshaping_get_systemfont_cache_compat() {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_systemfont_cache_compat());
+  END_CPP11
+}
 
 extern "C" {
 static const R_CallMethodDef CallEntries[] = {
-    {"_textshaping_get_face_features_c", (DL_FUNC) &_textshaping_get_face_features_c,  2},
-    {"_textshaping_get_line_width_c",    (DL_FUNC) &_textshaping_get_line_width_c,     7},
-    {"_textshaping_get_string_shape_c",  (DL_FUNC) &_textshaping_get_string_shape_c,  20},
+    {"_textshaping_get_face_features_c",         (DL_FUNC) &_textshaping_get_face_features_c,          2},
+    {"_textshaping_get_line_width_c",            (DL_FUNC) &_textshaping_get_line_width_c,             7},
+    {"_textshaping_get_string_shape_c",          (DL_FUNC) &_textshaping_get_string_shape_c,          20},
+    {"_textshaping_get_systemfont_cache_compat", (DL_FUNC) &_textshaping_get_systemfont_cache_compat,  0},
     {NULL, NULL, 0}
 };
 }
