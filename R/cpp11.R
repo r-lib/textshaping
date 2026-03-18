@@ -4,6 +4,46 @@ get_face_features_c <- function(path, index) {
   .Call(`_textshaping_get_face_features_c`, path, index)
 }
 
+has_math_table <- function(font_path, index) {
+  .Call(`_textshaping_has_math_table`, font_path, index)
+}
+
+get_math_constants <- function(font_path, index, size, res) {
+  .Call(`_textshaping_get_math_constants`, font_path, index, size, res)
+}
+
+get_math_glyph_variants <- function(font_path, index, glyph_id, vertical, size, res) {
+  .Call(`_textshaping_get_math_glyph_variants`, font_path, index, glyph_id, vertical, size, res)
+}
+
+get_math_glyph_assembly <- function(font_path, index, glyph_id, vertical, size, res) {
+  .Call(`_textshaping_get_math_glyph_assembly`, font_path, index, glyph_id, vertical, size, res)
+}
+
+get_math_italics_correction <- function(font_path, index, glyph_id, size, res) {
+  .Call(`_textshaping_get_math_italics_correction`, font_path, index, glyph_id, size, res)
+}
+
+get_math_top_accent_attachment <- function(font_path, index, glyph_id, size, res) {
+  .Call(`_textshaping_get_math_top_accent_attachment`, font_path, index, glyph_id, size, res)
+}
+
+get_math_min_connector_overlap <- function(font_path, index, vertical, size, res) {
+  .Call(`_textshaping_get_math_min_connector_overlap`, font_path, index, vertical, size, res)
+}
+
+is_math_glyph_extended_shape <- function(font_path, index, glyph_id) {
+  .Call(`_textshaping_is_math_glyph_extended_shape`, font_path, index, glyph_id)
+}
+
+get_math_kerning <- function(font_path, index, glyph_id, kern_type, correction_height, size, res) {
+  .Call(`_textshaping_get_math_kerning`, font_path, index, glyph_id, kern_type, correction_height, size, res)
+}
+
+shape_math_c <- function(math, font_path, font_index, size, res, display, color) {
+  .Call(`_textshaping_shape_math_c`, math, font_path, font_index, size, res, display, color)
+}
+
 get_string_shape_c <- function(string, id, path, index, features, size, res, lineheight, align, hjust, vjust, width, tracking, indent, hanging, space_before, space_after, direction, soft_wrap, hard_wrap) {
   .Call(`_textshaping_get_string_shape_c`, string, id, path, index, features, size, res, lineheight, align, hjust, vjust, width, tracking, indent, hanging, space_before, space_after, direction, soft_wrap, hard_wrap)
 }

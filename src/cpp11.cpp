@@ -12,6 +12,76 @@ extern "C" SEXP _textshaping_get_face_features_c(SEXP path, SEXP index) {
     return cpp11::as_sexp(get_face_features_c(cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(path), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(index)));
   END_CPP11
 }
+// math_tables.cpp
+bool has_math_table(cpp11::strings font_path, cpp11::integers index);
+extern "C" SEXP _textshaping_has_math_table(SEXP font_path, SEXP index) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(has_math_table(cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(font_path), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(index)));
+  END_CPP11
+}
+// math_tables.cpp
+cpp11::writable::list get_math_constants(cpp11::strings font_path, cpp11::integers index, cpp11::doubles size, cpp11::doubles res);
+extern "C" SEXP _textshaping_get_math_constants(SEXP font_path, SEXP index, SEXP size, SEXP res) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_math_constants(cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(font_path), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(index), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(size), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(res)));
+  END_CPP11
+}
+// math_tables.cpp
+cpp11::writable::list get_math_glyph_variants(cpp11::strings font_path, cpp11::integers index, cpp11::integers glyph_id, cpp11::logicals vertical, cpp11::doubles size, cpp11::doubles res);
+extern "C" SEXP _textshaping_get_math_glyph_variants(SEXP font_path, SEXP index, SEXP glyph_id, SEXP vertical, SEXP size, SEXP res) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_math_glyph_variants(cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(font_path), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(index), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(glyph_id), cpp11::as_cpp<cpp11::decay_t<cpp11::logicals>>(vertical), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(size), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(res)));
+  END_CPP11
+}
+// math_tables.cpp
+cpp11::writable::list get_math_glyph_assembly(cpp11::strings font_path, cpp11::integers index, cpp11::integers glyph_id, cpp11::logicals vertical, cpp11::doubles size, cpp11::doubles res);
+extern "C" SEXP _textshaping_get_math_glyph_assembly(SEXP font_path, SEXP index, SEXP glyph_id, SEXP vertical, SEXP size, SEXP res) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_math_glyph_assembly(cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(font_path), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(index), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(glyph_id), cpp11::as_cpp<cpp11::decay_t<cpp11::logicals>>(vertical), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(size), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(res)));
+  END_CPP11
+}
+// math_tables.cpp
+double get_math_italics_correction(cpp11::strings font_path, cpp11::integers index, cpp11::integers glyph_id, cpp11::doubles size, cpp11::doubles res);
+extern "C" SEXP _textshaping_get_math_italics_correction(SEXP font_path, SEXP index, SEXP glyph_id, SEXP size, SEXP res) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_math_italics_correction(cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(font_path), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(index), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(glyph_id), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(size), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(res)));
+  END_CPP11
+}
+// math_tables.cpp
+double get_math_top_accent_attachment(cpp11::strings font_path, cpp11::integers index, cpp11::integers glyph_id, cpp11::doubles size, cpp11::doubles res);
+extern "C" SEXP _textshaping_get_math_top_accent_attachment(SEXP font_path, SEXP index, SEXP glyph_id, SEXP size, SEXP res) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_math_top_accent_attachment(cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(font_path), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(index), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(glyph_id), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(size), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(res)));
+  END_CPP11
+}
+// math_tables.cpp
+double get_math_min_connector_overlap(cpp11::strings font_path, cpp11::integers index, cpp11::logicals vertical, cpp11::doubles size, cpp11::doubles res);
+extern "C" SEXP _textshaping_get_math_min_connector_overlap(SEXP font_path, SEXP index, SEXP vertical, SEXP size, SEXP res) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_math_min_connector_overlap(cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(font_path), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(index), cpp11::as_cpp<cpp11::decay_t<cpp11::logicals>>(vertical), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(size), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(res)));
+  END_CPP11
+}
+// math_tables.cpp
+bool is_math_glyph_extended_shape(cpp11::strings font_path, cpp11::integers index, cpp11::integers glyph_id);
+extern "C" SEXP _textshaping_is_math_glyph_extended_shape(SEXP font_path, SEXP index, SEXP glyph_id) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(is_math_glyph_extended_shape(cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(font_path), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(index), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(glyph_id)));
+  END_CPP11
+}
+// math_tables.cpp
+double get_math_kerning(cpp11::strings font_path, cpp11::integers index, cpp11::integers glyph_id, cpp11::integers kern_type, cpp11::doubles correction_height, cpp11::doubles size, cpp11::doubles res);
+extern "C" SEXP _textshaping_get_math_kerning(SEXP font_path, SEXP index, SEXP glyph_id, SEXP kern_type, SEXP correction_height, SEXP size, SEXP res) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_math_kerning(cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(font_path), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(index), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(glyph_id), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(kern_type), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(correction_height), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(size), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(res)));
+  END_CPP11
+}
+// shape_math.cpp
+cpp11::writable::list shape_math_c(cpp11::strings math, cpp11::strings font_path, cpp11::integers font_index, cpp11::doubles size, cpp11::doubles res, cpp11::logicals display, cpp11::strings color);
+extern "C" SEXP _textshaping_shape_math_c(SEXP math, SEXP font_path, SEXP font_index, SEXP size, SEXP res, SEXP display, SEXP color) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(shape_math_c(cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(math), cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(font_path), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(font_index), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(size), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(res), cpp11::as_cpp<cpp11::decay_t<cpp11::logicals>>(display), cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(color)));
+  END_CPP11
+}
 // string_metrics.h
 list get_string_shape_c(strings string, integers id, strings path, integers index, list_of<list> features, doubles size, doubles res, doubles lineheight, integers align, doubles hjust, doubles vjust, doubles width, doubles tracking, doubles indent, doubles hanging, doubles space_before, doubles space_after, integers direction, list_of<integers> soft_wrap, list_of<integers> hard_wrap);
 extern "C" SEXP _textshaping_get_string_shape_c(SEXP string, SEXP id, SEXP path, SEXP index, SEXP features, SEXP size, SEXP res, SEXP lineheight, SEXP align, SEXP hjust, SEXP vjust, SEXP width, SEXP tracking, SEXP indent, SEXP hanging, SEXP space_before, SEXP space_after, SEXP direction, SEXP soft_wrap, SEXP hard_wrap) {
@@ -36,10 +106,20 @@ extern "C" SEXP _textshaping_get_systemfont_cache_compat() {
 
 extern "C" {
 static const R_CallMethodDef CallEntries[] = {
-    {"_textshaping_get_face_features_c",         (DL_FUNC) &_textshaping_get_face_features_c,          2},
-    {"_textshaping_get_line_width_c",            (DL_FUNC) &_textshaping_get_line_width_c,             7},
-    {"_textshaping_get_string_shape_c",          (DL_FUNC) &_textshaping_get_string_shape_c,          20},
-    {"_textshaping_get_systemfont_cache_compat", (DL_FUNC) &_textshaping_get_systemfont_cache_compat,  0},
+    {"_textshaping_get_face_features_c",            (DL_FUNC) &_textshaping_get_face_features_c,             2},
+    {"_textshaping_get_line_width_c",               (DL_FUNC) &_textshaping_get_line_width_c,                7},
+    {"_textshaping_get_math_constants",             (DL_FUNC) &_textshaping_get_math_constants,              4},
+    {"_textshaping_get_math_glyph_assembly",        (DL_FUNC) &_textshaping_get_math_glyph_assembly,         6},
+    {"_textshaping_get_math_glyph_variants",        (DL_FUNC) &_textshaping_get_math_glyph_variants,         6},
+    {"_textshaping_get_math_italics_correction",    (DL_FUNC) &_textshaping_get_math_italics_correction,     5},
+    {"_textshaping_get_math_kerning",               (DL_FUNC) &_textshaping_get_math_kerning,                7},
+    {"_textshaping_get_math_min_connector_overlap", (DL_FUNC) &_textshaping_get_math_min_connector_overlap,  5},
+    {"_textshaping_get_math_top_accent_attachment", (DL_FUNC) &_textshaping_get_math_top_accent_attachment,  5},
+    {"_textshaping_get_string_shape_c",             (DL_FUNC) &_textshaping_get_string_shape_c,             20},
+    {"_textshaping_get_systemfont_cache_compat",    (DL_FUNC) &_textshaping_get_systemfont_cache_compat,     0},
+    {"_textshaping_has_math_table",                 (DL_FUNC) &_textshaping_has_math_table,                  2},
+    {"_textshaping_is_math_glyph_extended_shape",   (DL_FUNC) &_textshaping_is_math_glyph_extended_shape,    3},
+    {"_textshaping_shape_math_c",                   (DL_FUNC) &_textshaping_shape_math_c,                    7},
     {NULL, NULL, 0}
 };
 }
