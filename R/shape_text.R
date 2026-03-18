@@ -116,7 +116,9 @@ shape_text <- function(
   bold = deprecated()
 ) {
   n_strings = length(strings)
-  if (is.null(id)) id <- seq_len(n_strings)
+  if (is.null(id)) {
+    id <- seq_len(n_strings)
+  }
   id <- rep_len(id, n_strings)
   id <- match(id, unique(id))
   if (anyNA(id)) {
@@ -135,7 +137,9 @@ shape_text <- function(
     weight <- ifelse(bold, "bold", "normal")
   }
 
-  if (inherits(features, 'font_feature')) features <- list(features)
+  if (inherits(features, 'font_feature')) {
+    features <- list(features)
+  }
   features <- rep_len(features, n_strings)
 
   if (is.null(path)) {
@@ -155,7 +159,7 @@ shape_text <- function(
   size <- rep_len(size, n_strings)[ido]
   res <- rep_len(res, n_strings)[ido]
   lineheight <- rep_len(lineheight, n_strings)[ido]
-  align <- if (length(align) != 0)
+  align <- if (length(align) != 0) {
     match.arg(
       align,
       c(
@@ -171,6 +175,7 @@ shape_text <- function(
       ),
       TRUE
     )
+  }
   align <- match(
     align,
     c(
@@ -195,8 +200,9 @@ shape_text <- function(
   hanging <- rep_len(hanging, n_strings)[ido]
   space_before <- rep_len(space_before, n_strings)[ido]
   space_after <- rep_len(space_after, n_strings)[ido]
-  direction <- if (length(direction) != 0)
+  direction <- if (length(direction) != 0) {
     match.arg(direction, c('auto', 'ltr', 'rtl'), TRUE)
+  }
   direction <- match(direction, c('auto', 'ltr', 'rtl')) - 1L
   direction <- rep_len(direction, n_strings)[ido]
 
@@ -224,8 +230,9 @@ shape_text <- function(
     function(x) x[, 2]
   )
 
-  if (!all(file.exists(path)))
+  if (!all(file.exists(path))) {
     stop("path must point to a valid file", call. = FALSE)
+  }
   shape <- get_string_shape_c(
     strings,
     id,
@@ -248,7 +255,9 @@ shape_text <- function(
     soft_wraps,
     hard_wraps
   )
-  if (nrow(shape$shape) == 0) return(shape)
+  if (nrow(shape$shape) == 0) {
+    return(shape)
+  }
 
   shape$metrics$string <- vapply(
     split(strings, id),
@@ -323,7 +332,9 @@ text_width <- function(
     weight <- ifelse(bold, "bold", "normal")
   }
 
-  if (inherits(features, 'font_feature')) features <- list(features)
+  if (inherits(features, 'font_feature')) {
+    features <- list(features)
+  }
   features <- rep_len(features, n_strings)
 
   if (is.null(path)) {
@@ -342,8 +353,9 @@ text_width <- function(
   size <- rep_len(size, n_strings)
   res <- rep_len(res, n_strings)
   include_bearing <- rep_len(include_bearing, n_strings)
-  if (!all(file.exists(path)))
+  if (!all(file.exists(path))) {
     stop("path must point to a valid file", call. = FALSE)
+  }
   get_line_width_c(
     as.character(strings),
     path,

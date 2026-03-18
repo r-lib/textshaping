@@ -723,28 +723,35 @@ makeContent.math_grob <- function(x) {
     col = shape_df$color
   )
 
-  box_grob <- if (nrow(boxes_df) == 0) grid::nullGrob() else grid::rectGrob(
-    x = grid::unit(boxes_df$x + x_offset, "bigpts"),
-    y = grid::unit(boxes_df$y + y_offset, "bigpts"),
-    width = grid::unit(boxes_df$width, "bigpts"),
-    height = grid::unit(boxes_df$height, "bigpts"),
-    hjust = 0,
-    vjust = 0,
-    gp = grid::gpar(fill = boxes_df$color, col = NA)
-  )
-
-
-  line_grob <- if (nrow(lines_df) == 0) grid::nullGrob()  else grid::segmentsGrob(
-    x0 = grid::unit(lines_df$x1 + x_offset, "bigpts"),
-    y0 = grid::unit(lines_df$y1 + y_offset, "bigpts"),
-    x1 = grid::unit(lines_df$x2 + x_offset, "bigpts"),
-    y1 = grid::unit(lines_df$y2 + y_offset, "bigpts"),
-    gp = grid::gpar(
-      col = lines_df$color %||% "black",
-      lwd = lines_df$thickness * 96 / 72,
-      lineend = "butt"
+  box_grob <- if (nrow(boxes_df) == 0) {
+    grid::nullGrob()
+  } else {
+    grid::rectGrob(
+      x = grid::unit(boxes_df$x + x_offset, "bigpts"),
+      y = grid::unit(boxes_df$y + y_offset, "bigpts"),
+      width = grid::unit(boxes_df$width, "bigpts"),
+      height = grid::unit(boxes_df$height, "bigpts"),
+      hjust = 0,
+      vjust = 0,
+      gp = grid::gpar(fill = boxes_df$color, col = NA)
     )
-  )
+  }
+
+  line_grob <- if (nrow(lines_df) == 0) {
+    grid::nullGrob()
+  } else {
+    grid::segmentsGrob(
+      x0 = grid::unit(lines_df$x1 + x_offset, "bigpts"),
+      y0 = grid::unit(lines_df$y1 + y_offset, "bigpts"),
+      x1 = grid::unit(lines_df$x2 + x_offset, "bigpts"),
+      y1 = grid::unit(lines_df$y2 + y_offset, "bigpts"),
+      gp = grid::gpar(
+        col = lines_df$color %||% "black",
+        lwd = lines_df$thickness * 96 / 72,
+        lineend = "butt"
+      )
+    )
+  }
 
   glyph_grob <- glyphGrob(
     glyph_info,

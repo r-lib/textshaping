@@ -2,7 +2,6 @@
 # Run with: plot_math(shape_math(expr)) for each expression
 
 test_expressions <- c(
-
   # === BASIC ELEMENTS ===
   # Variables (should be italic)
   "x + y = z",
@@ -25,7 +24,6 @@ test_expressions <- c(
   r"(a \oplus b \otimes c \odot d)",
   r"(a \ltimes b \rtimes c)",
   r"(a \boxplus b \boxminus c \boxtimes d)",
-
 
   # Relations
   r"(a \leq b \geq c \neq d)",
@@ -365,9 +363,16 @@ test_that("Display mode works for big operators", {
 # Helper function for manual visual validation
 # Usage: validate_math(1:10) to view expressions 1-10
 # Usage: validate_math(1:12, nrow = 3, ncol = 4) for grid layout
-validate_math <- function(indices = seq_along(test_expressions), nrow = 1, ncol = 1, ...) {
-  if (!requireNamespace("grDevices", quietly = TRUE) ||
-      utils::packageVersion("grDevices") < package_version("4.3.0")) {
+validate_math <- function(
+  indices = seq_along(test_expressions),
+  nrow = 1,
+  ncol = 1,
+  ...
+) {
+  if (
+    !requireNamespace("grDevices", quietly = TRUE) ||
+      utils::packageVersion("grDevices") < package_version("4.3.0")
+  ) {
     stop("Visual validation requires grDevices 4.3.0+")
   }
   if (!requireNamespace("grid", quietly = TRUE)) {
@@ -378,14 +383,16 @@ validate_math <- function(indices = seq_along(test_expressions), nrow = 1, ncol 
 
   # Process indices in chunks based on grid size
   for (page_start in seq(1, length(indices), by = per_page)) {
-    page_indices <- indices[page_start:min(page_start + per_page - 1, length(indices))]
+    page_indices <- indices[
+      page_start:min(page_start + per_page - 1, length(indices))
+    ]
 
     grid::grid.newpage()
 
     # Create layout viewport
     layout_vp <- grid::viewport(
       layout = grid::grid.layout(
-        nrow = nrow * 2,  # Double rows: one for label, one for plot
+        nrow = nrow * 2, # Double rows: one for label, one for plot
         ncol = ncol,
         heights = grid::unit(rep(c(1, 5), nrow), c("lines", "null"))
       )
@@ -401,10 +408,17 @@ validate_math <- function(indices = seq_along(test_expressions), nrow = 1, ncol 
       grid_row_base <- ((j - 1) %/% ncol) * 2 + 1
 
       # Draw expression label
-      label_vp <- grid::viewport(layout.pos.row = grid_row_base, layout.pos.col = grid_col)
+      label_vp <- grid::viewport(
+        layout.pos.row = grid_row_base,
+        layout.pos.col = grid_col
+      )
       grid::pushViewport(label_vp)
       # Truncate long expressions for display
-      label_text <- if (nchar(expr) > 40) paste0(substr(expr, 1, 37), "...") else expr
+      label_text <- if (nchar(expr) > 40) {
+        paste0(substr(expr, 1, 37), "...")
+      } else {
+        expr
+      }
       grid::grid.text(
         sprintf("[%d] %s", i, label_text),
         gp = grid::gpar(fontsize = 8, fontfamily = "mono"),
@@ -414,18 +428,31 @@ validate_math <- function(indices = seq_along(test_expressions), nrow = 1, ncol 
       grid::popViewport()
 
       # Draw math expression
-      plot_vp <- grid::viewport(layout.pos.row = grid_row_base + 1, layout.pos.col = grid_col)
+      plot_vp <- grid::viewport(
+        layout.pos.row = grid_row_base + 1,
+        layout.pos.col = grid_col
+      )
       grid::pushViewport(plot_vp)
 
-      tryCatch({
-        grid::grid.rect(gp = grid::gpar(fill = "grey98", col = "grey80"))
-        grid.math(expr, x = 0.5, y = 0.5, hjust = "center", vjust = "center", ...)
-      }, error = function(e) {
-        grid::grid.text(
-          sprintf("ERROR: %s", e$message),
-          gp = grid::gpar(col = "red", fontsize = 8)
-        )
-      })
+      tryCatch(
+        {
+          grid::grid.rect(gp = grid::gpar(fill = "grey98", col = "grey80"))
+          grid.math(
+            expr,
+            x = 0.5,
+            y = 0.5,
+            hjust = "center",
+            vjust = "center",
+            ...
+          )
+        },
+        error = function(e) {
+          grid::grid.text(
+            sprintf("ERROR: %s", e$message),
+            gp = grid::gpar(col = "red", fontsize = 8)
+          )
+        }
+      )
 
       grid::popViewport()
     }
