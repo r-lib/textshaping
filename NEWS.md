@@ -1,6 +1,12 @@
 # textshaping (development version)
 
 * Add LaTeX and Typst math shaping (at least a large subset of it)
+* Font variations (variable font axis coordinates) now travel through shaping.
+  `shape_text()` and `text_width()` gain a `variation` argument accepting
+  `systemfonts::font_variation()` objects. The C API has been extended with
+  `textshaping::ver2::string_width()` and `textshaping::ver2::string_shape()`
+  that take `FontSettings2`; the existing `FontSettings`-based entry points
+  remain available unchanged during the transition.
 
 # textshaping 1.0.5
 

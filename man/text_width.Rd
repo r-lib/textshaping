@@ -11,6 +11,7 @@ text_width(
   weight = "normal",
   width = "undefined",
   features = font_feature(),
+  variation = font_variation(),
   size = 12,
   res = 72,
   include_bearing = TRUE,
@@ -40,6 +41,11 @@ text_width(
 
 \item{features}{A \code{\link[systemfonts:font_feature]{systemfonts::font_feature()}} object or a list of them,
 giving the OpenType font features to set}
+
+\item{variation}{A \code{\link[systemfonts:font_variation]{systemfonts::font_variation()}} object or a list of them,
+giving the coordinates on the variable font axes to shape with. Settings in
+\code{variation} take precedence over the corresponding \code{italic}, \code{weight}, and
+\code{width} arguments during shaping.}
 
 \item{size}{The size in points to use for the font}
 

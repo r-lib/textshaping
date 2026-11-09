@@ -10,6 +10,10 @@
 #' @inheritParams systemfonts::match_fonts
 #' @param features A [systemfonts::font_feature()] object or a list of them,
 #' giving the OpenType font features to set
+#' @param variation A [systemfonts::font_variation()] object or a list of them,
+#' giving the coordinates on the variable font axes to shape with. Settings in
+#' `variation` take precedence over the corresponding `italic`, `weight`, and
+#' `width` arguments during shaping.
 #' @param size The size in points to use for the font
 #' @param res The resolution to use when doing the shaping. Should optimally
 #' match the resolution used when rendering the glyphs.
@@ -73,7 +77,7 @@
 #' }
 #'
 #' @export
-#' @importFrom systemfonts font_feature match_fonts
+#' @importFrom systemfonts font_feature font_variation match_fonts
 #'
 #' @examples
 #' string <- "This is a long string\nLook; It spans multiple lines\nand all"
@@ -98,6 +102,7 @@ shape_text <- function(
   weight = 'normal',
   width = 'undefined',
   features = font_feature(),
+  variation = font_variation(),
   size = 12,
   res = 72,
   lineheight = 1,
@@ -115,7 +120,7 @@ shape_text <- function(
   index = 0,
   bold = deprecated()
 ) {
-  n_strings = length(strings)
+  n_strings <- length(strings)
   if (is.null(id)) {
     id <- seq_len(n_strings)
   }
@@ -141,6 +146,10 @@ shape_text <- function(
     features <- list(features)
   }
   features <- rep_len(features, n_strings)
+  if (inherits(variation, 'font_variation')) {
+    variation <- list(variation)
+  }
+  variation <- rep_len(variation, n_strings)
 
   if (is.null(path)) {
     family <- rep_len(family, n_strings)
@@ -151,10 +160,19 @@ shape_text <- function(
     path <- loc$path[ido]
     index <- loc$index[ido]
     features <- Map(c, loc$features, features)[ido]
+    # Ensure the requested style is reflected on the variable axes
+    variation <- Map(
+      add_standard_variations,
+      variation,
+      italic,
+      weight,
+      width
+    )[ido]
   } else {
     path <- rep_len(path, n_strings)[ido]
     index <- rep_len(index, n_strings)[ido]
     features <- features[ido]
+    variation <- variation[ido]
   }
   size <- rep_len(size, n_strings)[ido]
   res <- rep_len(res, n_strings)[ido]
@@ -239,6 +257,7 @@ shape_text <- function(
     path,
     as.integer(index),
     features,
+    variation,
     as.numeric(size),
     as.numeric(res),
     as.numeric(lineheight),
@@ -314,6 +333,7 @@ text_width <- function(
   weight = 'normal',
   width = 'undefined',
   features = font_feature(),
+  variation = font_variation(),
   size = 12,
   res = 72,
   include_bearing = TRUE,
@@ -336,6 +356,10 @@ text_width <- function(
     features <- list(features)
   }
   features <- rep_len(features, n_strings)
+  if (inherits(variation, 'font_variation')) {
+    variation <- list(variation)
+  }
+  variation <- rep_len(variation, n_strings)
 
   if (is.null(path)) {
     family <- rep_len(family, n_strings)
@@ -346,6 +370,7 @@ text_width <- function(
     path <- loc$path
     index <- loc$index
     features <- Map(c, loc$features, features)
+    variation <- Map(add_standard_variations, variation, italic, weight, width)
   } else {
     path <- rep_len(path, n_strings)
     index <- rep_len(index, n_strings)
@@ -363,8 +388,24 @@ text_width <- function(
     as.numeric(size),
     as.numeric(res),
     as.logical(include_bearing),
-    features
+    features,
+    variation
   )
+}
+
+# Merge the top-level style settings into the variable axis coordinates. User
+# provided variation settings take precedence.
+add_standard_variations <- function(variation, italic, weight, width) {
+  standard <- unclass(font_variation(
+    italic = if (isTRUE(italic)) 1 else NULL,
+    weight = weight,
+    width = width
+  ))
+  variation <- unclass(variation)
+  new_axes <- setdiff(variation$axis, standard$axis)
+  standard$axis <- c(standard$axis, new_axes)
+  standard$value[match(variation$axis, standard$axis)] <- variation$value
+  structure(standard, class = 'font_variation')
 }
 
 #' Preview shaped text and the metrics for the text box

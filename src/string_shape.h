@@ -89,7 +89,7 @@ struct EmbedInfo {
   std::vector<bool> may_break;
   std::vector<bool> may_stretch;
   std::vector<unsigned int> font;
-  std::vector<FontSettings> fallbacks;
+  std::vector<FontSettings2> fallbacks;
   std::vector<double> fallback_size;
   std::vector<double> fallback_scaling;
   size_t embedding_level;
@@ -219,7 +219,7 @@ struct EmbedInfo {
 struct ShapeInfo {
   size_t run_start;
   size_t run_end;
-  FontSettings font_info;
+  FontSettings2 font_info;
   unsigned int index;
   double size;
   double res;
@@ -227,7 +227,7 @@ struct ShapeInfo {
   std::vector<EmbedInfo> embeddings;
 
   inline ShapeInfo() : run_start(0), run_end(0), font_info(), index(0), size(0), res(0), tracking(0), embeddings({}) {}
-  inline ShapeInfo(size_t _run_start, size_t _run_end, FontSettings& _font_info, unsigned int _index, double _size, double _res, double _tracking) :
+  inline ShapeInfo(size_t _run_start, size_t _run_end, FontSettings2& _font_info, unsigned int _index, double _size, double _res, double _tracking) :
     run_start(_run_start),
     run_end(_run_end),
     font_info(_font_info),
@@ -368,20 +368,20 @@ public:
   int error_code;
   int dir;
 
-  bool shape_string(const char* string, FontSettings& font_info,
+  bool shape_string(const char* string, FontSettings2& font_info,
                     double size, double res, double lineheight,
                     int align, double hjust, double vjust, double width,
                     double tracking, double ind, double hang, double before,
                     double after, bool spacer, int direction,
                     std::vector<int>& soft_wrap, std::vector<int>& hard_wrap);
-  bool add_string(const char* string, FontSettings& font_info,
+  bool add_string(const char* string, FontSettings2& font_info,
                   double size, double tracking, bool spacer,
                   std::vector<int>& soft_wrap, std::vector<int>& hard_wrap);
-  bool add_spacer(FontSettings& font_info, double height, double width, uint32_t filler = SPACER_CHAR);
+  bool add_spacer(FontSettings2& font_info, double height, double width, uint32_t filler = SPACER_CHAR);
   bool finish_string();
 
   void shape_text_run(ShapeInfo &text_run, bool ltr);
-  EmbedInfo shape_single_line(const char* string, FontSettings& font_info, double size, double res);
+  EmbedInfo shape_single_line(const char* string, FontSettings2& font_info, double size, double res);
 
 private:
   std::vector<uint32_t> full_string;
@@ -418,11 +418,11 @@ private:
   void reset();
   std::list<EmbedInfo> combine_embeddings(std::vector<ShapeInfo>& shapes, int& direction);
   bool shape_embedding(unsigned int start, unsigned int end, std::vector<hb_feature_t>& features,
-                       int dir, ShapeInfo& shape_info, std::vector<FontSettings>& fallbacks,
+                       int dir, ShapeInfo& shape_info, std::vector<FontSettings2>& fallbacks,
                        std::vector<double>& fallback_sizes, std::vector<double>& fallback_scales);
   hb_font_t* load_fallback(unsigned int font, unsigned int start, unsigned int end,
                            bool& new_added, ShapeInfo& shape_info,
-                           std::vector<FontSettings>& fallbacks,
+                           std::vector<FontSettings2>& fallbacks,
                            std::vector<double>& fallback_sizes,
                            std::vector<double>& fallback_scales);
   bool fallback_cluster(unsigned int font, std::vector<unsigned int>& char_font,
@@ -438,7 +438,7 @@ private:
                        std::vector<double>& fallback_sizes,
                        std::vector<double>& fallback_scales);
   void fill_glyph_info(EmbedInfo& embedding);
-  FT_Face get_font_sizing(FontSettings& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales, bool deref = false);
+  FT_Face get_font_sizing(FontSettings2& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales, bool deref = false);
   void insert_hyphen(EmbedInfo& embedding, size_t where);
   bool has_valid_break(const EmbedInfo& embedding, int32_t width, size_t& break_pos, bool force);
   void rearrange_embeddings(std::list<EmbedInfo>& line);

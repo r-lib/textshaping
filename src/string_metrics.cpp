@@ -19,7 +19,8 @@ using namespace cpp11;
 #ifdef NO_HARFBUZZ_FRIBIDI
 
 list get_string_shape_c(strings string, integers id, strings path, integers index,
-                        list_of<list> features, doubles size, doubles res,
+                        list_of<list> features, list_of<list> variations,
+                        doubles size, doubles res,
                         doubles lineheight, integers align, doubles hjust,
                         doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
@@ -59,7 +60,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
 }
 
 doubles get_line_width_c(strings string, strings path, integers index, doubles size,
-                         doubles res, logicals include_bearing) {
+                         doubles res, logicals include_bearing, list_of<list> variations) {
   Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
   return {};
 }
@@ -93,6 +94,27 @@ int ts_string_shape_old(const char* string, FontSettings font_info, double size,
   return 0;
 }
 
+int ts_string_width2(const char* string, FontSettings2 font_info, double size,
+                     double res, int include_bearing, double* width) {
+  Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
+  *width = 0.0;
+  return 0;
+}
+
+int ts_string_shape2(const char* string, FontSettings2 font_info, double size,
+                     double res, std::vector<textshaping::Point>& loc, std::vector<uint32_t>& id,
+                     std::vector<int>& cluster, std::vector<unsigned int>& font,
+                     std::vector<FontSettings2>& fallbacks,
+                     std::vector<double>& fallback_scaling) {
+  Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
+  loc.clear();
+  id.clear();
+  cluster.clear();
+  font.clear();
+  fallbacks.clear();
+  return 0;
+}
+
 #else
 
 std::vector< std::vector<FontFeature> > create_font_features(list_of<list> features) {
@@ -111,11 +133,28 @@ std::vector< std::vector<FontFeature> > create_font_features(list_of<list> featu
   return res;
 }
 
-std::vector<FontSettings> create_font_settings(strings path, integers index, std::vector< std::vector<FontFeature> >& features) {
-  std::vector<FontSettings> res;
+void create_font_variations(list_of<list> variations,
+                            std::vector< std::vector<int> >& axes,
+                            std::vector< std::vector<int> >& coords) {
+  for (R_xlen_t i = 0; i < variations.size(); ++i) {
+    list variation = variations[i];
+    axes.emplace_back(as_cpp< std::vector<int> >(variation["axis"]));
+    coords.emplace_back(as_cpp< std::vector<int> >(variation["value"]));
+    if (axes.back().size() != coords.back().size()) {
+      cpp11::stop("`axis` and `value` in a variation must be of the same length");
+    }
+  }
+}
 
-  if (path.size() != index.size() || path.size() != features.size()) {
-    cpp11::stop("`path`, `index`, and `features` must all be of the same length");
+std::vector<FontSettings2> create_font_settings(strings path, integers index,
+                                                std::vector< std::vector<FontFeature> >& features,
+                                                std::vector< std::vector<int> >& axes,
+                                                std::vector< std::vector<int> >& coords) {
+  std::vector<FontSettings2> res;
+
+  if (path.size() != index.size() || path.size() != features.size() ||
+      path.size() != (R_xlen_t) axes.size() || path.size() != (R_xlen_t) coords.size()) {
+    cpp11::stop("`path`, `index`, `features`, and `variations` must all be of the same length");
   }
 
   for (R_xlen_t i = 0; i < path.size(); ++i) {
@@ -125,13 +164,17 @@ std::vector<FontSettings> create_font_settings(strings path, integers index, std
     res.back().index = index[i];
     res.back().features = features[i].data();
     res.back().n_features = features[i].size();
+    res.back().axes = axes[i].data();
+    res.back().coords = coords[i].data();
+    res.back().n_axes = axes[i].size();
   }
 
   return res;
 }
 
 list get_string_shape_c(strings string, integers id, strings path, integers index,
-                        list_of<list> features, doubles size, doubles res,
+                        list_of<list> features, list_of<list> variations,
+                        doubles size, doubles res,
                         doubles lineheight, integers align, doubles hjust,
                         doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
@@ -171,7 +214,9 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
       cpp11::stop("All input must be the same size");
     }
     auto all_features = create_font_features(features);
-    auto fonts = create_font_settings(path, index, all_features);
+    std::vector< std::vector<int> > all_axes, all_coords;
+    create_font_variations(variations, all_axes, all_coords);
+    auto fonts = create_font_settings(path, index, all_features, all_axes, all_coords);
 
     // Shape the text
     int cur_id = id[0] - 1; // make sure it differs from first
@@ -279,7 +324,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
 }
 
 doubles get_line_width_c(strings string, strings path, integers index, doubles size,
-                         doubles res, logicals include_bearing, list_of<list> features) {
+                         doubles res, logicals include_bearing, list_of<list> features,
+                         list_of<list> variations) {
   int n_strings = string.size();
   writable::doubles widths;
   if (n_strings != 0) {
@@ -294,13 +340,15 @@ doubles get_line_width_c(strings string, strings path, integers index, doubles s
     }
 
     auto all_features = create_font_features(features);
-    auto fonts = create_font_settings(path, index, all_features);
+    std::vector< std::vector<int> > all_axes, all_coords;
+    create_font_variations(variations, all_axes, all_coords);
+    auto fonts = create_font_settings(path, index, all_features, all_axes, all_coords);
 
     int error = 1;
     double width = 0;
 
     for (int i = 0; i < n_strings; ++i) {
-      error = ts_string_width(
+      error = ts_string_width2(
         Rf_translateCharUTF8(string[i]),
         fonts[i],
         size[i],
@@ -320,6 +368,11 @@ doubles get_line_width_c(strings string, strings path, integers index, doubles s
 
 int ts_string_width(const char* string, FontSettings font_info, double size,
                     double res, int include_bearing, double* width) {
+  return ts_string_width2(string, FontSettings2(font_info), size, res, include_bearing, width);
+}
+
+int ts_string_width2(const char* string, FontSettings2 font_info, double size,
+                     double res, int include_bearing, double* width) {
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
   shaper.error_code = 0;
@@ -350,6 +403,20 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
                     std::vector<int>& cluster, std::vector<unsigned int>& font,
                     std::vector<FontSettings>& fallbacks,
                     std::vector<double>& fallback_scaling) {
+  std::vector<FontSettings2> fallbacks2;
+  int result = ts_string_shape2(string, FontSettings2(font_info), size, res, loc, id, cluster, font, fallbacks2, fallback_scaling);
+  fallbacks.clear();
+  for (size_t i = 0; i < fallbacks2.size(); ++i) {
+    fallbacks.emplace_back(fallbacks2[i].file, fallbacks2[i].index, fallbacks2[i].features, fallbacks2[i].n_features);
+  }
+  return result;
+}
+
+int ts_string_shape2(const char* string, FontSettings2 font_info, double size,
+                     double res, std::vector<textshaping::Point>& loc, std::vector<uint32_t>& id,
+                     std::vector<int>& cluster, std::vector<unsigned int>& font,
+                     std::vector<FontSettings2>& fallbacks,
+                     std::vector<double>& fallback_scaling) {
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
   shaper.error_code = 0;
@@ -392,9 +459,9 @@ int ts_string_shape_old(const char* string, FontSettings font_info, double size,
   std::vector<uint32_t> _id;
   std::vector<int> _cluster;
   std::vector<unsigned int> _font;
-  std::vector<FontSettings> _fallbacks;
+  std::vector<FontSettings2> _fallbacks;
   std::vector<double> _fallback_scaling;
-  result = ts_string_shape(string, font_info, size, res, _loc, _id, _cluster, _font, _fallbacks, _fallback_scaling);
+  result = ts_string_shape2(string, FontSettings2(font_info), size, res, _loc, _id, _cluster, _font, _fallbacks, _fallback_scaling);
 
   if (result == 0) {
     *n_glyphs = max_length > _loc.size() ? _loc.size() : max_length;
@@ -419,4 +486,6 @@ void export_string_metrics(DllInfo* dll) {
   R_RegisterCCallable("textshaping", "ts_string_width", (DL_FUNC)ts_string_width);
   R_RegisterCCallable("textshaping", "ts_string_shape_new", (DL_FUNC)ts_string_shape);
   R_RegisterCCallable("textshaping", "ts_string_shape", (DL_FUNC)ts_string_shape_old);
+  R_RegisterCCallable("textshaping", "ts_string_width2", (DL_FUNC)ts_string_width2);
+  R_RegisterCCallable("textshaping", "ts_string_shape2", (DL_FUNC)ts_string_shape2);
 }
