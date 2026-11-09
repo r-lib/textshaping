@@ -1,5 +1,7 @@
 # textshaping (development version)
 
+* Add LaTeX and Typst math shaping (at least a large subset of it)
+
 # textshaping 1.0.5
 
 * Fixed a bug when reverting back from one fallback to the previous one (#76)
