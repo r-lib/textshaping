@@ -256,6 +256,54 @@ MathNodePtr MathParser::parse_scripts(MathNodePtr base) {
     }
   }
 
+  // Handle prime notation: ' is shorthand for ^\prime
+  // Use dedicated Unicode glyphs for multiple primes:
+  // U+2032 ′ PRIME, U+2033 ″ DOUBLE PRIME, U+2034 ‴ TRIPLE PRIME, U+2057 ⁗ QUADRUPLE PRIME
+  int prime_count = 0;
+  while (lexer_.peek().type == TokenType::OPERATOR && lexer_.peek().value == "'") {
+    lexer_.consume();
+    prime_count++;
+  }
+
+  if (prime_count > 0) {
+    MathNodePtr primes;
+    if (prime_count == 1) {
+      primes = std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB2");  // ′ U+2032
+    } else if (prime_count == 2) {
+      primes = std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB3");  // ″ U+2033
+    } else if (prime_count == 3) {
+      primes = std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB4");  // ‴ U+2034
+    } else if (prime_count == 4) {
+      primes = std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x81\x97");  // ⁗ U+2057
+    } else {
+      // More than 4 primes: use quadruple + remainder
+      auto row = std::make_unique<MathNode>(NodeType::ROW);
+      while (prime_count >= 4) {
+        row->add_child(std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x81\x97"));
+        prime_count -= 4;
+      }
+      if (prime_count == 3) {
+        row->add_child(std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB4"));
+      } else if (prime_count == 2) {
+        row->add_child(std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB3"));
+      } else if (prime_count == 1) {
+        row->add_child(std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB2"));
+      }
+      primes = std::move(row);
+    }
+
+    // Merge primes with existing superscript or create new one
+    if (sup) {
+      // Combine existing superscript with primes
+      auto combined = std::make_unique<MathNode>(NodeType::ROW);
+      combined->add_child(std::move(sup));
+      combined->add_child(std::move(primes));
+      sup = std::move(combined);
+    } else {
+      sup = std::move(primes);
+    }
+  }
+
   if (!sub && !sup) {
     return base;
   }
@@ -473,6 +521,17 @@ MathNodePtr MathParser::parse_command() {
     return parse_ext_arrow(name);
   }
 
+  // Differential operators (\dif, \Dif, \dd -> upright d, D)
+  if (is_differential_operator(name)) {
+    auto node = std::make_unique<MathNode>(NodeType::STYLED);
+    node->style = MathStyle::ROMAN;
+    auto letter = std::make_unique<MathNode>(NodeType::SYMBOL);
+    // dif and dd -> "d", Dif -> "D"
+    letter->value = (name == "Dif") ? "D" : "d";
+    node->add_child(std::move(letter));
+    return node;
+  }
+
   // Symbol commands (Greek letters, operators, relations, etc.)
   return parse_symbol_command(name);
 }
@@ -514,11 +573,29 @@ MathNodePtr MathParser::parse_left_right() {
     node->left_delim = "(";
   }
 
-  // Content (until \right)
+  // Content (until \right), handling \middle delimiters
   auto row = std::make_unique<MathNode>(NodeType::ROW);
   while (!check(TokenType::END)) {
     if (check(TokenType::COMMAND) && lexer_.peek().value == "right") {
       break;
+    }
+    // Handle \middle delimiter
+    if (check(TokenType::COMMAND) && lexer_.peek().value == "middle") {
+      lexer_.consume();
+      Token mid_delim = lexer_.next();
+      std::string mid_char = "|";  // default
+      if (mid_delim.type == TokenType::OPERATOR ||
+          mid_delim.type == TokenType::COMMAND) {
+        mid_char = mid_delim.value;
+      }
+      // Create a BIG_DELIM node for the middle delimiter
+      // It will be scaled by the layout engine to match the enclosing delimiters
+      auto mid_node = std::make_unique<MathNode>(NodeType::BIG_DELIM);
+      mid_node->command = "middle";
+      mid_node->value = mid_char;
+      mid_node->delim_size = 0;  // 0 indicates auto-scale to match parent
+      row->add_child(std::move(mid_node));
+      continue;
     }
     auto atom = parse_atom();
     if (atom) {

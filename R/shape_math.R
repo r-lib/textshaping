@@ -1,13 +1,15 @@
-#' Shape LaTeX math expression
+#' Shape math expression (LaTeX or Typst)
 #'
-#' Parses a LaTeX math expression and returns positioned glyphs for rendering.
+#' Parses a math expression and returns positioned glyphs for rendering.
 #' The function uses HarfBuzz's OpenType MATH table support to properly position
 #' mathematical symbols, scripts, fractions, and other structures according to
-#' the font's mathematical typesetting rules.
+#' the font's mathematical typesetting rules. Both LaTeX and Typst syntaxes are
+#' supported and automatically detected.
 #'
-#' @param math A character vector of LaTeX math expressions. Use raw strings
-#' for cleaner syntax, e.g., `r"(\alpha)"` for α, `r"(\frac{a}{b})"` for
-#' fractions. Alternatively escape backslashes: `"\\alpha"`.
+#' @param math A character vector of math expressions. Supports both LaTeX and
+#' Typst syntax (auto-detected). For LaTeX, use raw strings like `r"(\alpha)"`
+#' or escape backslashes: `"\\alpha"`. For Typst, use function syntax like
+#' `"frac(a, b)"` or `"sqrt(x^2 + y^2)"`.
 #' @param family Font family name. For best results, use a font with an OpenType
 #' MATH table such as "STIX Two Math", "Latin Modern Math", "Cambria Math", or
 #' "Libertinus Math". Fonts without a MATH table will use fallback positioning
@@ -78,6 +80,60 @@
 #' as Arial or Times New Roman), the function falls back to default positioning
 #' constants based on TeX conventions. The results will be reasonable but may
 #' not match the typographic quality of a dedicated math font.
+#'
+#' ## Syntax Detection
+#'
+#' The function automatically detects whether the input is LaTeX or Typst syntax.
+#' LaTeX is detected when the input contains backslash commands like `\frac` or
+#' `\alpha`. Otherwise, Typst syntax is assumed. You can freely mix expressions
+#' in a vector, each will be parsed independently.
+#'
+#' ## Supported Typst Syntax
+#'
+#' Typst math uses function-call syntax instead of backslash commands:
+#'
+#' \describe{
+#'   \item{Symbols}{Greek letters as identifiers: `alpha`, `beta`, `gamma`, etc.
+#'     Operators: `+`, `-`, `*`, `/`, `=`}
+#'   \item{Numbers}{`123`, `3.14`}
+#'   \item{Text}{`"text in quotes"`}
+#'   \item{Styling}{`bold(x)`, `italic(x)`, `upright(x)`, `sans(x)`, `mono(x)`,
+#'     `cal(X)`, `frak(X)`, `bb(R)`}
+#'   \item{Scripts}{`x^2`, `x_i`, `x_i^2`}
+#'   \item{Fractions}{`frac(a, b)`}
+#'   \item{Binomials}{`binom(n, k)`}
+#'   \item{Over/under}{`overbrace(x, "label")`, `underbrace(x, "label")`,
+#'     `overline(x)`, `underline(x)`}
+#'   \item{Radicals}{`sqrt(x)`, `root(n, x)`}
+#'   \item{Delimiters}{`lr((x))`, `abs(x)`, `norm(x)`, `floor(x)`, `ceil(x)`}
+#'   \item{Big operators}{`sum`, `integral`, `product` - use `limits(sum)` for
+#'     above/below placement or `scripts(sum)` for side scripts}
+#'   \item{Accents}{`hat(x)`, `tilde(x)`, `dot(x)`, `ddot(x)`, `bar(x)`,
+#'     `vec(x)`, `acute(x)`, `grave(x)`, `breve(x)`. Optional parameters:
+#'     `accent(i, hat, dotless: true)` uses dotless ı/ȷ,
+#'     `accent(x, hat, size: 150%)` scales the accent}
+#'   \item{Wide accents}{`widehat(abc)`, `widetilde(abc)`, `overrightarrow(AB)`,
+#'     `overleftarrow(AB)`}
+#'   \item{Spacing}{`thin`, `med`, `thick`, `quad`, `wide` or `h(1em)`}
+#'   \item{Functions}{`sin`, `cos`, `tan`, `log`, `exp`, `lim`}
+#'   \item{Custom operator}{`op("name")`}
+#'   \item{Matrices}{`mat(1, 2; 3, 4)` - semicolon separates rows, comma separates
+#'     columns. Optional parameters: `mat(augment: 1, ...)` for vertical divider
+#'     after column 1, `mat(augment: #(vline: 1, hline: 0), ...)` for both vertical
+#'     and horizontal dividers, `mat(rowgap: 1em, ...)` and `mat(columngap: 2em, ...)`
+#'     for custom spacing}
+#'   \item{Cases}{`cases(a &"if" b, c &"if" d)`}
+#'   \item{Cancel}{`cancel(x)`}
+#'   \item{Display styles}{`display(x)`, `inline(x)`, `script(x)`, `sscript(x)`.
+#'     Optional `cramped: true` parameter reduces superscript height:
+#'     `display(x^2, cramped: true)`}
+#'   \item{Phantom}{`hide(x)`}
+#'   \item{Attachment}{`attach(base, t: top, b: bot)`}
+#'   \item{Stretch}{`stretch(=, size: 3em)` stretches a glyph to a specified size}
+#'   \item{Math class}{`class("relation", x)` forces a symbol to behave as a specific
+#'     math class (affects spacing). Classes: normal, punctuation, opening, closing,
+#'     fence, large, relation, unary, binary, vary}
+#' }
 #'
 #' ## Supported LaTeX Commands
 #' LaTeX math expressions is a huge specification and also includes numerous
@@ -191,35 +247,48 @@
 #' # Simple superscript
 #' shape_math("x^2")
 #'
-#' # Greek letters
+#' # === LaTeX syntax ===
+#'
+#' # Greek letters (LaTeX)
 #' shape_math(r"(\alpha + \beta)")
 #'
-#' # Fraction
+#' # Fraction (LaTeX)
 #' shape_math(r"(\frac{a}{b})")
 #'
 #' # Display mode sum (inline = FALSE)
 #' shape_math(r"(\sum_{i=1}^n i)", inline = FALSE)
 #'
-#' # Quadratic formula
+#' # Quadratic formula (LaTeX)
 #' shape_math(r"(x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a})")
 #'
-#' # Matrix
+#' # Matrix (LaTeX)
 #' shape_math(r"(\begin{pmatrix} a & b \\ c & d \end{pmatrix})")
 #'
-#' # Binomial coefficient
+#' # Binomial coefficient (LaTeX)
 #' shape_math(r"(\binom{n}{k})")
 #'
-#' # Cases environment
-#' shape_math(r"(f(x) = \begin{cases} 1 & x > 0 \\ 0 & x \leq 0 \end{cases})")
+#' # === Typst syntax ===
 #'
-#' # Colored text
-#' shape_math(r"(x = \textcolor{red}{-b})")
+#' # Greek letters (Typst)
+#' shape_math("alpha + beta")
 #'
-#' # Cancellation
-#' shape_math(r"(\frac{\cancel{2}x}{\cancel{2}} = x)")
+#' # Fraction (Typst)
+#' shape_math("frac(a, b)")
 #'
-#' # Extensible arrow with text
-#' shape_math(r"(A \xrightarrow{f} B)")
+#' # Square root (Typst)
+#' shape_math("sqrt(x^2 + y^2)")
+#'
+#' # Matrix (Typst - semicolon separates rows)
+#' shape_math("mat(a, b; c, d)")
+#'
+#' # Styled text (Typst)
+#' shape_math("bold(x) + italic(y)")
+#'
+#' # Delimiters (Typst)
+#' shape_math("abs(x) + norm(v)")
+#'
+#' # Binomial (Typst)
+#' shape_math("binom(n, k)")
 shape_math <- function(
   math,
   family = "math",

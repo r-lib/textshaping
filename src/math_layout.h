@@ -1,6 +1,6 @@
 #pragma once
 
-#include "math_parser.h"
+#include "math_ast.h"
 #include <hb.h>
 #include <hb-ft.h>
 #include <hb-ot.h>
@@ -174,6 +174,9 @@ private:
   // Current forced display style (for \displaystyle, \textstyle, etc.)
   MathDisplayStyle forced_style_;
 
+  // Whether currently in cramped style (reduces superscript height)
+  bool cramped_;
+
   // Flattened accent glyph lookup (regular glyph ID -> flattened glyph ID)
   std::unordered_map<uint32_t, uint32_t> flattened_accents_;
 
@@ -214,6 +217,7 @@ private:
   MathBox layout_superscript(MathNode* node);
   MathBox layout_subscript(MathNode* node);
   MathBox layout_subsuperscript(MathNode* node);
+  MathBox layout_multiscript(MathNode* node);
   MathBox layout_fraction(MathNode* node);
   MathBox layout_sqrt(MathNode* node);
   MathBox layout_delimited(MathNode* node);
@@ -240,6 +244,8 @@ private:
   MathBox layout_smash(MathNode* node);
   MathBox layout_mod(MathNode* node);
   MathBox layout_rule(MathNode* node);
+  MathBox layout_stretched(MathNode* node);
+  MathBox layout_class_override(MathNode* node);
 
   // Helper to layout text string
   MathBox layout_string(const std::string& str);

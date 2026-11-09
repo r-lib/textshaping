@@ -1,5 +1,7 @@
 #include <cpp11.hpp>
 #include "math_layout.h"
+#include "math_parser.h"
+#include "typst_parser.h"
 #include "cache_lru.h"
 #include <systemfonts.h>
 #include <functional>
@@ -119,17 +121,45 @@ cpp11::writable::list shape_math_c(
     math::MathBox box;
     if (!math_shape_cache.get(cache_key, box)) {
       // Not in cache, compute and store
-      box = layout.layout(latex, display_mode);
+      // Detect syntax and parse accordingly
+      std::string input(latex);
+      math::MathNodePtr ast;
+      std::vector<std::string> parse_errors;
 
-     // Throw error if any parsing/layout errors occurred
-     if (!layout.errors().empty()) {
-       std::string msg = "Math layout error: ";
-       for (size_t i = 0; i < layout.errors().size(); i++) {
-         if (i > 0) msg += "; ";
-         msg += layout.errors()[i];
-       }
-       cpp11::stop(msg.c_str());
-     }
+      if (math::is_typst_syntax(input)) {
+        // Parse as Typst
+        math::TypstParser parser(input);
+        ast = parser.parse();
+        parse_errors = parser.errors();
+      } else {
+        // Parse as LaTeX
+        math::MathParser parser(input);
+        ast = parser.parse();
+        parse_errors = parser.errors();
+      }
+
+      // Check for parse errors
+      if (!parse_errors.empty()) {
+        std::string msg = "Math parse error: ";
+        for (size_t j = 0; j < parse_errors.size(); j++) {
+          if (j > 0) msg += "; ";
+          msg += parse_errors[j];
+        }
+        cpp11::stop(msg.c_str());
+      }
+
+      // Layout the parsed AST
+      box = layout.layout(ast.get(), display_mode);
+
+      // Throw error if any layout errors occurred
+      if (!layout.errors().empty()) {
+        std::string msg = "Math layout error: ";
+        for (size_t j = 0; j < layout.errors().size(); j++) {
+          if (j > 0) msg += "; ";
+          msg += layout.errors()[j];
+        }
+        cpp11::stop(msg.c_str());
+      }
 
       math_shape_cache.add(cache_key, box);
     }

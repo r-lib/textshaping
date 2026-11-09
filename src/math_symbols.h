@@ -89,6 +89,9 @@ extern const std::unordered_set<std::string> cancel_commands;
 // Extensible arrow commands
 extern const std::unordered_set<std::string> extensible_arrows;
 
+// Differential operators (dif, Dif, dd - produce upright styled letters)
+extern const std::unordered_set<std::string> differential_operators;
+
 // =============================================================================
 // Classification functions
 // =============================================================================
@@ -119,6 +122,7 @@ bool is_phantom_command(const std::string& cmd);
 bool is_color_command(const std::string& cmd);
 bool is_cancel_command(const std::string& cmd);
 bool is_extensible_arrow(const std::string& cmd);
+bool is_differential_operator(const std::string& cmd);
 
 // Get Unicode codepoint for a command (returns 0 if not found)
 uint32_t command_to_codepoint(const std::string& cmd);
