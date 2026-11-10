@@ -41,33 +41,36 @@ struct ShapeID {
   std::string font;
   unsigned int index;
   double size;
+  double font_size;
   double tracking;
+  // Content of the run and its embeddings. Compared on lookup so a hash
+  // collision can't silently return another string's shaping
+  std::vector<uint32_t> string;
+  std::vector<int> embedding;
 
-  inline ShapeID() : string_hash(0), embed_hash(0), font(""), index(0), size(0.0), tracking(0.0) {}
-  inline ShapeID(const ShapeID& shape) :
-    string_hash(shape.string_hash),
-    embed_hash(shape.embed_hash),
-    font(shape.font),
-    index(shape.index),
-    size(shape.size),
-    tracking(shape.tracking) {}
+  inline ShapeID() : string_hash(0), embed_hash(0), font(""), index(0), size(0.0), font_size(0.0), tracking(0.0), string(), embedding() {}
 
   inline bool operator==(const ShapeID &other) const {
     return string_hash == other.string_hash &&
            embed_hash == other.embed_hash &&
            index == other.index &&
            size == other.size &&
+           font_size == other.font_size &&
            font == other.font &&
-           tracking == other.tracking;
+           tracking == other.tracking &&
+           string == other.string &&
+           embedding == other.embedding;
   }
 };
 
 struct BidiID {
   size_t string_hash;
   int direction;
+  // Content of the string, to guard against hash collisions
+  std::vector<uint32_t> string;
 
   inline bool operator==(const BidiID &other) const {
-    return string_hash == other.string_hash && direction == other.direction;
+    return string_hash == other.string_hash && direction == other.direction && string == other.string;
   }
 };
 
@@ -92,9 +95,9 @@ struct EmbedInfo {
   std::vector<FontSettings2> fallbacks;
   std::vector<double> fallback_size;
   std::vector<double> fallback_scaling;
-  size_t embedding_level;
-  int32_t full_width;
-  bool terminates_paragraph;
+  size_t embedding_level = 0;
+  int32_t full_width = 0;
+  bool terminates_paragraph = false;
   void add(const EmbedInfo& other, bool check = true) {
     if (check && embedding_level != other.embedding_level) {
       cpp11::stop("Unable to merge embeddings of different levels");
@@ -264,19 +267,23 @@ namespace std {
 template <>
 struct hash<ShapeID> {
   size_t operator()(const ShapeID & x) const {
-    return x.string_hash ^
-      x.embed_hash ^
-      std::hash<std::string>()(x.font) ^
-      std::hash<unsigned int>()(x.index) ^
-      std::hash<double>()(x.size) ^
-      std::hash<double>()(x.tracking);
+    size_t h = x.string_hash;
+    h ^= x.embed_hash + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<std::string>()(x.font) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<unsigned int>()(x.index) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<double>()(x.size) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<double>()(x.font_size) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<double>()(x.tracking) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    return h;
   }
 };
 
 template <>
 struct hash<BidiID> {
   size_t operator()(const BidiID & x) const {
-    return x.string_hash ^ std::hash<int>()(x.direction);
+    size_t h = x.string_hash;
+    h ^= std::hash<int>()(x.direction) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    return h;
   }
 };
 }
@@ -342,6 +349,10 @@ public:
     hb_buffer_destroy(buffer);
   };
 
+  // Owns a raw hb_buffer_t; copying would double-free
+  HarfBuzzShaper(const HarfBuzzShaper&) = delete;
+  HarfBuzzShaper& operator=(const HarfBuzzShaper&) = delete;
+
   std::vector<unsigned int> glyph_id;
   std::vector<unsigned int> glyph_cluster;
   std::vector<std::string> fontfile;
@@ -386,6 +397,10 @@ public:
 private:
   std::vector<uint32_t> full_string;
   std::vector<int> bidi_embedding;
+  // Paragraph-sized flag marking characters that must be shaped with the
+  // emoji fallback font (embedding level alone can't encode this since
+  // negating level 0 is a no-op)
+  std::vector<bool> emoji_flag;
   static UTF_UCS utf_converter;
   static LRU_Cache<BidiID, std::vector<int> > bidi_cache;
   static LRU_Cache<ShapeID, ShapeInfo> shape_cache;
@@ -418,7 +433,7 @@ private:
   void reset();
   std::list<EmbedInfo> combine_embeddings(std::vector<ShapeInfo>& shapes, int& direction);
   bool shape_embedding(unsigned int start, unsigned int end, std::vector<hb_feature_t>& features,
-                       int dir, ShapeInfo& shape_info, std::vector<FontSettings2>& fallbacks,
+                       int dir, bool emoji, ShapeInfo& shape_info, std::vector<FontSettings2>& fallbacks,
                        std::vector<double>& fallback_sizes, std::vector<double>& fallback_scales);
   hb_font_t* load_fallback(unsigned int font, unsigned int start, unsigned int end,
                            bool& new_added, ShapeInfo& shape_info,
@@ -446,6 +461,7 @@ private:
   void do_alignment(bool ltr);
 
   inline double family_scaling(const char* family) {
+    if (family == nullptr) return 1.0;
     if (strcmp("Apple Color Emoji", family) == 0) {
       return 1.3;
     } else if (strcmp("Noto Color Emoji", family) == 0) {

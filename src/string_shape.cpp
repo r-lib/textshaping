@@ -19,19 +19,28 @@ UTF_UCS HarfBuzzShaper::utf_converter = UTF_UCS();
 LRU_Cache<BidiID, std::vector<int> > HarfBuzzShaper::bidi_cache = {1000};
 LRU_Cache<ShapeID, ShapeInfo> HarfBuzzShaper::shape_cache = {1000};
 
+// Clamp a double into int32 range; non-finite values become 0 (converting
+// out-of-range doubles to int32 is undefined behaviour)
+static inline int32_t clamp_i32(double v) {
+  if (!std::isfinite(v)) return 0;
+  if (v > (double) INT32_MAX) return INT32_MAX;
+  if (v < (double) INT32_MIN) return INT32_MIN;
+  return (int32_t) v;
+}
+
 FT_Face get_cached_or_new_face(const FontSettings2& font, double size, double res, int* error) {
   if (ft_compat) {
     return systemfonts::ver2::get_cached_face(font, size, res, error);
   }
   const char* fontfile = font.file;
   int index = font.index;
-  FT_Face new_face;
+  FT_Face new_face = nullptr;
   FT_Error err = FT_New_Face(ft.library, fontfile, index, &new_face);
   if (err != 0) {
     err = FT_New_Face(ft.library, fontfile, 0, &new_face);
     if (err != 0) {
       *error = err;
-      return new_face;
+      return nullptr;
     }
   }
 
@@ -40,12 +49,13 @@ FT_Face get_cached_or_new_face(const FontSettings2& font, double size, double re
     if (err != 0) {
       *error = err;
       FT_Done_Face(new_face);
+      return nullptr;
     }
   } else {
     if (new_face->num_fixed_sizes == 0) {
       *error = 23;
       FT_Done_Face(new_face);
-      return new_face;
+      return nullptr;
     }
     int best_match = 0;
     int diff = 1e6;
@@ -55,6 +65,7 @@ FT_Face get_cached_or_new_face(const FontSettings2& font, double size, double re
     bool found_match = false;
     for (int i = 0; i < new_face->num_fixed_sizes; ++i) {
       if (new_face->available_sizes[i].size > largest_size) {
+        largest_size = new_face->available_sizes[i].size;
         largest_ind = i;
       }
       int ndiff = new_face->available_sizes[i].size - scaled_size;
@@ -72,6 +83,7 @@ FT_Face get_cached_or_new_face(const FontSettings2& font, double size, double re
     if (err != 0) {
       *error = err;
       FT_Done_Face(new_face);
+      return nullptr;
     }
   }
   if (font.n_axes > 0 && font.axes != nullptr && font.coords != nullptr) {
@@ -107,11 +119,15 @@ bool HarfBuzzShaper::shape_string(const char* string, FontSettings2& font_info,
   reset();
 
   // Set global settings
-  max_width = width + 1; // To prevent rounding errors
-  indent = ind;
-  hanging = hang;
-  space_before = before;
-  space_after = after;
+  if (width < 0 || !std::isfinite(width)) {
+    max_width = -1; // No width limit
+  } else {
+    max_width = clamp_i32(width + 1); // +1 to prevent rounding errors
+  }
+  indent = clamp_i32(ind);
+  hanging = clamp_i32(hang);
+  space_before = clamp_i32(before);
+  space_after = clamp_i32(after);
 
   cur_res = res;
   cur_lineheight = lineheight;
@@ -165,7 +181,7 @@ bool HarfBuzzShaper::add_string(const char* string, FontSettings2& font_info,
 
 bool HarfBuzzShaper::add_spacer(FontSettings2& font_info, double height, double width, uint32_t filler) {
   width *= 64.0 / 72.0;
-  int32_t ascend = height * 64.0 * cur_res / 72.0;
+  int32_t ascend = clamp_i32(height * 64.0 * cur_res / 72.0);
   int32_t descend = 0;
 #if HB_VERSION_MAJOR < 2 && HB_VERSION_MINOR < 2
 #else
@@ -181,8 +197,8 @@ bool HarfBuzzShaper::add_spacer(FontSettings2& font_info, double height, double 
     ascend = fextent.ascender;
     descend = fextent.descender;
     hb_font_destroy(font);
+    FT_Done_Face(face);
   }
-  FT_Done_Face(face);
 #endif
   FontSettings2 dummy_font;
   ShapeInfo info;
@@ -196,13 +212,13 @@ bool HarfBuzzShaper::add_spacer(FontSettings2& font_info, double height, double 
     {filler}, // glyph_id
     {0}, // glyph_cluster
     {info.index}, // string_id
-    {int32_t(width)}, // x_advance
+    {clamp_i32(width)}, // x_advance
     {0}, // y_advance
     {0}, // x_offset
     {0}, // y_offset
     {0}, // x_bear
     {ascend}, // y_bear
-    {int32_t(width)}, // width
+    {clamp_i32(width)}, // width
     {ascend - descend}, // height
     {ascend}, // ascenders
     {descend}, // descenders
@@ -214,7 +230,7 @@ bool HarfBuzzShaper::add_spacer(FontSettings2& font_info, double height, double 
     {height}, // fallback_size
     {-1}, // fallback_scaling
     0, // ltr
-    int32_t(width), // full_width
+    clamp_i32(width), // full_width
     false // Not a line breaker in itself
   });
   shape_infos.push_back(info);
@@ -352,10 +368,13 @@ bool HarfBuzzShaper::finish_string() {
 
   if (hard_break) {
     // Last line ended with a line break. We move pen_y down based on last glyph size
-    size_t last_glyph = line.back().embedding_level % 2 == 0 ? line.back().glyph_id.size() : 0;
-    int32_t line_height = (line.back().ascenders[last_glyph] - line.back().descenders[last_glyph]) * cur_lineheight;
-    pen_y -= line_height;
-    bottom_bearing += line_height;
+    size_t n_last_glyphs = line.back().ascenders.size();
+    if (n_last_glyphs > 0) {
+      size_t last_glyph = line.back().embedding_level % 2 == 0 ? n_last_glyphs - 1 : 0;
+      int32_t line_height = (line.back().ascenders[last_glyph] - line.back().descenders[last_glyph]) * cur_lineheight;
+      pen_y -= line_height;
+      bottom_bearing += line_height;
+    }
     pen_x = indent;
     line_left_extra = 0;
     line_width.push_back(pen_x);
@@ -363,6 +382,13 @@ bool HarfBuzzShaper::finish_string() {
 
   // If rtl, the pen is placed at the left
   if (!ltr) pen_x = -line_left_extra;
+
+  if (line_width.empty()) {
+    // Shaping produced no glyphs at all (e.g. all runs failed to shape)
+    line_width.push_back(pen_x);
+    line_left_bear.push_back(0);
+    line_right_bear.push_back(0);
+  }
 
   // Calculate overall box stats
   bottom_bearing += space_after - previous_line_descend;
@@ -392,12 +418,16 @@ bool HarfBuzzShaper::finish_string() {
   }
   top_border += - bottom - cur_vjust * height;
   pen_y += - bottom - cur_vjust * height;
-  return true;
+
+  // Propagate any font/shaping failure recorded while building this
+  // paragraph instead of silently returning partial output
+  return error_code == 0;
 }
 
 void HarfBuzzShaper::reset() {
   full_string.clear();
   bidi_embedding.clear();
+  emoji_flag.clear();
   glyph_id.clear();
   glyph_cluster.clear();
   fontfile.clear();
@@ -457,10 +487,13 @@ void HarfBuzzShaper::reset() {
 
 std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& shapes, int& direction) {
   // Find bidi embeddings and determine the overall direction of the text
-  if (full_string.size() > 1) {
+  if (!full_string.empty()) {
     // If we have more than one char we find bidi embeddings
     // We append the direction to the end in the cache so we can read it back
-    BidiID key = {vector_hash(full_string.begin(), full_string.end()), direction};
+    BidiID key;
+    key.string_hash = vector_hash(full_string.begin(), full_string.end());
+    key.direction = direction;
+    key.string = full_string;
     if (!bidi_cache.get(key, bidi_embedding)) {
       bidi_embedding = get_bidi_embeddings(full_string, direction);
       bidi_embedding.push_back(direction);
@@ -499,6 +532,8 @@ std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& 
   // Reverse ordering of consecutive embeddings in rtl
   // This is needed to keep their internal order during shaping
   // Further collapses all consequtive runs into one embedding to simplify the final shaping operation
+  // rtl runs are merged in reverse order rather than reversing the list first,
+  // so a paragraph-terminating embedding stays the last one merged
   auto run_start = all_embeddings.begin();
   int run_embed_level = run_start->embedding_level;
   std::list<EmbedInfo> final_embeddings;
@@ -507,22 +542,41 @@ std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& 
 
     if (std::prev(iter)->terminates_paragraph || run_embed_level != cur_embed_level) {
       if (run_embed_level % 2 != 0) {
-        std::reverse(run_start, iter);
+        EmbedInfo merged;
+        merged.embedding_level = run_embed_level;
+        auto rev = iter;
+        do {
+          --rev;
+          merged.add(*rev, false);
+        } while (rev != run_start);
+        merged.terminates_paragraph = std::prev(iter)->terminates_paragraph;
+        final_embeddings.push_back(std::move(merged));
+      } else {
+        for (auto iter2 = std::next(run_start); iter2 != iter; ++iter2) {
+          run_start->add(*iter2);
+        }
+        final_embeddings.push_back(std::move(*run_start));
       }
       run_embed_level = cur_embed_level;
-
-      for (auto iter2 = std::next(run_start); iter2 != iter; ++iter2) {
-        run_start->add(*iter2);
-      }
-      final_embeddings.push_back(std::move(*run_start));
       run_start = iter;
     }
   }
-  if (run_embed_level % 2 != 0) std::reverse(run_start, all_embeddings.end());
-  for (auto iter2 = std::next(run_start); iter2 != all_embeddings.end(); ++iter2) {
-    run_start->add(*iter2);
+  if (run_embed_level % 2 != 0) {
+    EmbedInfo merged;
+    merged.embedding_level = run_embed_level;
+    auto rev = all_embeddings.end();
+    do {
+      --rev;
+      merged.add(*rev, false);
+    } while (rev != run_start);
+    merged.terminates_paragraph = all_embeddings.back().terminates_paragraph;
+    final_embeddings.push_back(std::move(merged));
+  } else {
+    for (auto iter2 = std::next(run_start); iter2 != all_embeddings.end(); ++iter2) {
+      run_start->add(*iter2);
+    }
+    final_embeddings.push_back(std::move(*run_start));
   }
-  final_embeddings.push_back(std::move(*run_start));
 
   return final_embeddings;
 }
@@ -539,8 +593,27 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
     run_id.font.assign(text_run.font_info.file);
     run_id.index = text_run.font_info.index;
     run_id.size = text_run.size * text_run.res;
+    run_id.font_size = text_run.size;
     run_id.tracking = text_run.tracking;
+    run_id.string.assign(full_string.begin() + text_run.run_start, full_string.begin() + text_run.run_end);
+    run_id.embedding.assign(bidi_embedding.begin() + text_run.run_start, bidi_embedding.begin() + text_run.run_end);
+    size_t run_start = text_run.run_start;
+    size_t run_end = text_run.run_end;
     if (shape_cache.get(run_id, text_run)) {
+      // Clusters are stored relative to the run start. Offset them to this
+      // paragraph and recompute break info, which depends on paragraph-level
+      // soft/hard break positions
+      for (auto iter = text_run.embeddings.begin(); iter != text_run.embeddings.end(); ++iter) {
+        for (auto cl = iter->glyph_cluster.begin(); cl != iter->glyph_cluster.end(); ++cl) {
+          *cl += run_start;
+        }
+        iter->is_blank.clear();
+        iter->may_break.clear();
+        iter->may_stretch.clear();
+        fill_glyph_info(*iter);
+      }
+      text_run.run_start = run_start;
+      text_run.run_end = run_end;
       return;
     }
   } else {
@@ -566,6 +639,12 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
 
   size_t n_chars = text_run.run_end - text_run.run_start;
 
+  // The emoji flag must cover the whole paragraph for the embedding split
+  // loop below, even when this run contains no emoji
+  if (emoji_flag.size() < full_string.size()) {
+    emoji_flag.resize(full_string.size(), false);
+  }
+
   if (n_chars == 0) {
     // Empty string. We record the sizing of the font for use when calculating line height
     EmbedInfo embedding;
@@ -585,8 +664,8 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
       embedding.ascenders[0] = fextent.ascender;
       embedding.descenders[0] = fextent.descender;
       hb_font_destroy(font);
+      FT_Done_Face(face);
     }
-    FT_Done_Face(face);
 #endif
     text_run.embeddings.push_back(embedding);
     return;
@@ -603,7 +682,8 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
 
   if (may_have_emoji) {
     // If it may have emojis go through string and detect any
-    // These will be recorded as negative embeddings
+    // These are recorded in a separate flag since the embedding level can't
+    // encode it (negating level 0 is a no-op)
     // This depends on the font so we can't cache this as part of the embedding
     std::vector<int> emoji_embeddings = {};
     emoji_embeddings.resize(n_chars);
@@ -611,7 +691,7 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
     bool emoji_font_added = false;
     for (int i = 0; i < n_chars; ++i) {
       if (emoji_embeddings[i] == 1) {
-        bidi_embedding[i] *= -1;
+        emoji_flag[text_run.run_start + i] = true;
         if (!emoji_font_added) {
           // Add the system emoji font to fallbacks
           fallback.push_back(systemfonts::ver2::locate_font("emoji", 0, 0, 0, nullptr, nullptr, 0));
@@ -628,12 +708,14 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
   for (size_t i = text_run.run_start + 1; i <= text_run.run_end; ++i) {
     // Shape all embeddings separately
     bool terminal = glyph_must_hard_break(i - 1);
-    if (terminal || i == text_run.run_end || bidi_embedding[i] != bidi_embedding[i - 1]) {
+    if (terminal || i == text_run.run_end || bidi_embedding[i] != bidi_embedding[i - 1] ||
+        emoji_flag[i] != emoji_flag[i - 1]) {
       bool success = shape_embedding(
         embedding_start,
         i,
         features,
         bidi_embedding[embedding_start],
+        emoji_flag[embedding_start],
         text_run,
         fallback,
         fallback_size,
@@ -641,8 +723,10 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
       );
       if (!success) return;
       if (!text_run.embeddings.empty() && terminal) {
-        text_run.embeddings.back().terminates_paragraph = terminal;
-        text_run.embeddings.back().full_width -= text_run.embeddings.back().x_advance.back();
+        EmbedInfo& emb = text_run.embeddings.back();
+        emb.terminates_paragraph = terminal;
+        // The line-break glyph is last in ltr and first in rtl
+        emb.full_width -= emb.embedding_level % 2 == 0 ? emb.x_advance.back() : emb.x_advance.front();
       }
       embedding_start = i;
     }
@@ -650,7 +734,15 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
 
   if (n_features == 0 && n_axes == 0) {
     // If simply shape add to cache
-    shape_cache.add(run_id, text_run);
+    // Store a copy with clusters relative to the run start so the entry can
+    // be reused when the same run appears at a different paragraph position
+    ShapeInfo cache_copy = text_run;
+    for (auto iter = cache_copy.embeddings.begin(); iter != cache_copy.embeddings.end(); ++iter) {
+      for (auto cl = iter->glyph_cluster.begin(); cl != iter->glyph_cluster.end(); ++cl) {
+        *cl -= text_run.run_start;
+      }
+    }
+    shape_cache.add(run_id, std::move(cache_copy));
   }
   //FT_Done_Face(face);
   return;
@@ -686,7 +778,7 @@ EmbedInfo HarfBuzzShaper::shape_single_line(const char* string, FontSettings2& f
 
 bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
                                      std::vector<hb_feature_t>& features,
-                                     int dir, ShapeInfo& shape_info,
+                                     int dir, bool emoji, ShapeInfo& shape_info,
                                      std::vector<FontSettings2>& fallbacks,
                                      std::vector<double>& fallback_sizes,
                                      std::vector<double>& fallback_scales) {
@@ -697,10 +789,10 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
   }
 
   int error = 0;
-  // Load main font (emoji if dir is negative)
+  // Load main font (emoji font if flagged)
   // Shouldn't be able to fail as we have already tried to load it in the calling function
   FT_Face face = get_cached_or_new_face(
-    fallbacks[dir < 0 ? 1 : 0],
+    fallbacks[emoji ? 1 : 0],
     shape_info.size,
     shape_info.res,
     &error
@@ -731,13 +823,13 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
   }
 
   shape_info.embeddings.emplace_back();
-  shape_info.embeddings.back().embedding_level = std::abs(dir);
+  shape_info.embeddings.back().embedding_level = dir;
   shape_info.embeddings.back().terminates_paragraph = false;
   shape_info.embeddings.back().full_width = 0;
   bool embed_is_ltr = dir % 2 == 0;
 
   // See if all characters hav been found in the default font
-  unsigned int current_font = dir < 0 ? 1 : 0;
+  unsigned int current_font = emoji ? 1 : 0;
   std::vector<unsigned int> char_font(embedding_size, current_font);
   bool needs_fallback = false;
   bool any_resolved = false;
@@ -772,14 +864,13 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
     }
     bool using_new = false;
     font = load_fallback(current_font, start + fallback_start, start + fallback_end, using_new, shape_info, fallbacks, fallback_sizes, fallback_scales);
+    if (font == nullptr) {
+      shape_info.embeddings.pop_back();
+      return false;
+    }
     if (!using_new) {
       // We don't need to have success if we are trying an existing font
       any_resolved = true;
-    }
-    if (error_code != 0) {
-      Rprintf("Failed to get face: %s, %i\n", fallbacks[current_font].file, fallbacks[current_font].index);
-      shape_info.embeddings.pop_back();
-      return false;
     }
     do {
       // Go through not yet resolved chars and see if the current fallback can resolve it
@@ -825,6 +916,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
         if (error != 0) {
           Rprintf("Failed to get face: %s, %i\n", fallbacks[current_font].file, fallbacks[current_font].index);
           error_code = error;
+          shape_info.embeddings.pop_back();
           return false;
         }
 
@@ -860,6 +952,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
         if (error != 0) {
           Rprintf("Failed to get face: %s, %i\n", fallbacks[current_font].file, fallbacks[current_font].index);
           error_code = error;
+          shape_info.embeddings.pop_back();
           return false;
         }
 
@@ -910,7 +1003,20 @@ hb_font_t*  HarfBuzzShaper::load_fallback(unsigned int font, unsigned int start,
     );
     new_added = true;
   }
-  FT_Face face = get_font_sizing(fallbacks[font], shape_info.size, shape_info.res, fallback_sizes, fallback_scales);
+  FT_Face face = nullptr;
+  if (new_added) {
+    face = get_font_sizing(fallbacks[font], shape_info.size, shape_info.res, fallback_sizes, fallback_scales);
+  } else {
+    // Existing font; its sizing has already been recorded in lockstep with
+    // the fallbacks vector, so don't push new entries
+    int error = 0;
+    face = get_cached_or_new_face(fallbacks[font], shape_info.size, shape_info.res, &error);
+    if (error != 0) {
+      Rprintf("Failed to get face: %s, %i\n", fallbacks[font].file, fallbacks[font].index);
+      error_code = error;
+      return nullptr;
+    }
+  }
 
   if (!face) {
     return nullptr;
@@ -1009,7 +1115,7 @@ void HarfBuzzShaper::fill_shape_info(hb_glyph_info_t* glyph_info,
 
   EmbedInfo& embedding = shape_info.embeddings.back();
 
-  int new_size = embedding.glyph_id.size() + n_glyphs;
+  size_t new_size = embedding.glyph_id.size() + n_glyphs;
   embedding.glyph_id.reserve(new_size);
   embedding.glyph_cluster.reserve(new_size);
   embedding.x_offset.reserve(new_size);
@@ -1070,11 +1176,18 @@ inline FT_Face HarfBuzzShaper::get_font_sizing(FontSettings2& font_info, double 
     error_code = error;
     return nullptr;
   }
-  double scaling = FT_IS_SCALABLE(face) ? -1 : size * 64.0 * res / 72.0 / face->size->metrics.height;
+  double scaling = -1;
+  if (!FT_IS_SCALABLE(face) && face->size != nullptr && face->size->metrics.height != 0) {
+    scaling = size * 64.0 * res / 72.0 / face->size->metrics.height;
+  }
   double fscaling = family_scaling(face->family_name);
   scales.push_back(scaling * fscaling);
   sizes.push_back(size * fscaling);
-  if (deref) FT_Done_Face(face);
+  if (deref) {
+    FT_Done_Face(face);
+    // The returned pointer is released in this case and must only be used
+    // as a success indicator, never dereferenced
+  }
   return face;
 }
 
@@ -1101,7 +1214,10 @@ void HarfBuzzShaper::insert_hyphen(EmbedInfo& embedding, size_t where) {
   hb_bool_t found = hb_font_get_glyph(font, 8208, 0, &glyph); // True hyphen;
   if (!found) found = hb_font_get_glyph(font, 45, 0, &glyph); // Hyphen minus
 
-  if (!found) return; // No hyphen-like glyph in font
+  if (!found) { // No hyphen-like glyph in font
+    hb_font_destroy(font);
+    return;
+  }
 
   embedding.glyph_id[where] = glyph;
 
@@ -1109,8 +1225,13 @@ void HarfBuzzShaper::insert_hyphen(EmbedInfo& embedding, size_t where) {
   hb_position_t y = 0;
 
   embedding.x_advance[where] = x * scaling;
-  if (embedding.glyph_cluster[where] > 0) {
-    hb_font_get_glyph_kerning_for_direction(font, full_string[embedding.glyph_cluster[where] - 1], glyph, embedding.embedding_level % 2 == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL, &x, &y);
+  // Kerning is against the preceding glyph (in visual order), not codepoint
+  size_t prev = embedding.embedding_level % 2 == 0
+    ? (where == 0 ? embedding.glyph_id.size() : where - 1)
+    : where + 1;
+  hb_codepoint_t prev_glyph = prev < embedding.glyph_id.size() ? embedding.glyph_id[prev] : 0;
+  if (prev_glyph != 0 && embedding.glyph_cluster[where] > 0) {
+    hb_font_get_glyph_kerning_for_direction(font, prev_glyph, glyph, embedding.embedding_level % 2 == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL, &x, &y);
   } else {
     x = 0;
   }
@@ -1142,7 +1263,7 @@ bool HarfBuzzShaper::has_valid_break(const EmbedInfo& embedding, int32_t width, 
       if (w > width) {
         if (force) {
           // If forcing we need to consume at least one glyph
-          break_pos = std::max(i - 1, size_t(1));
+          break_pos = i == 0 ? 0 : i - 1;
           return true;
         }
         return has_break;
@@ -1164,7 +1285,7 @@ bool HarfBuzzShaper::has_valid_break(const EmbedInfo& embedding, int32_t width, 
       if (w > width) {
         if (force) {
           // If forcing we need to consume at least one glyph
-          break_pos = std::min(i, embedding.glyph_id.size() - 2);
+          break_pos = std::min(i, embedding.glyph_id.size() - 1);
           return true;
         }
         return has_break;
@@ -1180,7 +1301,7 @@ bool HarfBuzzShaper::has_valid_break(const EmbedInfo& embedding, int32_t width, 
 }
 
 void HarfBuzzShaper::rearrange_embeddings(std::list<EmbedInfo>& line) {
-  static std::vector<std::list<EmbedInfo>::iterator> embed_stack(125); // Max nesting level allowed by ICU bidi algo
+  static std::vector<std::list<EmbedInfo>::iterator> embed_stack(128); // Max nesting level allowed by ICU bidi algo
 
   if (line.size() < 2) return; // Nothing to do
 
@@ -1195,6 +1316,9 @@ void HarfBuzzShaper::rearrange_embeddings(std::list<EmbedInfo>& line) {
       // We fill the stack with current position up to the embeddings level
       while (current_embed != cur_embed_level) {
         ++current_embed;
+        if (current_embed >= embed_stack.size()) {
+          embed_stack.resize(current_embed + 1);
+        }
         embed_stack[current_embed] = iter;
       }
     } else {
@@ -1261,7 +1385,8 @@ std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::
             to = iter->glyph_id.size();
           }
           // Did we break at soft hyphen?
-          bool is_shy = full_string[iter->glyph_cluster[break_at]] == 173;
+          bool is_shy = iter->glyph_cluster[break_at] < full_string.size() &&
+                        full_string[iter->glyph_cluster[break_at]] == 173;
           // We found one. Split the first part into half tail and assemble line
           line.splice(line.begin(), all_embeddings, all_embeddings.begin(), iter);
           line.emplace_back();
@@ -1301,6 +1426,7 @@ std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::
 }
 
 void HarfBuzzShaper::do_alignment(bool ltr) {
+  if (x_pos.empty()) return; // Nothing to align (e.g. empty string)
   if (cur_align == 1 || cur_align == 2) {
     // Standard center or right justify
     // Move x_pos based on the linewidth of the line and the full width of the text
@@ -1321,7 +1447,7 @@ void HarfBuzzShaper::do_alignment(bool ltr) {
       // stretches are allowed (not for last line or lines with forced linebreak)
       int index = line_id[i];
       no_stretch[index] = no_stretch[index] || index == line_width.size() - 1 || line_must_break[index];
-      if (may_stretch[i] && i-1 < x_pos.size() && index == line_id[i+1]) {
+      if (may_stretch[i] && i+1 < x_pos.size() && index == line_id[i+1]) {
         n_stretches[index]++;
       }
     }
@@ -1385,7 +1511,9 @@ void HarfBuzzShaper::do_alignment(bool ltr) {
         cum_move = 0;
       }
       x_pos[i] += cum_move;
-      cum_move += (width - line_width[index]) / (n_glyphs[index]-1);
+      if (n_glyphs[index] > 1) {
+        cum_move += (width - line_width[index]) / int32_t(n_glyphs[index] - 1);
+      }
     }
     pen_x += cum_move;
     // Update line width of all stretched lines to match the full width of the textbox

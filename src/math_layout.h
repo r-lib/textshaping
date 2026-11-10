@@ -140,6 +140,10 @@ public:
   MathLayout(const char* font_path, int font_index, double size, double res);
   ~MathLayout();
 
+  // Owns raw HarfBuzz/FreeType handles; copying would double-free
+  MathLayout(const MathLayout&) = delete;
+  MathLayout& operator=(const MathLayout&) = delete;
+
   // Layout the math expression and return positioned glyphs
   MathBox layout(const std::string& latex, bool display_mode = false);
 
@@ -161,6 +165,11 @@ private:
   bool owns_ft_library_;
   bool has_math_;
   double base_size_;
+  double res_ = 72.0;
+
+  // Point-based quantities (e.g. em spacing derived from the point size)
+  // must be scaled into box units, which are device pixels
+  double pt_to_box() const { return res_ / 72.0; }
   bool display_mode_;
   MathConstants constants_;
   std::vector<std::string> errors_;

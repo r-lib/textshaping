@@ -83,8 +83,13 @@ private:
   TypstLexer lexer_;
   std::vector<std::string> errors_;
 
+  // Recursion depth guard against stack overflow on deeply nested input
+  static const int MAX_PARSE_DEPTH = 256;
+  int depth_ = 0;
+  bool depth_exceeded_ = false;
+
   // Parsing methods
-  MathNodePtr parse_math_list();
+  MathNodePtr parse_math_list(bool stop_at_ampersand = false);
   MathNodePtr parse_brace_content();  // For content inside {...}
   MathNodePtr parse_expression();
   MathNodePtr parse_atom();

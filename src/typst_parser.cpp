@@ -6,6 +6,24 @@
 
 namespace math {
 
+// std::stoi/std::stod throw on out-of-range input; the lexer can produce
+// arbitrarily long digit sequences, so convert with a fallback instead
+static double safe_stod(const std::string& s, double fallback = 0.0) {
+  try {
+    return std::stod(s);
+  } catch (...) {
+    return fallback;
+  }
+}
+
+static int safe_stoi(const std::string& s, int fallback = 0) {
+  try {
+    return std::stoi(s);
+  } catch (...) {
+    return fallback;
+  }
+}
+
 // =============================================================================
 // Typst symbol tables
 // =============================================================================
@@ -368,8 +386,10 @@ static const std::unordered_map<std::string, uint32_t> typst_dotted_symbols = {
   {"harpoons.ltrb", 0x21CB}, {"harpoons.rtlb", 0x21CC},
 
   // === GREEK VARIANTS ===
-  {"epsilon.alt", 0x03B5}, {"varepsilon", 0x03B5},  // ε (lunate epsilon)
-  {"phi.alt", 0x03C6}, {"varphi", 0x03C6},  // φ
+  // Typst conventions (opposite of LaTeX): phi/epsilon are the small letters,
+  // the .alt variants are the lunate/symbol forms
+  {"epsilon.alt", 0x03F5}, {"varepsilon", 0x03B5},  // ϵ lunate epsilon symbol
+  {"phi.alt", 0x03D5}, {"varphi", 0x03C6},  // ϕ phi symbol
   {"kappa.alt", 0x03F0}, {"varkappa", 0x03F0},  // ϰ
   {"theta.alt", 0x03D1}, {"vartheta", 0x03D1},  // ϑ
   {"pi.alt", 0x03D6}, {"varpi", 0x03D6},  // ϖ
@@ -585,7 +605,7 @@ static const std::unordered_map<std::string, uint32_t> typst_dotted_symbols = {
 
   // === PLAYING CARDS ===
   {"suit.club", 0x2663}, {"suit.diamond", 0x2666}, {"suit.heart", 0x2665}, {"suit.spade", 0x2660},
-  {"club.stroked", 0x2667}, {"diamond.stroked", 0x2662},
+  {"club.stroked", 0x2667}, {"suit.diamond.stroked", 0x2662},
   {"heart.stroked", 0x2661}, {"spade.stroked", 0x2664},
 
   // === MUSIC ===
@@ -670,7 +690,8 @@ bool TypstLexer::is_digit(char c) const {
 }
 
 bool TypstLexer::is_identifier_char(char c) const {
-  return is_letter(c) || is_digit(c) || c == '_';
+  // '_' is the subscript operator in Typst, not an identifier character
+  return is_letter(c) || is_digit(c);
 }
 
 TypstToken TypstLexer::scan_identifier() {
@@ -733,7 +754,7 @@ TypstToken TypstLexer::scan_string() {
 
 TypstToken TypstLexer::scan_token() {
   // Skip whitespace but track it
-  while (std::isspace(current_char())) {
+  while (std::isspace(static_cast<unsigned char>(current_char()))) {
     advance();
   }
 
@@ -760,33 +781,38 @@ TypstToken TypstLexer::scan_token() {
   }
 
   // Backslash sequences (Typst)
-  if (c == '\\' && pos_ < input_.size()) {
-    char next = input_[pos_];
+  if (c == '\\') {
+    if (pos_ + 1 >= input_.size()) {
+      // Backslash at end of input counts as a linebreak
+      advance();
+      return TypstToken(TypstTokenType::LINEBREAK, "\\", start);
+    }
+    char next = input_[pos_ + 1];
     // Escaped delimiters become literal symbols (non-scaling)
     if (next == '(' || next == ')' || next == '[' || next == ']' ||
         next == '{' || next == '}' || next == '|') {
+      advance();  // consume the backslash
       advance();  // consume the escaped character
       return TypstToken(TypstTokenType::OPERATOR, std::string(1, next), start);
     }
     // Escaped comma and semicolon (literal, not argument separator)
-    if (next == ',') {
-      advance();  // consume the comma
-      return TypstToken(TypstTokenType::OPERATOR, ",", start);
+    if (next == ',' || next == ';') {
+      advance();  // consume the backslash
+      advance();  // consume the escaped character
+      return TypstToken(TypstTokenType::OPERATOR, std::string(1, next), start);
     }
-    if (next == ';') {
-      advance();  // consume the semicolon
-      return TypstToken(TypstTokenType::OPERATOR, ";", start);
-    }
-    // Standalone backslash followed by whitespace/newline or end = linebreak
-    // Check if this is a linebreak (\ followed by whitespace, newline, or at end)
-    if (next == ' ' || next == '\n' || next == '\r' || next == '\t' ||
-        pos_ >= input_.size()) {
+    // Standalone backslash followed by whitespace/newline = linebreak
+    if (std::isspace(static_cast<unsigned char>(next))) {
+      advance();  // consume the backslash
       // Skip any whitespace after the backslash
-      while (pos_ < input_.size() && std::isspace(input_[pos_])) {
+      while (pos_ < input_.size() && std::isspace(static_cast<unsigned char>(input_[pos_]))) {
         advance();
       }
       return TypstToken(TypstTokenType::LINEBREAK, "\\", start);
     }
+    // Unknown escape: emit the backslash and lex the next char separately
+    advance();
+    return TypstToken(TypstTokenType::OPERATOR, "\\", start);
   }
 
   // Check for shorthand sequences (longer matches first)
@@ -845,6 +871,7 @@ TypstToken TypstLexer::scan_token() {
     case '!': return TypstToken(TypstTokenType::OPERATOR, "!", start);
     case '.': return TypstToken(TypstTokenType::OPERATOR, ".", start);
     case '%': return TypstToken(TypstTokenType::OPERATOR, "%", start);
+    case '\'': return TypstToken(TypstTokenType::OPERATOR, "'", start);
     case '#': return TypstToken(TypstTokenType::OPERATOR, "#", start);
     default:
       return TypstToken(TypstTokenType::OTHER, std::string(1, c), start);
@@ -913,12 +940,16 @@ TypstToken TypstParser::consume(TypstTokenType type, const std::string& msg) {
 }
 
 MathNodePtr TypstParser::parse() {
-  return parse_math_list();
+  auto node = parse_math_list();
+  if (!lexer_.at_end()) {
+    error("Unexpected '" + lexer_.peek().value + "' at end of input");
+  }
+  return node;
 }
 
 // Parse a list of expressions (stops at function argument delimiters)
 // Handles Typst multiline equations with \ (linebreak) and & (alignment)
-MathNodePtr TypstParser::parse_math_list() {
+MathNodePtr TypstParser::parse_math_list(bool stop_at_ampersand) {
   // First, check if we have multiline content (LINEBREAK tokens at top level)
   // by peeking ahead - if we find any LINEBREAK, we parse as aligned
   std::vector<std::vector<MathNodePtr>> rows;
@@ -952,6 +983,9 @@ MathNodePtr TypstParser::parse_math_list() {
 
     // Check for alignment point (Typst &)
     if (check(TypstTokenType::AMPERSAND)) {
+      if (stop_at_ampersand) {
+        break;
+      }
       lexer_.consume();
       // Finish current cell
       if (current_cell->children.size() == 1) {
@@ -1035,6 +1069,11 @@ MathNodePtr TypstParser::parse_brace_content() {
     auto expr = parse_expression();
     if (expr) {
       row->add_child(std::move(expr));
+    } else if (!check(TypstTokenType::COMMA) && !check(TypstTokenType::RBRACE) &&
+               !lexer_.at_end()) {
+      // Guarantee progress on tokens parse_expression can't handle
+      error("Unexpected token '" + lexer_.peek().value + "' in brace group");
+      lexer_.consume();
     }
     // Commas inside braces are just regular content
     if (check(TypstTokenType::COMMA)) {
@@ -1080,6 +1119,21 @@ MathNodePtr TypstParser::parse_expression() {
 }
 
 MathNodePtr TypstParser::parse_atom() {
+  // All recursion in the parser funnels through here, so guard the depth
+  struct DepthGuard {
+    int& depth;
+    explicit DepthGuard(int& d) : depth(d) { ++depth; }
+    ~DepthGuard() { --depth; }
+  } guard(depth_);
+
+  if (depth_ > MAX_PARSE_DEPTH) {
+    if (!depth_exceeded_) {
+      depth_exceeded_ = true;
+      error("Expression too deeply nested");
+    }
+    return nullptr;
+  }
+
   TypstToken token = lexer_.peek();
 
   switch (token.type) {
@@ -1130,11 +1184,22 @@ MathNodePtr TypstParser::parse_scripts(MathNodePtr base) {
   MathNodePtr sub = nullptr;
   MathNodePtr sup = nullptr;
 
+  // Typst strips parentheses used for grouping in scripts (x^(a+b) renders
+  // the superscript without parens)
+  auto strip_parens = [](MathNodePtr& node) {
+    if (node && node->type == NodeType::DELIMITED && node->left_delim == "(" &&
+        node->right_delim == ")" && node->children.size() == 1) {
+      node = std::move(node->children[0]);
+    }
+  };
+
   while (check(TypstTokenType::SUB) || check(TypstTokenType::SUPER)) {
     if (match(TypstTokenType::SUB)) {
       sub = parse_atom();
+      strip_parens(sub);
     } else if (match(TypstTokenType::SUPER)) {
       sup = parse_atom();
+      strip_parens(sup);
     }
   }
 
@@ -1355,7 +1420,7 @@ MathNodePtr TypstParser::parse_function_call(const std::string& name) {
     // Parse the spacing value - expect a number followed by optional unit
     if (check(TypstTokenType::NUMBER)) {
       std::string num_str = lexer_.next().value;
-      amount = std::stod(num_str);
+      amount = safe_stod(num_str);
 
       // Check for unit suffix
       if (check(TypstTokenType::IDENTIFIER)) {
@@ -1460,6 +1525,15 @@ MathNodePtr TypstParser::parse_identifier(const std::string& name) {
     return node;
   }
 
+  // Typst uses the opposite phi/epsilon convention to LaTeX (the shared
+  // symbol table below follows LaTeX)
+  if (name == "phi") {
+    return std::make_unique<MathNode>(NodeType::SYMBOL, "\xCF\x86");  // φ U+03C6
+  }
+  if (name == "epsilon") {
+    return std::make_unique<MathNode>(NodeType::SYMBOL, "\xCE\xB5");  // ε U+03B5
+  }
+
   // Check for Greek letters using existing symbol table
   if (is_greek_letter(name)) {
     auto node = std::make_unique<MathNode>(NodeType::SYMBOL);
@@ -1523,9 +1597,14 @@ MathNodePtr TypstParser::parse_identifier(const std::string& name) {
     return node;
   }
 
-  // Multi-letter identifier - could be a variable name
-  auto node = std::make_unique<MathNode>(NodeType::SYMBOL, name);
-  return node;
+  // Unknown multi-letter identifier: Typst treats juxtaposed letters as
+  // individual variables, so split it up (the layout only renders the first
+  // codepoint of a SYMBOL)
+  auto row = std::make_unique<MathNode>(NodeType::ROW);
+  for (char ch : name) {
+    row->add_child(std::make_unique<MathNode>(NodeType::SYMBOL, std::string(1, ch)));
+  }
+  return row;
 }
 
 // =============================================================================
@@ -1577,8 +1656,9 @@ MathNodePtr TypstParser::parse_root() {
   consume(TypstTokenType::RPAREN, "Expected ')' after root arguments");
 
   auto node = std::make_unique<MathNode>(NodeType::SQRT);
+  // The layout expects [index, radicand] for indexed roots
+  node->add_child(std::move(index));
   node->add_child(std::move(content));
-  node->add_child(std::move(index));  // Index is second child
   return node;
 }
 
@@ -1625,7 +1705,7 @@ MathNodePtr TypstParser::parse_generic_accent() {
       if (match(TypstTokenType::COLON)) {
         if (param == "size") {
           if (check(TypstTokenType::NUMBER)) {
-            accent_size = std::stod(lexer_.next().value);
+            accent_size = safe_stod(lexer_.next().value);
             // Check for % suffix
             if (check(TypstTokenType::OPERATOR) && lexer_.peek().value == "%") {
               lexer_.consume();
@@ -1692,7 +1772,7 @@ MathNodePtr TypstParser::parse_lr() {
       // Parse size value - number followed by optional unit
       if (check(TypstTokenType::NUMBER)) {
         std::string num_str = lexer_.next().value;
-        explicit_size = std::stod(num_str);
+        explicit_size = safe_stod(num_str);
         size_unit = "em";  // default to em
 
         // Check for unit suffix
@@ -1747,9 +1827,31 @@ MathNodePtr TypstParser::parse_lr() {
 
   auto content = parse_math_list();
 
-  // Parse the closing delimiter
+  // parse_math_list greedily consumes operator characters, so a closing
+  // delimiter that lexes as an operator (e.g. | in lr(|x|)) ends up as the
+  // last content node. Reclaim it when the closing paren follows directly.
   std::string right_delim;
-  if (check(TypstTokenType::RPAREN)) {
+  if (content && check(TypstTokenType::RPAREN)) {
+    MathNode* tail = content.get();
+    if (tail->type == NodeType::ROW && !tail->children.empty()) {
+      tail = tail->children.back().get();
+    }
+    if (tail->type == NodeType::SYMBOL &&
+        (tail->value == "|" || tail->value == "<" || tail->value == ">" ||
+         tail->value == "/")) {
+      right_delim = tail->value;
+      if (content->type == NodeType::ROW) {
+        content->children.pop_back();
+      } else {
+        content = std::make_unique<MathNode>(NodeType::GROUP);
+      }
+    }
+  }
+
+  // Parse the closing delimiter
+  if (!right_delim.empty()) {
+    // Already reclaimed from the content above
+  } else if (check(TypstTokenType::RPAREN)) {
     right_delim = ")";
     lexer_.consume();
   } else if (check(TypstTokenType::RBRACKET)) {
@@ -1853,7 +1955,7 @@ MathNodePtr TypstParser::parse_primes() {
   int count = 1;
   if (check(TypstTokenType::NUMBER)) {
     std::string num_str = lexer_.next().value;
-    count = std::stoi(num_str);
+    count = safe_stoi(num_str);
     if (count < 1) count = 1;
     if (count > 4) count = 4;  // Limit to quadruple prime
   }
@@ -2052,8 +2154,10 @@ MathNodePtr TypstParser::parse_mat(const std::string& name) {
     lexer_.consume();
 
     // Check for hyphenated names: "row-gap" or "column-gap"
+    // ('-' is converted to U+2212 by the shorthand table, so check both)
     if ((param_name == "row" || param_name == "column") &&
-        check(TypstTokenType::OPERATOR) && lexer_.peek().value == "-") {
+        check(TypstTokenType::OPERATOR) &&
+        (lexer_.peek().value == "-" || lexer_.peek().value == "\xE2\x88\x92")) {
       lexer_.consume();  // consume '-'
       if (check(TypstTokenType::IDENTIFIER) && lexer_.peek().value == "gap") {
         param_name += "-gap";
@@ -2077,7 +2181,7 @@ MathNodePtr TypstParser::parse_mat(const std::string& name) {
       // Parse augment value - can be a number or a dictionary #(vline: N, hline: M)
       if (check(TypstTokenType::NUMBER)) {
         // Simple number = vline position
-        int vline = std::stoi(lexer_.next().value);
+        int vline = safe_stoi(lexer_.next().value);
         node->augment_vlines.push_back(vline);
       } else if (check(TypstTokenType::OPERATOR) && lexer_.peek().value == "#") {
         // Dictionary syntax: #(vline: N, hline: M)
@@ -2087,17 +2191,51 @@ MathNodePtr TypstParser::parse_mat(const std::string& name) {
             if (check(TypstTokenType::IDENTIFIER)) {
               std::string key = lexer_.next().value;
               if (match(TypstTokenType::COLON)) {
-                if (check(TypstTokenType::NUMBER)) {
-                  int val = std::stoi(lexer_.next().value);
+                auto read_int = [&]() -> int {
+                  // Allow negative values (the '-' is converted to U+2212 by
+                  // the shorthand table, so check both)
+                  bool negative = false;
+                  if (check(TypstTokenType::OPERATOR) &&
+                      (lexer_.peek().value == "-" || lexer_.peek().value == "\xE2\x88\x92")) {
+                    lexer_.consume();
+                    negative = true;
+                  }
+                  if (!check(TypstTokenType::NUMBER)) {
+                    return 0;
+                  }
+                  int val = safe_stoi(lexer_.next().value);
+                  return negative ? -val : val;
+                };
+                auto record = [&](int val) {
                   if (key == "vline") {
                     node->augment_vlines.push_back(val);
                   } else if (key == "hline") {
                     node->augment_hlines.push_back(val);
                   }
+                };
+                if (check(TypstTokenType::NUMBER) || check(TypstTokenType::OPERATOR)) {
+                  record(read_int());
+                } else if (check(TypstTokenType::LPAREN)) {
+                  // Array of positions: (1, 2, -3)
+                  lexer_.consume();
+                  while (!check(TypstTokenType::RPAREN) && !lexer_.at_end()) {
+                    if (check(TypstTokenType::NUMBER) ||
+                        (check(TypstTokenType::OPERATOR) &&
+                         (lexer_.peek().value == "-" || lexer_.peek().value == "\xE2\x88\x92"))) {
+                      record(read_int());
+                    } else if (!match(TypstTokenType::COMMA)) {
+                      lexer_.consume();  // guarantee progress
+                    }
+                  }
+                  match(TypstTokenType::RPAREN);
                 }
               }
+              match(TypstTokenType::COMMA);  // skip commas
+            } else if (!match(TypstTokenType::COMMA)) {
+              // Guarantee progress on unexpected tokens
+              error("Unexpected token in augment dictionary");
+              lexer_.consume();
             }
-            match(TypstTokenType::COMMA);  // skip commas
           }
           match(TypstTokenType::RPAREN);
         }
@@ -2105,7 +2243,7 @@ MathNodePtr TypstParser::parse_mat(const std::string& name) {
       match(TypstTokenType::COMMA);  // consume trailing comma
     } else if (param_name == "row-gap" || param_name == "rowgap") {
       if (check(TypstTokenType::NUMBER)) {
-        double gap = std::stod(lexer_.next().value);
+        double gap = safe_stod(lexer_.next().value);
         // Check for unit
         if (check(TypstTokenType::IDENTIFIER)) {
           std::string unit = lexer_.peek().value;
@@ -2121,7 +2259,7 @@ MathNodePtr TypstParser::parse_mat(const std::string& name) {
       match(TypstTokenType::COMMA);
     } else if (param_name == "column-gap" || param_name == "columngap" || param_name == "gap") {
       if (check(TypstTokenType::NUMBER)) {
-        double gap = std::stod(lexer_.next().value);
+        double gap = safe_stod(lexer_.next().value);
         // Check for unit
         if (check(TypstTokenType::IDENTIFIER)) {
           std::string unit = lexer_.peek().value;
@@ -2147,8 +2285,11 @@ MathNodePtr TypstParser::parse_mat(const std::string& name) {
 
   while (!check(TypstTokenType::RPAREN) && !lexer_.at_end()) {
     auto cell = parse_math_list();
+    // Keep empty cells so column alignment isn't lost
     if (cell) {
       current_row.push_back(std::move(cell));
+    } else {
+      current_row.push_back(std::make_unique<MathNode>(NodeType::GROUP));
     }
 
     if (match(TypstTokenType::COMMA)) {
@@ -2170,14 +2311,20 @@ MathNodePtr TypstParser::parse_mat(const std::string& name) {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after matrix");
 
-  // Set dimensions
+  // Set dimensions from the widest row and pad ragged rows with empty cells
   node->rows = static_cast<int>(rows.size());
-  node->cols = rows.empty() ? 0 : static_cast<int>(rows[0].size());
+  node->cols = 0;
+  for (const auto& row : rows) {
+    node->cols = std::max(node->cols, static_cast<int>(row.size()));
+  }
 
   // Add all cells as children (row by row)
   for (auto& row : rows) {
     for (auto& cell : row) {
       node->add_child(std::move(cell));
+    }
+    for (int i = static_cast<int>(row.size()); i < node->cols; i++) {
+      node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
     }
   }
 
@@ -2194,9 +2341,12 @@ MathNodePtr TypstParser::parse_cases() {
   std::vector<MathNodePtr> current_row;
 
   while (!check(TypstTokenType::RPAREN) && !lexer_.at_end()) {
-    auto cell = parse_math_list();
+    // Stop cell parsing at & so it can act as the condition separator
+    auto cell = parse_math_list(true);
     if (cell) {
       current_row.push_back(std::move(cell));
+    } else {
+      current_row.push_back(std::make_unique<MathNode>(NodeType::GROUP));
     }
 
     if (match(TypstTokenType::AMPERSAND)) {
@@ -2219,11 +2369,17 @@ MathNodePtr TypstParser::parse_cases() {
   consume(TypstTokenType::RPAREN, "Expected ')' after cases");
 
   node->rows = static_cast<int>(rows.size());
-  node->cols = rows.empty() ? 0 : static_cast<int>(rows[0].size());
+  node->cols = 0;
+  for (const auto& row : rows) {
+    node->cols = std::max(node->cols, static_cast<int>(row.size()));
+  }
 
   for (auto& row : rows) {
     for (auto& cell : row) {
       node->add_child(std::move(cell));
+    }
+    for (int i = static_cast<int>(row.size()); i < node->cols; i++) {
+      node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
     }
   }
 
@@ -2463,11 +2619,15 @@ MathNodePtr TypstParser::parse_attach() {
 
   // Fall back to STACK for simple t/b cases (backwards compatible)
   if (t && b) {
+    // Nest overset inside underset; layout_stack has no three-way "attach"
+    auto over = std::make_unique<MathNode>(NodeType::STACK);
+    over->stack_type = "overset";
+    over->add_child(std::move(t));
+    over->add_child(std::move(base));
     auto node = std::make_unique<MathNode>(NodeType::STACK);
-    node->stack_type = "attach";
-    node->add_child(std::move(base));
-    node->add_child(std::move(t));
+    node->stack_type = "underset";
     node->add_child(std::move(b));
+    node->add_child(std::move(over));
     return node;
   } else if (t) {
     auto node = std::make_unique<MathNode>(NodeType::STACK);
@@ -2587,7 +2747,7 @@ MathNodePtr TypstParser::parse_stretch() {
         // Parse size value - number followed by optional unit
         if (check(TypstTokenType::NUMBER)) {
           std::string num_str = lexer_.next().value;
-          size_value = std::stod(num_str);
+          size_value = safe_stod(num_str);
 
           // Check for unit suffix
           if (check(TypstTokenType::IDENTIFIER)) {
@@ -2743,6 +2903,10 @@ bool is_typst_syntax(const std::string& input) {
   //   - \ followed by whitespace (Typst linebreak)
 
   size_t i = 0;
+  // Tracks whether we've seen a LaTeX-style command (\ followed by a letter)
+  // or a LaTeX-only space command (\! \:). \, \; and \<space> are valid in
+  // both syntaxes, so they only indicate Typst when no LaTeX command was seen
+  bool saw_latex_command = false;
   while (i < input.size()) {
     char c = input[i];
 
@@ -2775,20 +2939,40 @@ bool is_typst_syntax(const std::string& input) {
         return true;  // Typst escaped delimiter syntax
       }
 
-      // \, and \; are Typst escaped comma/semicolon
+      // \, and \; are Typst escaped comma/semicolon (but thin spaces in
+      // LaTeX, so only count them when no LaTeX command was seen)
       if (next == ',' || next == ';') {
-        return true;  // Typst escape syntax
+        if (!saw_latex_command) {
+          return true;  // Typst escape syntax
+        }
+        i += 2;
+        continue;
       }
 
-      // \ followed by whitespace/newline is Typst linebreak
+      // \ followed by whitespace/newline is Typst linebreak (but a space
+      // command in LaTeX)
       if (next == ' ' || next == '\n' || next == '\r' || next == '\t') {
-        return true;  // Typst linebreak syntax
+        if (!saw_latex_command) {
+          return true;  // Typst linebreak syntax
+        }
+        i += 2;
+        continue;
+      }
+
+      // \! and \: are LaTeX-only space commands
+      if (next == '!' || next == ':') {
+        saw_latex_command = true;
+        i += 2;
+        continue;
       }
 
       // Otherwise, backslash followed by letter could be either:
       // - LaTeX command (\frac, \alpha, etc.)
       // - Typst doesn't use \commands, so this is LaTeX indicator
       // But don't return false yet - look for stronger indicators first
+      if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z')) {
+        saw_latex_command = true;
+      }
       i += 2;
       continue;
     }
@@ -2843,7 +3027,7 @@ bool is_typst_syntax(const std::string& input) {
       }
 
       // Skip whitespace
-      while (i < input.size() && std::isspace(input[i])) {
+      while (i < input.size() && std::isspace(static_cast<unsigned char>(input[i]))) {
         i++;
       }
 

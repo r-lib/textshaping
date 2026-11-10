@@ -818,3 +818,96 @@ validate_math <- function(
     }
   }
 }
+# Regression tests for parser bugs found in the 2026-11 C++ review
+
+test_that("typst brace groups with unexpected tokens error instead of hanging", {
+  expect_error(shape_math("arrow.r {a)}"))
+})
+
+test_that("typst augment dictionary with unexpected tokens errors instead of hanging", {
+  expect_error(shape_math("mat(augment: #(1), a)"))
+  expect_no_error(shape_math("mat(augment: #(vline: -1), a)"))
+  expect_no_error(shape_math("mat(augment: #(vline: (1, 2)), a)"))
+})
+
+test_that("typst parser reports trailing content instead of silently dropping it", {
+  expect_error(shape_math("arrow.r a, b"))
+  expect_error(shape_math("arrow.r f: A -> B"))
+})
+
+test_that("typst parenthesised comma lists work", {
+  expect_no_error(shape_math("f(x, y)"))
+})
+
+test_that("typst scripts, primes, and identifiers work", {
+  expect_no_error(shape_math("x_1 + y"))
+  expect_no_error(shape_math("xy + z"))
+  expect_no_error(shape_math("f'(x) + y"))
+  expect_no_error(shape_math("x^(a+b)"))
+})
+
+test_that("typst root, matrices, and cases handle ragged and empty cells", {
+  expect_no_error(shape_math("root(3, x)"))
+  expect_no_error(shape_math("mat(a; c, d)"))
+  expect_no_error(shape_math("mat(a, b; c, d)"))
+  expect_no_error(shape_math("cases(a & b, c & d)"))
+  expect_no_error(shape_math("mat(row-gap: 0.5em, a)"))
+  expect_no_error(shape_math("mat(column-gap: 1em, a)"))
+})
+
+test_that("typst delimiters and attachments work", {
+  expect_no_error(shape_math("lr(|x|)"))
+  expect_no_error(shape_math("lr((x + y))"))
+  expect_no_error(shape_math("attach(x, t: a, b: c)"))
+  expect_no_error(shape_math("attach(x, t: a)"))
+  expect_no_error(shape_math("attach(x, tl: a, br: b)"))
+})
+
+test_that("typst backslash escapes and line breaks work", {
+  expect_no_error(shape_math("arrow.r a \\ b"))
+  expect_no_error(shape_math("\\(a\\)"))
+})
+
+test_that("deeply nested input errors instead of overflowing the stack", {
+  expect_error(
+    shape_math(paste0(strrep("{", 2000), "x", strrep("}", 2000))),
+    "nested"
+  )
+  expect_error(
+    shape_math(paste0(strrep(r"(\frac{)", 1000), "1", strrep("}{1}", 1000))),
+    "nested"
+  )
+})
+
+test_that("latex displaystyle stops at \\right and friends", {
+  expect_no_error(shape_math(r"(\left( \displaystyle a \right))"))
+})
+
+test_that("latex non-ascii input is rendered", {
+  expect_no_error(shape_math(r"(\alpha + é)"))
+})
+
+test_that("latex primes combine with scripts in order", {
+  expect_no_error(shape_math("f'^2"))
+  expect_no_error(shape_math("f^2'"))
+  # f'^2 should produce a superscript containing both glyphs
+  s1 <- shape_math("f'^2")
+  s2 <- shape_math("f'")
+  expect_gt(nrow(s1$shape), nrow(s2$shape))
+})
+
+test_that("latex \\text preserves spaces", {
+  s <- shape_math(r"(\text{a b})")
+  expect_gte(nrow(s$shape), 2)
+})
+
+test_that("math glyph variants and assemblies are returned", {
+  loc <- "/System/Library/Fonts/Supplemental/STIXTwoMath.otf"
+  skip_if_not(file.exists(loc))
+  stopifnot(has_math_table(loc, 0L))
+  gid <- shape_math("(", path = loc)$shape$index[1]
+  variants <- get_math_glyph_variants(loc, 0L, as.integer(gid), TRUE, 12, 72)
+  expect_gt(nrow(variants), 0)
+  assembly <- get_math_glyph_assembly(loc, 0L, as.integer(gid), TRUE, 12, 72)
+  expect_gt(nrow(assembly), 0)
+})

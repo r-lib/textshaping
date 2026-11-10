@@ -1,6 +1,7 @@
 #include "math_parser.h"
 #include "math_symbols.h"
 #include <cctype>
+#include <cmath>
 
 namespace math {
 
@@ -55,7 +56,7 @@ Token MathLexer::scan_command() {
 
 Token MathLexer::scan_token() {
   // Skip whitespace
-  while (std::isspace(current_char())) {
+  while (std::isspace(static_cast<unsigned char>(current_char()))) {
     advance();
   }
 
@@ -105,6 +106,21 @@ Token MathLexer::scan_token() {
   static const std::string operators = "+-=<>!|/.,;:'\"*&@#%~`?";
   if (operators.find(c) != std::string::npos) {
     return Token(TokenType::OPERATOR, std::string(1, c), start);
+  }
+
+  // Non-ASCII input: keep the full UTF-8 sequence as a letter-like token so
+  // it can be rendered rather than silently dropped byte by byte
+  if ((static_cast<unsigned char>(c) & 0x80) != 0) {
+    std::string seq(1, c);
+    unsigned char lead = static_cast<unsigned char>(c);
+    int extra = (lead & 0xE0) == 0xC0 ? 1 : (lead & 0xF0) == 0xE0 ? 2 :
+                (lead & 0xF8) == 0xF0 ? 3 : 0;
+    for (int k = 0; k < extra && !at_end(); ++k) {
+      unsigned char cc = static_cast<unsigned char>(current_char());
+      if ((cc & 0xC0) != 0x80) break;
+      seq += advance();
+    }
+    return Token(TokenType::LETTER, seq, start);
   }
 
   return Token(TokenType::OTHER, std::string(1, c), start);
@@ -179,6 +195,17 @@ MathNodePtr MathParser::parse_math_list() {
 
   while (!check(TokenType::END) && !check(TokenType::RBRACE) &&
          !check(TokenType::RBRACKET)) {
+    // \right, \end, \\ and & terminate the current math list (e.g. after
+    // \displaystyle); they are handled by the respective enclosing parsers
+    if (check(TokenType::COMMAND)) {
+      const std::string& v = lexer_.peek().value;
+      if (v == "right" || v == "end" || v == "\\") {
+        break;
+      }
+    }
+    if (check(TokenType::OPERATOR) && lexer_.peek().value == "&") {
+      break;
+    }
     auto atom = parse_atom();
     if (atom) {
       // Check for scripts
@@ -199,6 +226,21 @@ MathNodePtr MathParser::parse_math_list() {
 }
 
 MathNodePtr MathParser::parse_atom() {
+  // All recursion in the parser funnels through here, so guard the depth
+  struct DepthGuard {
+    int& depth;
+    explicit DepthGuard(int& d) : depth(d) { ++depth; }
+    ~DepthGuard() { --depth; }
+  } guard(depth_);
+
+  if (depth_ > MAX_PARSE_DEPTH) {
+    if (!depth_exceeded_) {
+      depth_exceeded_ = true;
+      error("Expression too deeply nested");
+    }
+    return nullptr;
+  }
+
   Token t = lexer_.peek();
 
   switch (t.type) {
@@ -241,6 +283,16 @@ MathNodePtr MathParser::parse_scripts(MathNodePtr base) {
 
   MathNodePtr sub, sup;
 
+  // Handle prime notation: ' is shorthand for ^\prime. Primes must be
+  // counted before explicit scripts so f'^2 becomes f^{′2}, not f′ 2
+  // Use dedicated Unicode glyphs for multiple primes:
+  // U+2032 ′ PRIME, U+2033 ″ DOUBLE PRIME, U+2034 ‴ TRIPLE PRIME, U+2057 ⁗ QUADRUPLE PRIME
+  int prime_count = 0;
+  while (lexer_.peek().type == TokenType::OPERATOR && lexer_.peek().value == "'") {
+    lexer_.consume();
+    prime_count++;
+  }
+
   // Check for ^ or _
   while (check(TokenType::SUPER) || check(TokenType::SUB)) {
     if (match(TokenType::SUPER)) {
@@ -254,15 +306,11 @@ MathNodePtr MathParser::parse_scripts(MathNodePtr base) {
       }
       sub = parse_argument();
     }
-  }
-
-  // Handle prime notation: ' is shorthand for ^\prime
-  // Use dedicated Unicode glyphs for multiple primes:
-  // U+2032 ′ PRIME, U+2033 ″ DOUBLE PRIME, U+2034 ‴ TRIPLE PRIME, U+2057 ⁗ QUADRUPLE PRIME
-  int prime_count = 0;
-  while (lexer_.peek().type == TokenType::OPERATOR && lexer_.peek().value == "'") {
-    lexer_.consume();
-    prime_count++;
+    // Scripts may be followed by more primes
+    while (lexer_.peek().type == TokenType::OPERATOR && lexer_.peek().value == "'") {
+      lexer_.consume();
+      prime_count++;
+    }
   }
 
   if (prime_count > 0) {
@@ -294,10 +342,10 @@ MathNodePtr MathParser::parse_scripts(MathNodePtr base) {
 
     // Merge primes with existing superscript or create new one
     if (sup) {
-      // Combine existing superscript with primes
+      // Primes come first: f'^2 is f^{′2}
       auto combined = std::make_unique<MathNode>(NodeType::ROW);
-      combined->add_child(std::move(sup));
       combined->add_child(std::move(primes));
+      combined->add_child(std::move(sup));
       sup = std::move(combined);
     } else {
       sup = std::move(primes);
@@ -672,24 +720,28 @@ MathNodePtr MathParser::parse_text() {
   }
   lexer_.consume();
 
-  // Collect raw text until closing brace
-  std::string text;
+  // Collect raw text until closing brace. Use the raw input so whitespace
+  // and backslashes are preserved (the lexer strips both)
+  size_t raw_start = lexer_.position();
+  size_t raw_end = raw_start;
   int brace_depth = 1;
 
   while (!lexer_.at_end() && brace_depth > 0) {
     Token t = lexer_.next();
     if (t.type == TokenType::LBRACE) {
       brace_depth++;
-      text += '{';
     } else if (t.type == TokenType::RBRACE) {
       brace_depth--;
-      if (brace_depth > 0) text += '}';
-    } else {
-      text += t.value;
+      if (brace_depth == 0) {
+        raw_end = t.pos;
+      }
     }
   }
+  if (brace_depth > 0) {
+    raw_end = lexer_.position();
+  }
 
-  node->value = text;
+  node->value = lexer_.input_substr(raw_start, raw_end);
   return node;
 }
 
@@ -996,24 +1048,27 @@ MathNodePtr MathParser::parse_operatorname(bool limits) {
   }
   lexer_.consume();
 
-  // Collect the name
-  std::string name;
+  // Collect the name from the raw input so whitespace is preserved
+  size_t raw_start = lexer_.position();
+  size_t raw_end = raw_start;
   int brace_depth = 1;
 
   while (!lexer_.at_end() && brace_depth > 0) {
     Token t = lexer_.next();
     if (t.type == TokenType::LBRACE) {
       brace_depth++;
-      name += '{';
     } else if (t.type == TokenType::RBRACE) {
       brace_depth--;
-      if (brace_depth > 0) name += '}';
-    } else {
-      name += t.value;
+      if (brace_depth == 0) {
+        raw_end = t.pos;
+      }
     }
   }
+  if (brace_depth > 0) {
+    raw_end = lexer_.position();
+  }
 
-  node->value = name;
+  node->value = lexer_.input_substr(raw_start, raw_end);
   return node;
 }
 
@@ -1353,6 +1408,7 @@ MathNodePtr MathParser::parse_rule() {
     // Parse dimension (simplified: assume "Xem" or "Xpt" format)
     try {
       node->rule_raise = std::stod(raise_str);
+      if (!std::isfinite(node->rule_raise)) node->rule_raise = 0;
     } catch (...) {
       node->rule_raise = 0;
     }
@@ -1369,6 +1425,7 @@ MathNodePtr MathParser::parse_rule() {
     match(TokenType::RBRACE);
     try {
       node->rule_width = std::stod(width_str);
+      if (!std::isfinite(node->rule_width)) node->rule_width = 0;
     } catch (...) {
       node->rule_width = 0;
     }
@@ -1385,6 +1442,7 @@ MathNodePtr MathParser::parse_rule() {
     match(TokenType::RBRACE);
     try {
       node->rule_height = std::stod(height_str);
+      if (!std::isfinite(node->rule_height)) node->rule_height = 0;
     } catch (...) {
       node->rule_height = 0;
     }

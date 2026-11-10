@@ -46,6 +46,14 @@ public:
   bool at_end() const;
   size_t position() const { return pos_; }
 
+  // Raw access to the input (for collecting literal text)
+  std::string input_substr(size_t from, size_t to) const {
+    if (from > input_.size()) from = input_.size();
+    if (to > input_.size()) to = input_.size();
+    if (to < from) to = from;
+    return input_.substr(from, to - from);
+  }
+
 private:
   std::string input_;
   size_t pos_ = 0;
@@ -75,6 +83,11 @@ public:
 private:
   MathLexer lexer_;
   std::vector<std::string> errors_;
+
+  // Recursion depth guard against stack overflow on deeply nested input
+  static const int MAX_PARSE_DEPTH = 256;
+  int depth_ = 0;
+  bool depth_exceeded_ = false;
 
   // Parsing methods (recursive descent)
   MathNodePtr parse_math_list();

@@ -6,6 +6,7 @@
 #include "string_metrics.h"
 #include "string_shape.h"
 #include "hb_shaper.h"
+#include <systemfonts-ft.h>
 
 #define CPP11_PARTIAL
 #include <cpp11/declarations.hpp>
@@ -60,7 +61,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
 }
 
 doubles get_line_width_c(strings string, strings path, integers index, doubles size,
-                         doubles res, logicals include_bearing, list_of<list> variations) {
+                         doubles res, logicals include_bearing, list_of<list> features,
+                         list_of<list> variations) {
   Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
   return {};
 }
@@ -124,9 +126,19 @@ std::vector< std::vector<FontFeature> > create_font_features(list_of<list> featu
     res.emplace_back();
     strings tags = as_cpp<strings>(features[i][0]);
     integers vals = as_cpp<integers>(features[i][1]);
+    if (tags.size() != vals.size()) {
+      cpp11::stop("Feature tags and settings must be of the same length");
+    }
     for (R_xlen_t j = 0; j < tags.size(); ++j) {
       const char* f = Rf_translateCharUTF8(tags[j]);
-      res.back().push_back({{f[0], f[1], f[2], f[3]}, vals[j]});
+      size_t len = strlen(f);
+      if (len > 4) {
+        cpp11::stop("OpenType feature tags must be at most 4 characters");
+      }
+      // Shorter tags are padded with spaces per the OpenType convention
+      char tag[4] = {' ', ' ', ' ', ' '};
+      memcpy(tag, f, len);
+      res.back().push_back({{tag[0], tag[1], tag[2], tag[3]}, vals[j]});
     }
   }
 
@@ -219,7 +231,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
     auto fonts = create_font_settings(path, index, all_features, all_axes, all_coords);
 
     // Shape the text
-    int cur_id = id[0] - 1; // make sure it differs from first
+    int cur_id = id[0] == NA_INTEGER ? 0 : id[0] - 1; // make sure it differs from first
     bool success = false;
 
     HarfBuzzShaper& shaper = get_hb_shaper();
@@ -353,7 +365,7 @@ doubles get_line_width_c(strings string, strings path, integers index, doubles s
         fonts[i],
         size[i],
         res[i],
-        static_cast<int>(include_bearing[0]),
+        include_bearing[i] == TRUE ? 1 : 0,
         &width
       );
       if (error) {
@@ -388,7 +400,7 @@ int ts_string_width2(const char* string, FontSettings2 font_info, double size,
     width_tmp += string_shape.x_advance[i];
   }
 
-  if (!include_bearing) {
+  if (!include_bearing && !string_shape.glyph_id.empty()) {
     width_tmp -= string_shape.x_bear[0];
     width_tmp -= string_shape.x_advance.back() - string_shape.x_bear.back() - string_shape.width.back();
   }
@@ -420,6 +432,12 @@ int ts_string_shape2(const char* string, FontSettings2 font_info, double size,
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
   shaper.error_code = 0;
+  loc.clear();
+  id.clear();
+  cluster.clear();
+  font.clear();
+  fallbacks.clear();
+  fallback_scaling.clear();
   EmbedInfo string_shape = shaper.shape_single_line(string, font_info, size, res);
 
   if (shaper.error_code != 0) {
@@ -427,11 +445,6 @@ int ts_string_shape2(const char* string, FontSettings2 font_info, double size,
   }
 
   size_t n_glyphs = string_shape.glyph_id.size();
-  loc.clear();
-  id.clear();
-  font.clear();
-  fallbacks.clear();
-  fallback_scaling.clear();
   int32_t x = 0;
   int32_t y = 0;
   for (size_t i = 0; i < n_glyphs; ++i) {
@@ -443,6 +456,7 @@ int ts_string_shape2(const char* string, FontSettings2 font_info, double size,
     y += string_shape.y_advance[i];
   }
   id.assign(string_shape.glyph_id.begin(), string_shape.glyph_id.end());
+  cluster.assign(string_shape.glyph_cluster.begin(), string_shape.glyph_cluster.end());
   font.assign(string_shape.font.begin(), string_shape.font.end());
   fallbacks.assign(string_shape.fallbacks.begin(), string_shape.fallbacks.end());
   fallback_scaling.assign(string_shape.fallback_scaling.begin(), string_shape.fallback_scaling.end());
@@ -479,7 +493,9 @@ int ts_string_shape_old(const char* string, FontSettings font_info, double size,
 #endif
 
 bool get_systemfont_cache_compat() {
-  return ft_compat;
+  // Called directly so this also works in NO_HARFBUZZ_FRIBIDI builds, where
+  // the ft_compat constant from string_shape.h isn't available
+  return systemfonts::ver2::check_ft_version();
 }
 
 void export_string_metrics(DllInfo* dll) {

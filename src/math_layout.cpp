@@ -69,6 +69,7 @@ MathLayout::MathLayout(const char* font_path, int font_index, double size, doubl
   , owns_ft_library_(false)
   , has_math_(false)
   , base_size_(size)
+  , res_(res > 0 ? res : 72.0)
   , display_mode_(false)
   , current_scale_(1.0 / 64.0)  // Convert from 26.6 fixed-point to points
 {
@@ -123,7 +124,9 @@ MathLayout::~MathLayout() {
   if (hb_font_) {
     hb_font_destroy(hb_font_);
   }
-  if (!ft_compat && ft_face_) {
+  // The face is ours regardless of the ft_compat path (cached faces are
+  // referenced for the caller), so always release it
+  if (ft_face_) {
     FT_Done_Face(ft_face_);
   }
   if (owns_ft_library_ && ft_library_) {
@@ -534,17 +537,22 @@ MathBox MathLayout::layout_symbol(MathNode* node) {
   const std::string& val = node->value;
   if (val.empty()) return MathBox();
 
-  // Decode UTF-8 to get first codepoint
+  // Decode UTF-8 to get first codepoint (bounds-checked)
   uint32_t codepoint = 0;
   const unsigned char* s = reinterpret_cast<const unsigned char*>(val.c_str());
+  size_t len = val.size();
   if ((s[0] & 0x80) == 0) {
     codepoint = s[0];
-  } else if ((s[0] & 0xE0) == 0xC0) {
+  } else if ((s[0] & 0xE0) == 0xC0 && len >= 2 && (s[1] & 0xC0) == 0x80) {
     codepoint = ((s[0] & 0x1F) << 6) | (s[1] & 0x3F);
-  } else if ((s[0] & 0xF0) == 0xE0) {
+  } else if ((s[0] & 0xF0) == 0xE0 && len >= 3 && (s[1] & 0xC0) == 0x80 && (s[2] & 0xC0) == 0x80) {
     codepoint = ((s[0] & 0x0F) << 12) | ((s[1] & 0x3F) << 6) | (s[2] & 0x3F);
-  } else if ((s[0] & 0xF8) == 0xF0) {
+  } else if ((s[0] & 0xF8) == 0xF0 && len >= 4 && (s[1] & 0xC0) == 0x80 &&
+             (s[2] & 0xC0) == 0x80 && (s[3] & 0xC0) == 0x80) {
     codepoint = ((s[0] & 0x07) << 18) | ((s[1] & 0x3F) << 12) | ((s[2] & 0x3F) << 6) | (s[3] & 0x3F);
+  } else {
+    // Invalid or truncated sequence
+    codepoint = s[0];
   }
 
   // Map ASCII characters to proper math Unicode equivalents
@@ -583,8 +591,32 @@ MathBox MathLayout::layout_string(const std::string& str) {
   MathBox result;
   double x = 0;
 
-  for (char c : str) {
-    uint32_t glyph_id = get_glyph(static_cast<uint32_t>(c));
+  // Decode UTF-8 codepoint by codepoint so non-ASCII text renders properly
+  size_t i = 0;
+  while (i < str.size()) {
+    const unsigned char* s = reinterpret_cast<const unsigned char*>(str.data()) + i;
+    size_t remaining = str.size() - i;
+    uint32_t codepoint = 0;
+    size_t len = 1;
+    if ((s[0] & 0x80) == 0) {
+      codepoint = s[0];
+    } else if ((s[0] & 0xE0) == 0xC0 && remaining >= 2 && (s[1] & 0xC0) == 0x80) {
+      codepoint = ((s[0] & 0x1F) << 6) | (s[1] & 0x3F);
+      len = 2;
+    } else if ((s[0] & 0xF0) == 0xE0 && remaining >= 3 && (s[1] & 0xC0) == 0x80 && (s[2] & 0xC0) == 0x80) {
+      codepoint = ((s[0] & 0x0F) << 12) | ((s[1] & 0x3F) << 6) | (s[2] & 0x3F);
+      len = 3;
+    } else if ((s[0] & 0xF8) == 0xF0 && remaining >= 4 && (s[1] & 0xC0) == 0x80 &&
+               (s[2] & 0xC0) == 0x80 && (s[3] & 0xC0) == 0x80) {
+      codepoint = ((s[0] & 0x07) << 18) | ((s[1] & 0x3F) << 12) | ((s[2] & 0x3F) << 6) | (s[3] & 0x3F);
+      len = 4;
+    } else {
+      // Invalid or truncated sequence: emit the byte as-is
+      codepoint = s[0];
+    }
+    i += len;
+
+    uint32_t glyph_id = get_glyph(codepoint);
     MathBox glyph_box = make_glyph_box(glyph_id);
     result.merge(glyph_box, x, 0);
     x += glyph_box.width;
@@ -1186,21 +1218,21 @@ MathBox MathLayout::layout_delimited(MathNode* node) {
     if (node->delim_height_unit == "em") {
       // em units: relative to font size
       // 1 em = base_size_ * current_scale_ * 64 in box coordinate units
-      target_height = node->delim_height * base_size_ * current_scale_ * 64.0;
+      target_height = node->delim_height * base_size_ * current_scale_ * 64.0 * pt_to_box();
     } else if (node->delim_height_unit == "pt") {
       // pt units: absolute points
-      // 1 pt = current_scale_ * 64 in box coordinate units
-      target_height = node->delim_height * current_scale_ * 64.0;
+      // 1 pt = current_scale_ * 64 * (res/72) in box coordinate units
+      target_height = node->delim_height * current_scale_ * 64.0 * pt_to_box();
     } else if (node->delim_height_unit == "relative") {
       // Percentage: relative to auto-calculated height
       target_height = node->delim_height * auto_height;
     } else {
       // Unknown unit, fall back to em
-      target_height = node->delim_height * base_size_ * current_scale_ * 64.0;
+      target_height = node->delim_height * base_size_ * current_scale_ * 64.0 * pt_to_box();
     }
   } else if (node->delim_height > 0) {
     // Legacy: no unit specified, assume em
-    target_height = node->delim_height * base_size_ * current_scale_ * 64.0;
+    target_height = node->delim_height * base_size_ * current_scale_ * 64.0 * pt_to_box();
   } else {
     // Auto size
     target_height = auto_height;
@@ -1506,10 +1538,10 @@ MathBox MathLayout::layout_space(MathNode* node) {
   if (node->space_amount != 0 && !node->space_unit.empty()) {
     if (node->space_unit == "em") {
       // 1em = base_size * current_scale * 64 in box coordinate units
-      result.width = node->space_amount * base_size_ * current_scale_ * 64.0;
+      result.width = node->space_amount * base_size_ * current_scale_ * 64.0 * pt_to_box();
     } else if (node->space_unit == "pt") {
       // 1pt = current_scale * 64 in box coordinate units
-      result.width = node->space_amount * current_scale_ * 64.0;
+      result.width = node->space_amount * current_scale_ * 64.0 * pt_to_box();
     }
     return result;
   }
@@ -1518,7 +1550,7 @@ MathBox MathLayout::layout_space(MathNode* node) {
   double em_amount = get_space_amount(node->value);
   if (em_amount != 0.0) {
     // 1em = base_size * script_scale (current_scale_ includes 1/64 factor, so multiply by 64)
-    result.width = em_amount * base_size_ * current_scale_ * 64.0;
+    result.width = em_amount * base_size_ * current_scale_ * 64.0 * pt_to_box();
   }
 
   return result;
@@ -1772,10 +1804,10 @@ MathBox MathLayout::layout_matrix(MathNode* node) {
 
   // Apply custom gap parameters if specified
   if (node->column_gap >= 0) {
-    col_gap = node->column_gap * base_size_;  // Assume em units
+    col_gap = node->column_gap * base_size_ * pt_to_box();  // Assume em units
   }
   if (node->row_gap >= 0) {
-    row_gap = node->row_gap * base_size_;  // Assume em units
+    row_gap = node->row_gap * base_size_ * pt_to_box();  // Assume em units
   }
 
   // Layout all cells and collect them
@@ -2528,14 +2560,18 @@ MathBox MathLayout::assemble_glyph(uint32_t glyph_id, double target_size, bool v
 
   // Calculate how many times to repeat extenders
   int repeat_count = 1;
-  if (!extender_parts.empty() && target_size > base_size) {
+  if (!extender_parts.empty() && target_size > base_size && std::isfinite(target_size)) {
     double extender_contribution = 0;
     for (size_t i : extender_parts) {
       extender_contribution += (parts[i].full_advance * current_scale_ - min_overlap_scaled);
     }
     if (extender_contribution > 0) {
       double needed = target_size - base_size;
-      repeat_count = 1 + static_cast<int>(std::ceil(needed / extender_contribution));
+      double reps = 1 + std::ceil(needed / extender_contribution);
+      // Cap the repeat count to bound memory use and avoid overflow on
+      // absurdly large target sizes
+      const double MAX_REPEATS = 10000;
+      repeat_count = reps > MAX_REPEATS ? static_cast<int>(MAX_REPEATS) : static_cast<int>(reps);
     }
   }
 
@@ -2581,8 +2617,9 @@ MathBox MathLayout::assemble_glyph(uint32_t glyph_id, double target_size, bool v
       is_first = false;
     }
 
-    // Add middle part after first set of extenders
-    if (r == 0 && middle_part != SIZE_MAX) {
+    // Add middle part in the middle of the extenders so the assembly
+    // stays centred
+    if (r == (repeat_count - 1) / 2 && middle_part != SIZE_MAX) {
       add_part(middle_part, is_first);
       is_first = false;
     }
@@ -3163,7 +3200,7 @@ MathBox MathLayout::layout_rule(MathNode* node) {
 
   // Convert dimensions from em to points
   // Assume dimensions are in em units
-  double em = base_size_ * current_scale_ * 64.0;
+  double em = base_size_ * current_scale_ * 64.0 * pt_to_box();
   double width = node->rule_width * em;
   double height = node->rule_height * em;
   double raise = node->rule_raise * em;
@@ -3200,7 +3237,7 @@ MathBox MathLayout::layout_stretched(MathNode* node) {
   // Calculate target size
   double target_size;
   if (node->stretch_size_unit == "em") {
-    target_size = node->stretch_size * base_size_ * current_scale_ * 64.0;
+    target_size = node->stretch_size * base_size_ * current_scale_ * 64.0 * pt_to_box();
   } else if (node->stretch_size_unit == "pt") {
     target_size = node->stretch_size * current_scale_ * 64.0;
   } else if (node->stretch_size_unit == "relative") {
@@ -3208,7 +3245,7 @@ MathBox MathLayout::layout_stretched(MathNode* node) {
     target_size = node->stretch_size * content.width;
   } else {
     // Default to em
-    target_size = node->stretch_size * base_size_ * current_scale_ * 64.0;
+    target_size = node->stretch_size * base_size_ * current_scale_ * 64.0 * pt_to_box();
   }
 
   // Get the glyph and try to stretch it horizontally

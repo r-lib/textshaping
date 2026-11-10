@@ -17,6 +17,9 @@ struct MathShapeID {
   double resolution;
   bool display_mode;
   std::string color;
+  // Content of the input, compared on lookup so a hash collision can't
+  // silently return another string's layout
+  std::string math_string;
 
   inline bool operator==(const MathShapeID& other) const {
     return string_hash == other.string_hash &&
@@ -25,7 +28,8 @@ struct MathShapeID {
            size == other.size &&
            resolution == other.resolution &&
            display_mode == other.display_mode &&
-           color == other.color;
+           color == other.color &&
+           math_string == other.math_string;
   }
 };
 
@@ -94,18 +98,24 @@ cpp11::writable::list shape_math_c(
 
   int n_strings = math.size();
 
-  for (int i = 0; i < n_strings; i++) {
-    const char* latex = CHAR(math[i]);
+  if (font_path.size() != n_strings || font_index.size() != n_strings ||
+      size.size() != n_strings || res.size() != n_strings ||
+      display.size() != n_strings || color.size() != n_strings) {
+    cpp11::stop("All input must be the same size");
+  }
 
-    const char* path = CHAR(font_path[i]);
+  for (int i = 0; i < n_strings; i++) {
+    if (math[i] == NA_STRING || font_path[i] == NA_STRING || color[i] == NA_STRING) {
+      cpp11::stop("`math`, `font_path`, and `color` must not contain missing values");
+    }
+    const char* latex = cpp11::safe[Rf_translateCharUTF8](math[i]);
+
+    const char* path = cpp11::safe[Rf_translateCharUTF8](font_path[i]);
     int index = font_index[i];
     double font_size = size[i];
     double resolution = res[i];
     bool display_mode = display[i];
-    std::string base_color = std::string(CHAR(color[i]));
-
-    // Create layout engine
-    math::MathLayout layout(path, index, font_size, resolution);
+    std::string base_color = std::string(cpp11::safe[Rf_translateCharUTF8](color[i]));
 
     // Create cache key
     MathShapeID cache_key;
@@ -116,11 +126,15 @@ cpp11::writable::list shape_math_c(
     cache_key.resolution = resolution;
     cache_key.display_mode = display_mode;
     cache_key.color = base_color;
+    cache_key.math_string = latex;
 
     // Check cache first
     math::MathBox box;
     if (!math_shape_cache.get(cache_key, box)) {
       // Not in cache, compute and store
+      // Create layout engine (deferred so cache hits don't load the font)
+      math::MathLayout layout(path, index, font_size, resolution);
+
       // Detect syntax and parse accordingly
       std::string input(latex);
       math::MathNodePtr ast;
@@ -145,7 +159,7 @@ cpp11::writable::list shape_math_c(
           if (j > 0) msg += "; ";
           msg += parse_errors[j];
         }
-        cpp11::stop(msg.c_str());
+        cpp11::stop("%s", msg.c_str());
       }
 
       // Layout the parsed AST
@@ -158,7 +172,7 @@ cpp11::writable::list shape_math_c(
           if (j > 0) msg += "; ";
           msg += layout.errors()[j];
         }
-        cpp11::stop(msg.c_str());
+        cpp11::stop("%s", msg.c_str());
       }
 
       math_shape_cache.add(cache_key, box);

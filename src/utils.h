@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 #include <vector>
 #include <string>
 
@@ -12,10 +13,10 @@
     err = e.token;                                         \
   }                                                        \
   catch (std::exception & e) {                             \
-    strncpy(buf, e.what(), 8192 - 1);                      \
+    strncpy(buf, e.what(), sizeof(buf) - 1);               \
   }                                                        \
   catch (...) {                                            \
-    strncpy(buf, "C++ error (unknown cause)", 8192 - 1);   \
+    strncpy(buf, "C++ error (unknown cause)", sizeof(buf) - 1); \
   }                                                        \
   if (buf[0] != '\0') {                                    \
     Rf_error("%s", buf);                                   \
@@ -78,6 +79,12 @@ static int u8_toucs(uint32_t *dest, int sz, const char *src, int srcsz) {
     if (srcsz == -1) {
       if (*src == 0)
         goto done_toucs;
+      /* Check continuation bytes sequentially so we never read past the
+         terminating NUL on truncated or invalid input */
+      for (int k = 1; k <= nb; ++k) {
+        if (src[k] == 0 || (src[k] & 0xC0) != 0x80)
+          goto done_toucs;
+      }
     }
     else {
       if (src + nb >= src_end)
@@ -173,11 +180,12 @@ public:
       n_conv = 0;
       return buffer_ucs.data();
     }
-    int n_bytes = strlen(string) + 1;
-    unsigned int max_size = n_bytes * 4;
-    if (buffer_ucs.size() < max_size) {
-      buffer_ucs.resize(max_size);
+    size_t n_bytes = strlen(string) + 1;
+    if (buffer_ucs.size() < n_bytes) {
+      buffer_ucs.resize(n_bytes);
     }
+    // One uint32_t per byte is always enough for UTF-8
+    int max_size = n_bytes > (size_t) INT32_MAX ? INT32_MAX : (int) n_bytes;
 
     n_conv = u8_toucs(buffer_ucs.data(), max_size, string, -1);
 
