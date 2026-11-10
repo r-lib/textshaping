@@ -191,7 +191,7 @@ MathNodePtr MathParser::parse() {
 }
 
 MathNodePtr MathParser::parse_math_list() {
-  auto row = std::make_unique<MathNode>(NodeType::ROW);
+  auto row = make_unique<MathNode>(NodeType::ROW);
 
   while (!check(TokenType::END) && !check(TokenType::RBRACE) &&
          !check(TokenType::RBRACKET)) {
@@ -246,17 +246,17 @@ MathNodePtr MathParser::parse_atom() {
   switch (t.type) {
     case TokenType::LETTER: {
       lexer_.consume();
-      return std::make_unique<MathNode>(NodeType::SYMBOL, t.value);
+      return make_unique<MathNode>(NodeType::SYMBOL, t.value);
     }
 
     case TokenType::DIGIT: {
       lexer_.consume();
-      return std::make_unique<MathNode>(NodeType::NUMBER, t.value);
+      return make_unique<MathNode>(NodeType::NUMBER, t.value);
     }
 
     case TokenType::OPERATOR: {
       lexer_.consume();
-      return std::make_unique<MathNode>(NodeType::SYMBOL, t.value);
+      return make_unique<MathNode>(NodeType::SYMBOL, t.value);
     }
 
     case TokenType::LPAREN:
@@ -264,7 +264,7 @@ MathNodePtr MathParser::parse_atom() {
     case TokenType::LBRACKET:
     case TokenType::RBRACKET: {
       lexer_.consume();
-      return std::make_unique<MathNode>(NodeType::SYMBOL, t.value);
+      return make_unique<MathNode>(NodeType::SYMBOL, t.value);
     }
 
     case TokenType::LBRACE:
@@ -316,26 +316,26 @@ MathNodePtr MathParser::parse_scripts(MathNodePtr base) {
   if (prime_count > 0) {
     MathNodePtr primes;
     if (prime_count == 1) {
-      primes = std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB2");  // ′ U+2032
+      primes = make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB2");  // ′ U+2032
     } else if (prime_count == 2) {
-      primes = std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB3");  // ″ U+2033
+      primes = make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB3");  // ″ U+2033
     } else if (prime_count == 3) {
-      primes = std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB4");  // ‴ U+2034
+      primes = make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB4");  // ‴ U+2034
     } else if (prime_count == 4) {
-      primes = std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x81\x97");  // ⁗ U+2057
+      primes = make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x81\x97");  // ⁗ U+2057
     } else {
       // More than 4 primes: use quadruple + remainder
-      auto row = std::make_unique<MathNode>(NodeType::ROW);
+      auto row = make_unique<MathNode>(NodeType::ROW);
       while (prime_count >= 4) {
-        row->add_child(std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x81\x97"));
+        row->add_child(make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x81\x97"));
         prime_count -= 4;
       }
       if (prime_count == 3) {
-        row->add_child(std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB4"));
+        row->add_child(make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB4"));
       } else if (prime_count == 2) {
-        row->add_child(std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB3"));
+        row->add_child(make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB3"));
       } else if (prime_count == 1) {
-        row->add_child(std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB2"));
+        row->add_child(make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB2"));
       }
       primes = std::move(row);
     }
@@ -343,7 +343,7 @@ MathNodePtr MathParser::parse_scripts(MathNodePtr base) {
     // Merge primes with existing superscript or create new one
     if (sup) {
       // Primes come first: f'^2 is f^{′2}
-      auto combined = std::make_unique<MathNode>(NodeType::ROW);
+      auto combined = make_unique<MathNode>(NodeType::ROW);
       combined->add_child(std::move(primes));
       combined->add_child(std::move(sup));
       sup = std::move(combined);
@@ -357,18 +357,18 @@ MathNodePtr MathParser::parse_scripts(MathNodePtr base) {
   }
 
   if (sub && sup) {
-    auto node = std::make_unique<MathNode>(NodeType::SUBSUPERSCRIPT);
+    auto node = make_unique<MathNode>(NodeType::SUBSUPERSCRIPT);
     node->add_child(std::move(base));
     node->add_child(std::move(sub));
     node->add_child(std::move(sup));
     return node;
   } else if (sup) {
-    auto node = std::make_unique<MathNode>(NodeType::SUPERSCRIPT);
+    auto node = make_unique<MathNode>(NodeType::SUPERSCRIPT);
     node->add_child(std::move(base));
     node->add_child(std::move(sup));
     return node;
   } else {
-    auto node = std::make_unique<MathNode>(NodeType::SUBSCRIPT);
+    auto node = make_unique<MathNode>(NodeType::SUBSCRIPT);
     node->add_child(std::move(base));
     node->add_child(std::move(sub));
     return node;
@@ -380,7 +380,7 @@ MathNodePtr MathParser::parse_group() {
   auto content = parse_math_list();
   consume(TokenType::RBRACE, "Expected '}'");
 
-  auto group = std::make_unique<MathNode>(NodeType::GROUP);
+  auto group = make_unique<MathNode>(NodeType::GROUP);
   if (content) {
     group->add_child(std::move(content));
   }
@@ -416,7 +416,7 @@ MathNodePtr MathParser::parse_command() {
 
   // Fractions
   if (name == "frac" || is_fraction_variant(name)) {
-    auto node = std::make_unique<MathNode>(NodeType::FRACTION);
+    auto node = make_unique<MathNode>(NodeType::FRACTION);
     node->command = name;
 
     // Set fraction style based on command
@@ -434,10 +434,10 @@ MathNodePtr MathParser::parse_command() {
     auto denom = parse_argument();
 
     if (num) node->add_child(std::move(num));
-    else node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    else node->add_child(make_unique<MathNode>(NodeType::GROUP));
 
     if (denom) node->add_child(std::move(denom));
-    else node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    else node->add_child(make_unique<MathNode>(NodeType::GROUP));
 
     return node;
   }
@@ -571,9 +571,9 @@ MathNodePtr MathParser::parse_command() {
 
   // Differential operators (\dif, \Dif, \dd -> upright d, D)
   if (is_differential_operator(name)) {
-    auto node = std::make_unique<MathNode>(NodeType::STYLED);
+    auto node = make_unique<MathNode>(NodeType::STYLED);
     node->style = MathStyle::ROMAN;
-    auto letter = std::make_unique<MathNode>(NodeType::SYMBOL);
+    auto letter = make_unique<MathNode>(NodeType::SYMBOL);
     // dif and dd -> "d", Dif -> "D"
     letter->value = (name == "Dif") ? "D" : "d";
     node->add_child(std::move(letter));
@@ -586,7 +586,7 @@ MathNodePtr MathParser::parse_command() {
 
 
 MathNodePtr MathParser::parse_sqrt() {
-  auto node = std::make_unique<MathNode>(NodeType::SQRT);
+  auto node = make_unique<MathNode>(NodeType::SQRT);
 
   // Check for optional index
   auto index = parse_optional_argument();
@@ -599,14 +599,14 @@ MathNodePtr MathParser::parse_sqrt() {
   if (radicand) {
     node->add_child(std::move(radicand));
   } else {
-    node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    node->add_child(make_unique<MathNode>(NodeType::GROUP));
   }
 
   return node;
 }
 
 MathNodePtr MathParser::parse_left_right() {
-  auto node = std::make_unique<MathNode>(NodeType::DELIMITED);
+  auto node = make_unique<MathNode>(NodeType::DELIMITED);
 
   // Left delimiter
   Token left = lexer_.next();
@@ -622,7 +622,7 @@ MathNodePtr MathParser::parse_left_right() {
   }
 
   // Content (until \right), handling \middle delimiters
-  auto row = std::make_unique<MathNode>(NodeType::ROW);
+  auto row = make_unique<MathNode>(NodeType::ROW);
   while (!check(TokenType::END)) {
     if (check(TokenType::COMMAND) && lexer_.peek().value == "right") {
       break;
@@ -638,7 +638,7 @@ MathNodePtr MathParser::parse_left_right() {
       }
       // Create a BIG_DELIM node for the middle delimiter
       // It will be scaled by the layout engine to match the enclosing delimiters
-      auto mid_node = std::make_unique<MathNode>(NodeType::BIG_DELIM);
+      auto mid_node = make_unique<MathNode>(NodeType::BIG_DELIM);
       mid_node->command = "middle";
       mid_node->value = mid_char;
       mid_node->delim_size = 0;  // 0 indicates auto-scale to match parent
@@ -682,7 +682,7 @@ MathNodePtr MathParser::parse_left_right() {
 }
 
 MathNodePtr MathParser::parse_accent(const std::string& cmd, bool wide) {
-  auto node = std::make_unique<MathNode>(NodeType::ACCENT);
+  auto node = make_unique<MathNode>(NodeType::ACCENT);
   node->command = cmd;
   node->wide = wide;
 
@@ -712,7 +712,7 @@ MathNodePtr MathParser::parse_accent(const std::string& cmd, bool wide) {
 }
 
 MathNodePtr MathParser::parse_text() {
-  auto node = std::make_unique<MathNode>(NodeType::TEXT);
+  auto node = make_unique<MathNode>(NodeType::TEXT);
 
   if (!check(TokenType::LBRACE)) {
     error("Expected '{' after \\text");
@@ -746,7 +746,7 @@ MathNodePtr MathParser::parse_text() {
 }
 
 MathNodePtr MathParser::parse_style_command(const std::string& cmd) {
-  auto node = std::make_unique<MathNode>(NodeType::STYLED);
+  auto node = make_unique<MathNode>(NodeType::STYLED);
   node->command = cmd;
   node->style = style_command_to_style(cmd);
 
@@ -759,7 +759,7 @@ MathNodePtr MathParser::parse_style_command(const std::string& cmd) {
 }
 
 MathNodePtr MathParser::parse_big_op(const std::string& cmd) {
-  auto node = std::make_unique<MathNode>(NodeType::BIG_OP, cmd);
+  auto node = make_unique<MathNode>(NodeType::BIG_OP, cmd);
   node->limits = true;  // Big operators have limits by default in display mode
 
   // Check for \limits or \nolimits modifier
@@ -778,7 +778,7 @@ MathNodePtr MathParser::parse_big_op(const std::string& cmd) {
 }
 
 MathNodePtr MathParser::parse_function(const std::string& cmd) {
-  auto node = std::make_unique<MathNode>(NodeType::FUNCTION, cmd);
+  auto node = make_unique<MathNode>(NodeType::FUNCTION, cmd);
   return node;
 }
 
@@ -802,17 +802,17 @@ MathNodePtr MathParser::parse_symbol_command(const std::string& cmd) {
       utf8 += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
       utf8 += static_cast<char>(0x80 | (cp & 0x3F));
     }
-    return std::make_unique<MathNode>(NodeType::SYMBOL, utf8);
+    return make_unique<MathNode>(NodeType::SYMBOL, utf8);
   }
 
   // Unknown command - return as-is
   error("Unknown command: \\" + cmd);
-  auto node = std::make_unique<MathNode>(NodeType::SYMBOL, "?" + cmd);
+  auto node = make_unique<MathNode>(NodeType::SYMBOL, "?" + cmd);
   return node;
 }
 
 MathNodePtr MathParser::parse_space_command(const std::string& cmd) {
-  auto node = std::make_unique<MathNode>(NodeType::SPACE_NODE, cmd);
+  auto node = make_unique<MathNode>(NodeType::SPACE_NODE, cmd);
   return node;
 }
 
@@ -848,7 +848,7 @@ MathNodePtr MathParser::parse_begin_environment() {
   // Create appropriate node type
   MathNodePtr node;
   if (is_aligned) {
-    node = std::make_unique<MathNode>(NodeType::ALIGNED);
+    node = make_unique<MathNode>(NodeType::ALIGNED);
     node->matrix_type = env_name;  // Store environment name
 
     // For array environment, parse column specification
@@ -863,7 +863,7 @@ MathNodePtr MathParser::parse_begin_environment() {
       node->col_alignments = col_spec;
     }
   } else {
-    node = std::make_unique<MathNode>(NodeType::MATRIX);
+    node = make_unique<MathNode>(NodeType::MATRIX);
     node->matrix_type = env_name;
   }
 
@@ -871,7 +871,7 @@ MathNodePtr MathParser::parse_begin_environment() {
   // Each row is separated by \\, each cell by &
   std::vector<std::vector<MathNodePtr>> rows;
   std::vector<MathNodePtr> current_row;
-  auto current_cell = std::make_unique<MathNode>(NodeType::ROW);
+  auto current_cell = make_unique<MathNode>(NodeType::ROW);
 
   while (!check(TokenType::END)) {
     Token t = lexer_.peek();
@@ -890,9 +890,9 @@ MathNodePtr MathParser::parse_begin_environment() {
       } else if (!current_cell->children.empty()) {
         current_row.push_back(std::move(current_cell));
       } else {
-        current_row.push_back(std::make_unique<MathNode>(NodeType::GROUP));
+        current_row.push_back(make_unique<MathNode>(NodeType::GROUP));
       }
-      current_cell = std::make_unique<MathNode>(NodeType::ROW);
+      current_cell = make_unique<MathNode>(NodeType::ROW);
       // Finish current row
       rows.push_back(std::move(current_row));
       current_row.clear();
@@ -908,9 +908,9 @@ MathNodePtr MathParser::parse_begin_environment() {
       } else if (!current_cell->children.empty()) {
         current_row.push_back(std::move(current_cell));
       } else {
-        current_row.push_back(std::make_unique<MathNode>(NodeType::GROUP));
+        current_row.push_back(make_unique<MathNode>(NodeType::GROUP));
       }
-      current_cell = std::make_unique<MathNode>(NodeType::ROW);
+      current_cell = make_unique<MathNode>(NodeType::ROW);
       continue;
     }
 
@@ -931,7 +931,7 @@ MathNodePtr MathParser::parse_begin_environment() {
     current_row.push_back(std::move(current_cell));
   } else if (!current_row.empty()) {
     // Only add empty cell if row has other cells
-    current_row.push_back(std::make_unique<MathNode>(NodeType::GROUP));
+    current_row.push_back(make_unique<MathNode>(NodeType::GROUP));
   }
   if (!current_row.empty()) {
     rows.push_back(std::move(current_row));
@@ -970,7 +970,7 @@ MathNodePtr MathParser::parse_begin_environment() {
     }
     // Pad short rows with empty cells
     for (int i = static_cast<int>(row.size()); i < node->cols; i++) {
-      node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+      node->add_child(make_unique<MathNode>(NodeType::GROUP));
     }
   }
 
@@ -978,7 +978,7 @@ MathNodePtr MathParser::parse_begin_environment() {
 }
 
 MathNodePtr MathParser::parse_stack_command(const std::string& cmd) {
-  auto node = std::make_unique<MathNode>(NodeType::STACK);
+  auto node = make_unique<MathNode>(NodeType::STACK);
   node->stack_type = cmd;
 
   if (cmd == "binom" || cmd == "tbinom" || cmd == "dbinom") {
@@ -987,40 +987,40 @@ MathNodePtr MathParser::parse_stack_command(const std::string& cmd) {
     auto bottom = parse_argument();
 
     if (top) node->add_child(std::move(top));
-    else node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    else node->add_child(make_unique<MathNode>(NodeType::GROUP));
 
     if (bottom) node->add_child(std::move(bottom));
-    else node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    else node->add_child(make_unique<MathNode>(NodeType::GROUP));
   } else if (cmd == "stackrel") {
     // \stackrel{above}{below} - small above, normal below
     auto above = parse_argument();
     auto below = parse_argument();
 
     if (above) node->add_child(std::move(above));
-    else node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    else node->add_child(make_unique<MathNode>(NodeType::GROUP));
 
     if (below) node->add_child(std::move(below));
-    else node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    else node->add_child(make_unique<MathNode>(NodeType::GROUP));
   } else if (cmd == "overset") {
     // \overset{above}{base} - small above, normal base
     auto above = parse_argument();
     auto base = parse_argument();
 
     if (above) node->add_child(std::move(above));
-    else node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    else node->add_child(make_unique<MathNode>(NodeType::GROUP));
 
     if (base) node->add_child(std::move(base));
-    else node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    else node->add_child(make_unique<MathNode>(NodeType::GROUP));
   } else if (cmd == "underset") {
     // \underset{below}{base} - small below, normal base
     auto below = parse_argument();
     auto base = parse_argument();
 
     if (below) node->add_child(std::move(below));
-    else node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    else node->add_child(make_unique<MathNode>(NodeType::GROUP));
 
     if (base) node->add_child(std::move(base));
-    else node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    else node->add_child(make_unique<MathNode>(NodeType::GROUP));
   } else if (cmd == "atop") {
     // \atop is an infix operator, but we handle it differently
     // Usually used as {a \atop b}
@@ -1029,17 +1029,17 @@ MathNodePtr MathParser::parse_stack_command(const std::string& cmd) {
     auto bottom = parse_argument();
 
     if (top) node->add_child(std::move(top));
-    else node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    else node->add_child(make_unique<MathNode>(NodeType::GROUP));
 
     if (bottom) node->add_child(std::move(bottom));
-    else node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    else node->add_child(make_unique<MathNode>(NodeType::GROUP));
   }
 
   return node;
 }
 
 MathNodePtr MathParser::parse_operatorname(bool limits) {
-  auto node = std::make_unique<MathNode>(NodeType::OPERATORNAME);
+  auto node = make_unique<MathNode>(NodeType::OPERATORNAME);
   node->limits = limits;
 
   if (!check(TokenType::LBRACE)) {
@@ -1073,7 +1073,7 @@ MathNodePtr MathParser::parse_operatorname(bool limits) {
 }
 
 MathNodePtr MathParser::parse_phantom(const std::string& cmd) {
-  auto node = std::make_unique<MathNode>(NodeType::PHANTOM);
+  auto node = make_unique<MathNode>(NodeType::PHANTOM);
 
   if (cmd == "phantom") {
     node->phantom_type = "full";
@@ -1093,7 +1093,7 @@ MathNodePtr MathParser::parse_phantom(const std::string& cmd) {
 
 MathNodePtr MathParser::parse_color_command(const std::string& cmd) {
   if (cmd == "colorbox") {
-    auto node = std::make_unique<MathNode>(NodeType::COLORBOX);
+    auto node = make_unique<MathNode>(NodeType::COLORBOX);
 
     // Parse color argument
     if (!check(TokenType::LBRACE)) {
@@ -1120,7 +1120,7 @@ MathNodePtr MathParser::parse_color_command(const std::string& cmd) {
   }
 
   // \textcolor{color}{content} or \color{color}
-  auto node = std::make_unique<MathNode>(NodeType::COLORED);
+  auto node = make_unique<MathNode>(NodeType::COLORED);
 
   // Parse color argument
   if (!check(TokenType::LBRACE)) {
@@ -1156,7 +1156,7 @@ MathNodePtr MathParser::parse_color_command(const std::string& cmd) {
 }
 
 MathNodePtr MathParser::parse_cancel(const std::string& cmd) {
-  auto node = std::make_unique<MathNode>(NodeType::CANCEL);
+  auto node = make_unique<MathNode>(NodeType::CANCEL);
   node->cancel_type = cmd;
 
   if (cmd == "cancelto") {
@@ -1181,7 +1181,7 @@ MathNodePtr MathParser::parse_cancel(const std::string& cmd) {
 }
 
 MathNodePtr MathParser::parse_boxed() {
-  auto node = std::make_unique<MathNode>(NodeType::BOXED);
+  auto node = make_unique<MathNode>(NodeType::BOXED);
 
   auto content = parse_argument();
   if (content) {
@@ -1192,7 +1192,7 @@ MathNodePtr MathParser::parse_boxed() {
 }
 
 MathNodePtr MathParser::parse_substack() {
-  auto node = std::make_unique<MathNode>(NodeType::SUBSTACK);
+  auto node = make_unique<MathNode>(NodeType::SUBSTACK);
 
   if (!check(TokenType::LBRACE)) {
     error("Expected '{' after \\substack");
@@ -1201,7 +1201,7 @@ MathNodePtr MathParser::parse_substack() {
   lexer_.consume();
 
   // Parse rows separated by double-backslash
-  auto current_row = std::make_unique<MathNode>(NodeType::ROW);
+  auto current_row = make_unique<MathNode>(NodeType::ROW);
 
   while (!check(TokenType::RBRACE) && !check(TokenType::END)) {
     Token t = lexer_.peek();
@@ -1215,9 +1215,9 @@ MathNodePtr MathParser::parse_substack() {
       } else if (!current_row->children.empty()) {
         node->add_child(std::move(current_row));
       } else {
-        node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+        node->add_child(make_unique<MathNode>(NodeType::GROUP));
       }
-      current_row = std::make_unique<MathNode>(NodeType::ROW);
+      current_row = make_unique<MathNode>(NodeType::ROW);
       continue;
     }
 
@@ -1243,7 +1243,7 @@ MathNodePtr MathParser::parse_substack() {
 }
 
 MathNodePtr MathParser::parse_not() {
-  auto node = std::make_unique<MathNode>(NodeType::NEGATED);
+  auto node = make_unique<MathNode>(NodeType::NEGATED);
 
   // Get the next token/atom to negate
   auto following = parse_atom();
@@ -1255,7 +1255,7 @@ MathNodePtr MathParser::parse_not() {
 }
 
 MathNodePtr MathParser::parse_ext_arrow(const std::string& cmd) {
-  auto node = std::make_unique<MathNode>(NodeType::EXT_ARROW);
+  auto node = make_unique<MathNode>(NodeType::EXT_ARROW);
   node->command = cmd;
 
   // Extract arrow type from command name
@@ -1287,7 +1287,7 @@ MathNodePtr MathParser::parse_ext_arrow(const std::string& cmd) {
     node->add_child(std::move(below));
   } else {
     // Placeholder for empty below content
-    node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    node->add_child(make_unique<MathNode>(NodeType::GROUP));
   }
 
   // Required superscript in braces {above}
@@ -1295,14 +1295,14 @@ MathNodePtr MathParser::parse_ext_arrow(const std::string& cmd) {
   if (above) {
     node->add_child(std::move(above));
   } else {
-    node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+    node->add_child(make_unique<MathNode>(NodeType::GROUP));
   }
 
   return node;
 }
 
 MathNodePtr MathParser::parse_big_delim(const std::string& cmd) {
-  auto node = std::make_unique<MathNode>(NodeType::BIG_DELIM);
+  auto node = make_unique<MathNode>(NodeType::BIG_DELIM);
   node->command = cmd;
   node->delim_size = get_big_delim_size(cmd);
 
@@ -1325,7 +1325,7 @@ MathNodePtr MathParser::parse_big_delim(const std::string& cmd) {
 }
 
 MathNodePtr MathParser::parse_style_change(const std::string& cmd) {
-  auto node = std::make_unique<MathNode>(NodeType::STYLE_CHANGE);
+  auto node = make_unique<MathNode>(NodeType::STYLE_CHANGE);
   node->command = cmd;
 
   if (cmd == "displaystyle") {
@@ -1349,7 +1349,7 @@ MathNodePtr MathParser::parse_style_change(const std::string& cmd) {
 }
 
 MathNodePtr MathParser::parse_smash() {
-  auto node = std::make_unique<MathNode>(NodeType::SMASH);
+  auto node = make_unique<MathNode>(NodeType::SMASH);
   node->smash_type = "full";  // Default
 
   // Check for optional [t] or [b] argument
@@ -1376,7 +1376,7 @@ MathNodePtr MathParser::parse_smash() {
 }
 
 MathNodePtr MathParser::parse_mod_command(const std::string& cmd) {
-  auto node = std::make_unique<MathNode>(NodeType::MOD);
+  auto node = make_unique<MathNode>(NodeType::MOD);
   node->mod_type = cmd;
 
   if (cmd == "bmod") {
@@ -1394,7 +1394,7 @@ MathNodePtr MathParser::parse_mod_command(const std::string& cmd) {
 }
 
 MathNodePtr MathParser::parse_rule() {
-  auto node = std::make_unique<MathNode>(NodeType::RULE);
+  auto node = make_unique<MathNode>(NodeType::RULE);
 
   // Check for optional raise argument [raise]
   if (check(TokenType::LBRACKET)) {

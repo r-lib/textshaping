@@ -44,8 +44,8 @@ shape_math_c <- function(math, font_path, font_index, size, res, display, color)
   .Call(`_textshaping_shape_math_c`, math, font_path, font_index, size, res, display, color)
 }
 
-get_string_shape_c <- function(string, id, path, index, features, variations, size, res, lineheight, align, hjust, vjust, width, tracking, indent, hanging, space_before, space_after, direction, soft_wrap, hard_wrap) {
-  .Call(`_textshaping_get_string_shape_c`, string, id, path, index, features, variations, size, res, lineheight, align, hjust, vjust, width, tracking, indent, hanging, space_before, space_after, direction, soft_wrap, hard_wrap)
+get_string_shape_c <- function(string, id, path, index, features, variations, size, res, lineheight, align, hjust, vjust, width, tracking, indent, hanging, space_before, space_after, direction, wrap) {
+  .Call(`_textshaping_get_string_shape_c`, string, id, path, index, features, variations, size, res, lineheight, align, hjust, vjust, width, tracking, indent, hanging, space_before, space_after, direction, wrap)
 }
 
 get_line_width_c <- function(string, path, index, size, res, include_bearing, features, variations) {

@@ -231,19 +231,10 @@ shape_text <- function(
   space_before <- space_before * res / 72
   space_after <- space_after * res / 72
 
-  soft_wraps <- lapply(
+  wraps <- lapply(
     stringi::stri_locate_all_boundaries(
       strings,
-      omit_no_match = TRUE,
-      skip_line_hard = TRUE
-    ),
-    function(x) x[, 2]
-  )
-  hard_wraps <- lapply(
-    stringi::stri_locate_all_boundaries(
-      strings,
-      omit_no_match = TRUE,
-      skip_line_soft = TRUE
+      omit_no_match = TRUE
     ),
     function(x) x[, 2]
   )
@@ -271,8 +262,7 @@ shape_text <- function(
     as.numeric(space_before),
     as.numeric(space_after),
     as.integer(direction),
-    soft_wraps,
-    hard_wraps
+    wraps
   )
   if (nrow(shape$shape) == 0) {
     return(shape)

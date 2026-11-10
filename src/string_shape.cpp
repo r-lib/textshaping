@@ -114,8 +114,7 @@ bool HarfBuzzShaper::shape_string(const char* string, FontSettings2& font_info,
                                   int align, double hjust, double vjust, double width,
                                   double tracking, double ind, double hang, double before,
                                   double after, bool spacer, int direction,
-                                  std::vector<int>& soft_wrap,
-                                  std::vector<int>& hard_wrap) {
+                                  std::vector<int>& wrap) {
   reset();
 
   // Set global settings
@@ -137,13 +136,12 @@ bool HarfBuzzShaper::shape_string(const char* string, FontSettings2& font_info,
 
   dir = direction;
 
-  return add_string(string, font_info, size, tracking, spacer, soft_wrap, hard_wrap);
+  return add_string(string, font_info, size, tracking, spacer, wrap);
 }
 
 bool HarfBuzzShaper::add_string(const char* string, FontSettings2& font_info,
                                 double size, double tracking, bool spacer,
-                                std::vector<int>& soft_wrap,
-                                std::vector<int>& hard_wrap) {
+                                std::vector<int>& wrap) {
   if (spacer) {
     return add_spacer(font_info, size, tracking);
   }
@@ -166,11 +164,15 @@ bool HarfBuzzShaper::add_string(const char* string, FontSettings2& font_info,
   unsigned int index = shape_infos.size();
 
   // Add precalculated soft and hard break points to the sets
-  for (auto iter = soft_wrap.begin(); iter != soft_wrap.end(); ++iter) {
-    soft_break.insert(run_start + (*iter) - 1);
-  }
-  for (auto iter = hard_wrap.begin(); iter != hard_wrap.end(); ++iter) {
-    hard_break.insert(run_start + (*iter) - 1);
+  for (auto iter = wrap.begin(); iter != wrap.end(); ++iter) {
+    // Guard against out-of-range positions (e.g. NA) coming from R
+    if (*iter < 1 || (size_t)(run_start + *iter) > full_string.size()) continue;
+    int break_pos = run_start + (*iter) - 1;
+    if (glyph_is_linebreak(full_string[break_pos])) {
+      hard_break.insert(break_pos);
+    } else {
+      soft_break.insert(break_pos);
+    }
   }
 
   // Add run info to list
@@ -208,31 +210,34 @@ bool HarfBuzzShaper::add_spacer(FontSettings2& font_info, double height, double 
   // A spacer is encoded as an "unknown glyph" with ascend giving the height and
   //  width/x-advance giving the width
   info.font_info = font_info;
-  info.embeddings.push_back({
-    {filler}, // glyph_id
-    {0}, // glyph_cluster
-    {info.index}, // string_id
-    {clamp_i32(width)}, // x_advance
-    {0}, // y_advance
-    {0}, // x_offset
-    {0}, // y_offset
-    {0}, // x_bear
-    {ascend}, // y_bear
-    {clamp_i32(width)}, // width
-    {ascend - descend}, // height
-    {ascend}, // ascenders
-    {descend}, // descenders
-    {false}, // is_blank
-    {false}, // may_break
-    {false}, // may_stretch
-    {0}, // font
-    {dummy_font}, // fallbacks
-    {height}, // fallback_size
-    {-1}, // fallback_scaling
-    0, // ltr
-    clamp_i32(width), // full_width
-    false // Not a line breaker in itself
-  });
+  // EmbedInfo is not an aggregate under C++11 (it has default member
+  // initializers), so it must be built field by field
+  EmbedInfo spacer_embed;
+  spacer_embed.glyph_id.push_back(filler);
+  spacer_embed.glyph_cluster.push_back(0);
+  spacer_embed.string_id.push_back(info.index);
+  spacer_embed.x_advance.push_back(clamp_i32(width));
+  spacer_embed.y_advance.push_back(0);
+  spacer_embed.x_offset.push_back(0);
+  spacer_embed.y_offset.push_back(0);
+  spacer_embed.x_bear.push_back(0);
+  spacer_embed.y_bear.push_back(ascend);
+  spacer_embed.width.push_back(clamp_i32(width));
+  spacer_embed.height.push_back(ascend - descend);
+  spacer_embed.ascenders.push_back(ascend);
+  spacer_embed.descenders.push_back(descend);
+  spacer_embed.is_blank.push_back(false);
+  spacer_embed.may_break.push_back(false);
+  spacer_embed.may_stretch.push_back(false);
+  spacer_embed.font.push_back(0);
+  spacer_embed.fallbacks.push_back(dummy_font);
+  spacer_embed.fallback_size.push_back(height);
+  spacer_embed.fallback_scaling.push_back(-1);
+  // embedding_level = 0 (ltr)
+  spacer_embed.full_width = clamp_i32(width);
+  // Not a line breaker in itself
+  spacer_embed.terminates_paragraph = false;
+  info.embeddings.push_back(spacer_embed);
   shape_infos.push_back(info);
   return true;
 }
@@ -248,7 +253,7 @@ bool HarfBuzzShaper::finish_string() {
   int32_t previous_line_descend = 0;
   int32_t line_ascend = 0;
   bool hard_break = false;
-  uint32_t break_char;
+  int32_t break_height = 0;
   int32_t line_left_extra = 0;
   std::list<EmbedInfo> line;
 
@@ -261,7 +266,7 @@ bool HarfBuzzShaper::finish_string() {
   // Lay out one line at a time
   while (!final_embeddings.empty()) {
     // Retrieve the next line from the embedding list
-    line = get_next_line_at_width(max_width - cur_line_indent, final_embeddings, hard_break, break_char);
+    line = get_next_line_at_width(max_width - cur_line_indent, final_embeddings, hard_break, break_height);
     bool first_char = true;
 
     // If ltr indent goes to the left
@@ -368,13 +373,14 @@ bool HarfBuzzShaper::finish_string() {
 
   if (hard_break) {
     // Last line ended with a line break. We move pen_y down based on last glyph size
+    int32_t line_height = break_height * cur_lineheight;
     size_t n_last_glyphs = line.back().ascenders.size();
     if (n_last_glyphs > 0) {
       size_t last_glyph = line.back().embedding_level % 2 == 0 ? n_last_glyphs - 1 : 0;
-      int32_t line_height = (line.back().ascenders[last_glyph] - line.back().descenders[last_glyph]) * cur_lineheight;
-      pen_y -= line_height;
-      bottom_bearing += line_height;
+      line_height = (line.back().ascenders[last_glyph] - line.back().descenders[last_glyph]) * cur_lineheight;
     }
+    pen_y -= line_height;
+    bottom_bearing += line_height;
     pen_x = indent;
     line_left_extra = 0;
     line_width.push_back(pen_x);
@@ -1336,7 +1342,7 @@ void HarfBuzzShaper::rearrange_embeddings(std::list<EmbedInfo>& line) {
   }
 }
 
-std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::list<EmbedInfo>& all_embeddings, bool& hard_break, uint32_t& break_char) {
+std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::list<EmbedInfo>& all_embeddings, bool& hard_break, int32_t& break_height) {
   std::list<EmbedInfo> line;
 
   if (width < 0) { // No limit on width
@@ -1354,7 +1360,7 @@ std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::
     } else {
       line.splice(line.begin(), all_embeddings, all_embeddings.begin(), std::next(has_break));
       hard_break = true;
-      break_char = has_break->pop();
+      break_height = has_break->pop();
     }
   } else {
     auto iter = all_embeddings.begin();
@@ -1417,7 +1423,7 @@ std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::
     } else {
       // It got stopped by a hard line break
       hard_break = true;
-      break_char = std::prev(iter)->pop();
+      break_height = std::prev(iter)->pop();
       line.splice(line.begin(), all_embeddings, all_embeddings.begin(), iter);
     }
   }

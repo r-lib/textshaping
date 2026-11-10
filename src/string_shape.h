@@ -176,10 +176,10 @@ struct EmbedInfo {
     into.full_width = std::accumulate(into.x_advance.begin(), into.x_advance.end(), int32_t(0));
     full_width -= into.full_width;
   }
-  uint32_t pop() {
-    uint32_t cluster;
+  int32_t pop() {
+    int32_t glyph_height;
     if (embedding_level % 2 == 0) {
-      cluster = glyph_cluster.back();
+      glyph_height = ascenders.back() - descenders.back();
       glyph_id.pop_back();
       glyph_cluster.pop_back();
       string_id.pop_back();
@@ -199,7 +199,7 @@ struct EmbedInfo {
       font.pop_back();
     } else {
       // This is not efficient but we would generally only do this on small embeddings
-      cluster = glyph_cluster.front();
+      glyph_height = ascenders.front() - descenders.front();
       glyph_id.erase(glyph_id.begin());
       glyph_cluster.erase(glyph_cluster.begin());
       string_id.erase(string_id.begin());
@@ -218,7 +218,7 @@ struct EmbedInfo {
       may_stretch.erase(may_stretch.begin());
       font.erase(font.begin());
     }
-    return cluster;
+    return glyph_height;
   }
 };
 struct ShapeInfo {
@@ -386,10 +386,10 @@ public:
                     int align, double hjust, double vjust, double width,
                     double tracking, double ind, double hang, double before,
                     double after, bool spacer, int direction,
-                    std::vector<int>& soft_wrap, std::vector<int>& hard_wrap);
+                    std::vector<int>& wrap);
   bool add_string(const char* string, FontSettings2& font_info,
                   double size, double tracking, bool spacer,
-                  std::vector<int>& soft_wrap, std::vector<int>& hard_wrap);
+                  std::vector<int>& wrap);
   bool add_spacer(FontSettings2& font_info, double height, double width, uint32_t filler = SPACER_CHAR);
   bool finish_string();
 
@@ -459,7 +459,7 @@ private:
   void insert_hyphen(EmbedInfo& embedding, size_t where);
   bool has_valid_break(const EmbedInfo& embedding, int32_t width, size_t& break_pos, bool force);
   void rearrange_embeddings(std::list<EmbedInfo>& line);
-  std::list<EmbedInfo> get_next_line_at_width(int32_t width, std::list<EmbedInfo>& all_embeddings, bool& hard_break, uint32_t& break_char);
+  std::list<EmbedInfo> get_next_line_at_width(int32_t width, std::list<EmbedInfo>& all_embeddings, bool& hard_break, int32_t& break_height);
   void do_alignment(bool ltr);
 
   inline double family_scaling(const char* family) {

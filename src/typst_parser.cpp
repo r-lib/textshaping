@@ -817,7 +817,9 @@ TypstToken TypstLexer::scan_token() {
 
   // Check for shorthand sequences (longer matches first)
   // The table is ordered by length, so we try each in order
-  for (const auto& [shorthand, codepoint] : typst_shorthands) {
+  for (const auto& entry : typst_shorthands) {
+    const std::string& shorthand = entry.first;
+    const uint32_t codepoint = entry.second;
     if (pos_ + shorthand.size() <= input_.size() &&
         input_.substr(pos_, shorthand.size()) == shorthand) {
       // Consume all characters
@@ -954,7 +956,7 @@ MathNodePtr TypstParser::parse_math_list(bool stop_at_ampersand) {
   // by peeking ahead - if we find any LINEBREAK, we parse as aligned
   std::vector<std::vector<MathNodePtr>> rows;
   std::vector<MathNodePtr> current_row;
-  auto current_cell = std::make_unique<MathNode>(NodeType::ROW);
+  auto current_cell = make_unique<MathNode>(NodeType::ROW);
   bool has_multiline = false;
 
   while (!lexer_.at_end() && !check(TypstTokenType::RPAREN) &&
@@ -972,9 +974,9 @@ MathNodePtr TypstParser::parse_math_list(bool stop_at_ampersand) {
       } else if (!current_cell->children.empty()) {
         current_row.push_back(std::move(current_cell));
       } else {
-        current_row.push_back(std::make_unique<MathNode>(NodeType::GROUP));
+        current_row.push_back(make_unique<MathNode>(NodeType::GROUP));
       }
-      current_cell = std::make_unique<MathNode>(NodeType::ROW);
+      current_cell = make_unique<MathNode>(NodeType::ROW);
       // Finish current row
       rows.push_back(std::move(current_row));
       current_row.clear();
@@ -993,9 +995,9 @@ MathNodePtr TypstParser::parse_math_list(bool stop_at_ampersand) {
       } else if (!current_cell->children.empty()) {
         current_row.push_back(std::move(current_cell));
       } else {
-        current_row.push_back(std::make_unique<MathNode>(NodeType::GROUP));
+        current_row.push_back(make_unique<MathNode>(NodeType::GROUP));
       }
-      current_cell = std::make_unique<MathNode>(NodeType::ROW);
+      current_cell = make_unique<MathNode>(NodeType::ROW);
       continue;
     }
 
@@ -1013,7 +1015,7 @@ MathNodePtr TypstParser::parse_math_list(bool stop_at_ampersand) {
   } else if (!current_cell->children.empty()) {
     current_row.push_back(std::move(current_cell));
   } else if (!current_row.empty() || has_multiline) {
-    current_row.push_back(std::make_unique<MathNode>(NodeType::GROUP));
+    current_row.push_back(make_unique<MathNode>(NodeType::GROUP));
   }
   if (!current_row.empty()) {
     rows.push_back(std::move(current_row));
@@ -1021,7 +1023,7 @@ MathNodePtr TypstParser::parse_math_list(bool stop_at_ampersand) {
 
   // If we have multiline content, create an ALIGNED node
   if (has_multiline || rows.size() > 1) {
-    auto node = std::make_unique<MathNode>(NodeType::ALIGNED);
+    auto node = make_unique<MathNode>(NodeType::ALIGNED);
     node->matrix_type = "aligned";  // Similar to LaTeX aligned
     node->rows = static_cast<int>(rows.size());
     node->cols = 0;
@@ -1036,7 +1038,7 @@ MathNodePtr TypstParser::parse_math_list(bool stop_at_ampersand) {
       }
       // Pad short rows with empty cells
       for (int i = static_cast<int>(row.size()); i < node->cols; i++) {
-        node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+        node->add_child(make_unique<MathNode>(NodeType::GROUP));
       }
     }
 
@@ -1051,7 +1053,7 @@ MathNodePtr TypstParser::parse_math_list(bool stop_at_ampersand) {
     return std::move(rows[0][0]);
   }
 
-  auto row = std::make_unique<MathNode>(NodeType::ROW);
+  auto row = make_unique<MathNode>(NodeType::ROW);
   for (auto& cell : rows[0]) {
     row->add_child(std::move(cell));
   }
@@ -1063,7 +1065,7 @@ MathNodePtr TypstParser::parse_math_list(bool stop_at_ampersand) {
 
 // Parse content inside braces (allows commas as content, not delimiters)
 MathNodePtr TypstParser::parse_brace_content() {
-  auto row = std::make_unique<MathNode>(NodeType::ROW);
+  auto row = make_unique<MathNode>(NodeType::ROW);
 
   while (!lexer_.at_end() && !check(TypstTokenType::RBRACE)) {
     auto expr = parse_expression();
@@ -1077,7 +1079,7 @@ MathNodePtr TypstParser::parse_brace_content() {
     }
     // Commas inside braces are just regular content
     if (check(TypstTokenType::COMMA)) {
-      auto comma = std::make_unique<MathNode>(NodeType::SYMBOL, ",");
+      auto comma = make_unique<MathNode>(NodeType::SYMBOL, ",");
       row->add_child(std::move(comma));
       lexer_.consume();
     } else if (check(TypstTokenType::RBRACE)) {
@@ -1109,9 +1111,9 @@ MathNodePtr TypstParser::parse_expression() {
       denom = parse_scripts(std::move(denom));
     }
 
-    auto frac = std::make_unique<MathNode>(NodeType::FRACTION);
+    auto frac = make_unique<MathNode>(NodeType::FRACTION);
     frac->add_child(std::move(base));  // numerator
-    frac->add_child(denom ? std::move(denom) : std::make_unique<MathNode>(NodeType::ROW));  // denominator
+    frac->add_child(denom ? std::move(denom) : make_unique<MathNode>(NodeType::ROW));  // denominator
     base = std::move(frac);
   }
 
@@ -1148,13 +1150,13 @@ MathNodePtr TypstParser::parse_atom() {
 
     case TypstTokenType::NUMBER: {
       lexer_.consume();
-      auto node = std::make_unique<MathNode>(NodeType::NUMBER, token.value);
+      auto node = make_unique<MathNode>(NodeType::NUMBER, token.value);
       return node;
     }
 
     case TypstTokenType::STRING: {
       lexer_.consume();
-      auto node = std::make_unique<MathNode>(NodeType::TEXT, token.value);
+      auto node = make_unique<MathNode>(NodeType::TEXT, token.value);
       return node;
     }
 
@@ -1164,7 +1166,7 @@ MathNodePtr TypstParser::parse_atom() {
 
     case TypstTokenType::OPERATOR: {
       lexer_.consume();
-      auto node = std::make_unique<MathNode>(NodeType::SYMBOL, token.value);
+      auto node = make_unique<MathNode>(NodeType::SYMBOL, token.value);
       return node;
     }
 
@@ -1215,33 +1217,33 @@ MathNodePtr TypstParser::parse_scripts(MathNodePtr base) {
   if (prime_count > 0) {
     MathNodePtr primes;
     if (prime_count == 1) {
-      primes = std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB2");  // ′ U+2032
+      primes = make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB2");  // ′ U+2032
     } else if (prime_count == 2) {
-      primes = std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB3");  // ″ U+2033
+      primes = make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB3");  // ″ U+2033
     } else if (prime_count == 3) {
-      primes = std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB4");  // ‴ U+2034
+      primes = make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB4");  // ‴ U+2034
     } else if (prime_count == 4) {
-      primes = std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x81\x97");  // ⁗ U+2057
+      primes = make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x81\x97");  // ⁗ U+2057
     } else {
       // More than 4 primes: use quadruple + remainder
-      auto row = std::make_unique<MathNode>(NodeType::ROW);
+      auto row = make_unique<MathNode>(NodeType::ROW);
       while (prime_count >= 4) {
-        row->add_child(std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x81\x97"));
+        row->add_child(make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x81\x97"));
         prime_count -= 4;
       }
       if (prime_count == 3) {
-        row->add_child(std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB4"));
+        row->add_child(make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB4"));
       } else if (prime_count == 2) {
-        row->add_child(std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB3"));
+        row->add_child(make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB3"));
       } else if (prime_count == 1) {
-        row->add_child(std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB2"));
+        row->add_child(make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x80\xB2"));
       }
       primes = std::move(row);
     }
 
     // Merge primes with existing superscript or create new one
     if (sup) {
-      auto combined = std::make_unique<MathNode>(NodeType::ROW);
+      auto combined = make_unique<MathNode>(NodeType::ROW);
       combined->add_child(std::move(sup));
       combined->add_child(std::move(primes));
       sup = std::move(combined);
@@ -1251,18 +1253,18 @@ MathNodePtr TypstParser::parse_scripts(MathNodePtr base) {
   }
 
   if (sub && sup) {
-    auto node = std::make_unique<MathNode>(NodeType::SUBSUPERSCRIPT);
+    auto node = make_unique<MathNode>(NodeType::SUBSUPERSCRIPT);
     node->add_child(std::move(base));
     node->add_child(std::move(sub));
     node->add_child(std::move(sup));
     return node;
   } else if (sub) {
-    auto node = std::make_unique<MathNode>(NodeType::SUBSCRIPT);
+    auto node = make_unique<MathNode>(NodeType::SUBSCRIPT);
     node->add_child(std::move(base));
     node->add_child(std::move(sub));
     return node;
   } else if (sup) {
-    auto node = std::make_unique<MathNode>(NodeType::SUPERSCRIPT);
+    auto node = make_unique<MathNode>(NodeType::SUPERSCRIPT);
     node->add_child(std::move(base));
     node->add_child(std::move(sup));
     return node;
@@ -1295,24 +1297,24 @@ MathNodePtr TypstParser::parse_group() {
   }
 
   if (!content) {
-    return std::make_unique<MathNode>(NodeType::GROUP);
+    return make_unique<MathNode>(NodeType::GROUP);
   }
 
   // Wrap in GROUP if it's a plain parenthesis group
   if (open == '(') {
-    auto group = std::make_unique<MathNode>(NodeType::DELIMITED);
+    auto group = make_unique<MathNode>(NodeType::DELIMITED);
     group->left_delim = "(";
     group->right_delim = ")";
     group->add_child(std::move(content));
     return group;
   } else if (open == '[') {
-    auto group = std::make_unique<MathNode>(NodeType::DELIMITED);
+    auto group = make_unique<MathNode>(NodeType::DELIMITED);
     group->left_delim = "[";
     group->right_delim = "]";
     group->add_child(std::move(content));
     return group;
   } else {
-    auto group = std::make_unique<MathNode>(NodeType::GROUP);
+    auto group = make_unique<MathNode>(NodeType::GROUP);
     group->add_child(std::move(content));
     return group;
   }
@@ -1449,7 +1451,7 @@ MathNodePtr TypstParser::parse_function_call(const std::string& name) {
 
     consume(TypstTokenType::RPAREN, "Expected ')' after spacing argument");
 
-    auto node = std::make_unique<MathNode>(NodeType::SPACE_NODE);
+    auto node = make_unique<MathNode>(NodeType::SPACE_NODE);
     node->space_amount = amount;
     node->space_unit = unit;
     // For v(), we could add vertical spacing support later; for now treat as horizontal
@@ -1461,14 +1463,14 @@ MathNodePtr TypstParser::parse_function_call(const std::string& name) {
   consume(TypstTokenType::LPAREN, "Expected '('");
   parse_math_list();  // consume arguments
   match(TypstTokenType::RPAREN);
-  return std::make_unique<MathNode>(NodeType::SYMBOL, name);
+  return make_unique<MathNode>(NodeType::SYMBOL, name);
 }
 
 MathNodePtr TypstParser::parse_identifier(const std::string& name) {
   // Check spacing keywords
   auto spacing_it = typst_spacing.find(name);
   if (spacing_it != typst_spacing.end()) {
-    auto node = std::make_unique<MathNode>(NodeType::SPACE_NODE);
+    auto node = make_unique<MathNode>(NodeType::SPACE_NODE);
     node->value = std::to_string(spacing_it->second);
     return node;
   }
@@ -1476,7 +1478,7 @@ MathNodePtr TypstParser::parse_identifier(const std::string& name) {
   // Check for dotted/namespaced symbols (e.g., arrow.r, eq.not)
   auto dotted_it = typst_dotted_symbols.find(name);
   if (dotted_it != typst_dotted_symbols.end()) {
-    auto node = std::make_unique<MathNode>(NodeType::SYMBOL);
+    auto node = make_unique<MathNode>(NodeType::SYMBOL);
     uint32_t cp = dotted_it->second;
     // Convert codepoint to UTF-8
     std::string utf8;
@@ -1501,9 +1503,9 @@ MathNodePtr TypstParser::parse_identifier(const std::string& name) {
 
   // Check for differential operators (dif, Dif, dd -> upright d, D)
   if (is_differential_operator(name)) {
-    auto node = std::make_unique<MathNode>(NodeType::STYLED);
+    auto node = make_unique<MathNode>(NodeType::STYLED);
     node->style = MathStyle::ROMAN;
-    auto letter = std::make_unique<MathNode>(NodeType::SYMBOL);
+    auto letter = make_unique<MathNode>(NodeType::SYMBOL);
     // dif and dd -> "d", Dif -> "D"
     letter->value = (name == "Dif") ? "D" : "d";
     node->add_child(std::move(letter));
@@ -1512,7 +1514,7 @@ MathNodePtr TypstParser::parse_identifier(const std::string& name) {
 
   // Check for big operators
   if (is_big_operator(name)) {
-    auto node = std::make_unique<MathNode>(NodeType::BIG_OP, name);
+    auto node = make_unique<MathNode>(NodeType::BIG_OP, name);
     // Map Typst names to LaTeX equivalents
     if (name == "product") node->value = "prod";
     else if (name == "integral") node->value = "int";
@@ -1521,22 +1523,22 @@ MathNodePtr TypstParser::parse_identifier(const std::string& name) {
 
   // Check for math functions (sin, cos, etc.)
   if (is_function_name(name)) {
-    auto node = std::make_unique<MathNode>(NodeType::FUNCTION, name);
+    auto node = make_unique<MathNode>(NodeType::FUNCTION, name);
     return node;
   }
 
   // Typst uses the opposite phi/epsilon convention to LaTeX (the shared
   // symbol table below follows LaTeX)
   if (name == "phi") {
-    return std::make_unique<MathNode>(NodeType::SYMBOL, "\xCF\x86");  // φ U+03C6
+    return make_unique<MathNode>(NodeType::SYMBOL, "\xCF\x86");  // φ U+03C6
   }
   if (name == "epsilon") {
-    return std::make_unique<MathNode>(NodeType::SYMBOL, "\xCE\xB5");  // ε U+03B5
+    return make_unique<MathNode>(NodeType::SYMBOL, "\xCE\xB5");  // ε U+03B5
   }
 
   // Check for Greek letters using existing symbol table
   if (is_greek_letter(name)) {
-    auto node = std::make_unique<MathNode>(NodeType::SYMBOL);
+    auto node = make_unique<MathNode>(NodeType::SYMBOL);
     uint32_t cp = command_to_codepoint(name);
     if (cp != 0) {
       // Store as UTF-8
@@ -1565,7 +1567,7 @@ MathNodePtr TypstParser::parse_identifier(const std::string& name) {
 
   // Check for other symbols
   if (is_symbol(name)) {
-    auto node = std::make_unique<MathNode>(NodeType::SYMBOL);
+    auto node = make_unique<MathNode>(NodeType::SYMBOL);
     uint32_t cp = command_to_codepoint(name);
     if (cp != 0) {
       std::string utf8;
@@ -1593,16 +1595,16 @@ MathNodePtr TypstParser::parse_identifier(const std::string& name) {
 
   // Single letter - treat as variable
   if (name.length() == 1) {
-    auto node = std::make_unique<MathNode>(NodeType::SYMBOL, name);
+    auto node = make_unique<MathNode>(NodeType::SYMBOL, name);
     return node;
   }
 
   // Unknown multi-letter identifier: Typst treats juxtaposed letters as
   // individual variables, so split it up (the layout only renders the first
   // codepoint of a SYMBOL)
-  auto row = std::make_unique<MathNode>(NodeType::ROW);
+  auto row = make_unique<MathNode>(NodeType::ROW);
   for (char ch : name) {
-    row->add_child(std::make_unique<MathNode>(NodeType::SYMBOL, std::string(1, ch)));
+    row->add_child(make_unique<MathNode>(NodeType::SYMBOL, std::string(1, ch)));
   }
   return row;
 }
@@ -1618,7 +1620,7 @@ MathNodePtr TypstParser::parse_frac() {
   auto denom = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after frac arguments");
 
-  auto node = std::make_unique<MathNode>(NodeType::FRACTION);
+  auto node = make_unique<MathNode>(NodeType::FRACTION);
   node->add_child(std::move(num));
   node->add_child(std::move(denom));
   return node;
@@ -1631,7 +1633,7 @@ MathNodePtr TypstParser::parse_binom() {
   auto k = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after binom arguments");
 
-  auto node = std::make_unique<MathNode>(NodeType::STACK);
+  auto node = make_unique<MathNode>(NodeType::STACK);
   node->stack_type = "binom";
   node->add_child(std::move(n));
   node->add_child(std::move(k));
@@ -1643,7 +1645,7 @@ MathNodePtr TypstParser::parse_sqrt() {
   auto content = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after sqrt argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::SQRT);
+  auto node = make_unique<MathNode>(NodeType::SQRT);
   node->add_child(std::move(content));
   return node;
 }
@@ -1655,7 +1657,7 @@ MathNodePtr TypstParser::parse_root() {
   auto content = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after root arguments");
 
-  auto node = std::make_unique<MathNode>(NodeType::SQRT);
+  auto node = make_unique<MathNode>(NodeType::SQRT);
   // The layout expects [index, radicand] for indexed roots
   node->add_child(std::move(index));
   node->add_child(std::move(content));
@@ -1667,7 +1669,7 @@ MathNodePtr TypstParser::parse_accent(const std::string& name) {
   auto content = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after accent argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::ACCENT);
+  auto node = make_unique<MathNode>(NodeType::ACCENT);
   node->command = name;
   node->wide = (wide_accent_functions.count(name) > 0);
   node->add_child(std::move(content));
@@ -1726,7 +1728,7 @@ MathNodePtr TypstParser::parse_generic_accent() {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after accent arguments");
 
-  auto node = std::make_unique<MathNode>(NodeType::ACCENT);
+  auto node = make_unique<MathNode>(NodeType::ACCENT);
   node->accent_size = accent_size;
   node->dotless = dotless;
 
@@ -1750,7 +1752,7 @@ MathNodePtr TypstParser::parse_style(const std::string& name) {
   auto content = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after style argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::STYLED);
+  auto node = make_unique<MathNode>(NodeType::STYLED);
   auto it = style_functions.find(name);
   if (it != style_functions.end()) {
     node->style = it->second;
@@ -1843,7 +1845,7 @@ MathNodePtr TypstParser::parse_lr() {
       if (content->type == NodeType::ROW) {
         content->children.pop_back();
       } else {
-        content = std::make_unique<MathNode>(NodeType::GROUP);
+        content = make_unique<MathNode>(NodeType::GROUP);
       }
     }
   }
@@ -1868,7 +1870,7 @@ MathNodePtr TypstParser::parse_lr() {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after lr");
 
-  auto node = std::make_unique<MathNode>(NodeType::DELIMITED);
+  auto node = make_unique<MathNode>(NodeType::DELIMITED);
   node->left_delim = left_delim;
   node->right_delim = right_delim;
   node->delim_height = explicit_size;
@@ -1882,7 +1884,7 @@ MathNodePtr TypstParser::parse_abs() {
   auto content = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after abs argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::DELIMITED);
+  auto node = make_unique<MathNode>(NodeType::DELIMITED);
   node->left_delim = "|";
   node->right_delim = "|";
   node->add_child(std::move(content));
@@ -1894,7 +1896,7 @@ MathNodePtr TypstParser::parse_norm() {
   auto content = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after norm argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::DELIMITED);
+  auto node = make_unique<MathNode>(NodeType::DELIMITED);
   node->left_delim = "Vert";
   node->right_delim = "Vert";
   node->add_child(std::move(content));
@@ -1906,7 +1908,7 @@ MathNodePtr TypstParser::parse_floor() {
   auto content = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after floor argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::DELIMITED);
+  auto node = make_unique<MathNode>(NodeType::DELIMITED);
   node->left_delim = "lfloor";
   node->right_delim = "rfloor";
   node->add_child(std::move(content));
@@ -1918,7 +1920,7 @@ MathNodePtr TypstParser::parse_ceil() {
   auto content = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after ceil argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::DELIMITED);
+  auto node = make_unique<MathNode>(NodeType::DELIMITED);
   node->left_delim = "lceil";
   node->right_delim = "rceil";
   node->add_child(std::move(content));
@@ -1930,7 +1932,7 @@ MathNodePtr TypstParser::parse_round() {
   auto content = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after round argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::DELIMITED);
+  auto node = make_unique<MathNode>(NodeType::DELIMITED);
   node->left_delim = "(";
   node->right_delim = ")";
   node->add_child(std::move(content));
@@ -1944,7 +1946,7 @@ MathNodePtr TypstParser::parse_mid() {
 
   // Create a symbol node for the mid delimiter
   // It will be scaled to match the enclosing lr() delimiter height
-  auto node = std::make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x88\xA3");  // ∣ U+2223
+  auto node = make_unique<MathNode>(NodeType::SYMBOL, "\xE2\x88\xA3");  // ∣ U+2223
   return node;
 }
 
@@ -1974,7 +1976,7 @@ MathNodePtr TypstParser::parse_primes() {
     prime_char = "\xE2\x81\x97";  // ⁗ U+2057
   }
 
-  return std::make_unique<MathNode>(NodeType::SYMBOL, prime_char);
+  return make_unique<MathNode>(NodeType::SYMBOL, prime_char);
 }
 
 // Under/over bracket variant functions
@@ -1991,7 +1993,7 @@ MathNodePtr TypstParser::parse_overbracket() {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after overbracket arguments");
 
-  auto node = std::make_unique<MathNode>(NodeType::ACCENT);
+  auto node = make_unique<MathNode>(NodeType::ACCENT);
   node->command = "overbracket";
   node->wide = true;
   node->add_child(std::move(content));
@@ -2012,7 +2014,7 @@ MathNodePtr TypstParser::parse_underbracket() {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after underbracket arguments");
 
-  auto node = std::make_unique<MathNode>(NodeType::ACCENT);
+  auto node = make_unique<MathNode>(NodeType::ACCENT);
   node->command = "underbracket";
   node->wide = true;
   node->add_child(std::move(content));
@@ -2033,7 +2035,7 @@ MathNodePtr TypstParser::parse_overparen() {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after overparen arguments");
 
-  auto node = std::make_unique<MathNode>(NodeType::ACCENT);
+  auto node = make_unique<MathNode>(NodeType::ACCENT);
   node->command = "overparen";
   node->wide = true;
   node->add_child(std::move(content));
@@ -2054,7 +2056,7 @@ MathNodePtr TypstParser::parse_underparen() {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after underparen arguments");
 
-  auto node = std::make_unique<MathNode>(NodeType::ACCENT);
+  auto node = make_unique<MathNode>(NodeType::ACCENT);
   node->command = "underparen";
   node->wide = true;
   node->add_child(std::move(content));
@@ -2075,7 +2077,7 @@ MathNodePtr TypstParser::parse_overshell() {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after overshell arguments");
 
-  auto node = std::make_unique<MathNode>(NodeType::ACCENT);
+  auto node = make_unique<MathNode>(NodeType::ACCENT);
   node->command = "overshell";
   node->wide = true;
   node->add_child(std::move(content));
@@ -2096,7 +2098,7 @@ MathNodePtr TypstParser::parse_undershell() {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after undershell arguments");
 
-  auto node = std::make_unique<MathNode>(NodeType::ACCENT);
+  auto node = make_unique<MathNode>(NodeType::ACCENT);
   node->command = "undershell";
   node->wide = true;
   node->add_child(std::move(content));
@@ -2109,7 +2111,7 @@ MathNodePtr TypstParser::parse_undershell() {
 MathNodePtr TypstParser::parse_mat(const std::string& name) {
   consume(TypstTokenType::LPAREN, "Expected '(' after matrix function");
 
-  auto node = std::make_unique<MathNode>(NodeType::MATRIX);
+  auto node = make_unique<MathNode>(NodeType::MATRIX);
 
   // Map Typst matrix function names to LaTeX matrix environment names
   // mat  -> matrix   (no delimiters)
@@ -2289,7 +2291,7 @@ MathNodePtr TypstParser::parse_mat(const std::string& name) {
     if (cell) {
       current_row.push_back(std::move(cell));
     } else {
-      current_row.push_back(std::make_unique<MathNode>(NodeType::GROUP));
+      current_row.push_back(make_unique<MathNode>(NodeType::GROUP));
     }
 
     if (match(TypstTokenType::COMMA)) {
@@ -2324,7 +2326,7 @@ MathNodePtr TypstParser::parse_mat(const std::string& name) {
       node->add_child(std::move(cell));
     }
     for (int i = static_cast<int>(row.size()); i < node->cols; i++) {
-      node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+      node->add_child(make_unique<MathNode>(NodeType::GROUP));
     }
   }
 
@@ -2334,7 +2336,7 @@ MathNodePtr TypstParser::parse_mat(const std::string& name) {
 MathNodePtr TypstParser::parse_cases() {
   consume(TypstTokenType::LPAREN, "Expected '(' after 'cases'");
 
-  auto node = std::make_unique<MathNode>(NodeType::MATRIX);
+  auto node = make_unique<MathNode>(NodeType::MATRIX);
   node->matrix_type = "cases";
 
   std::vector<std::vector<MathNodePtr>> rows;
@@ -2346,7 +2348,7 @@ MathNodePtr TypstParser::parse_cases() {
     if (cell) {
       current_row.push_back(std::move(cell));
     } else {
-      current_row.push_back(std::make_unique<MathNode>(NodeType::GROUP));
+      current_row.push_back(make_unique<MathNode>(NodeType::GROUP));
     }
 
     if (match(TypstTokenType::AMPERSAND)) {
@@ -2379,7 +2381,7 @@ MathNodePtr TypstParser::parse_cases() {
       node->add_child(std::move(cell));
     }
     for (int i = static_cast<int>(row.size()); i < node->cols; i++) {
-      node->add_child(std::make_unique<MathNode>(NodeType::GROUP));
+      node->add_child(make_unique<MathNode>(NodeType::GROUP));
     }
   }
 
@@ -2392,7 +2394,7 @@ MathNodePtr TypstParser::parse_vec() {
   auto content = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after vec argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::ACCENT);
+  auto node = make_unique<MathNode>(NodeType::ACCENT);
   node->command = "vec";
   node->add_child(std::move(content));
   return node;
@@ -2428,7 +2430,7 @@ MathNodePtr TypstParser::parse_cancel() {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after cancel argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::CANCEL);
+  auto node = make_unique<MathNode>(NodeType::CANCEL);
   node->cancel_type = cancel_type;
   node->add_child(std::move(content));
   return node;
@@ -2439,7 +2441,7 @@ MathNodePtr TypstParser::parse_hide() {
   auto content = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after hide argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::PHANTOM);
+  auto node = make_unique<MathNode>(NodeType::PHANTOM);
   node->phantom_type = "full";
   node->add_child(std::move(content));
   return node;
@@ -2500,7 +2502,7 @@ MathNodePtr TypstParser::parse_display() {
   bool cramped = parse_cramped_param(lexer_);
   consume(TypstTokenType::RPAREN, "Expected ')' after display argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::STYLE_CHANGE);
+  auto node = make_unique<MathNode>(NodeType::STYLE_CHANGE);
   node->display_style = MathDisplayStyle::DISPLAY;
   node->cramped = cramped;
   node->add_child(std::move(content));
@@ -2513,7 +2515,7 @@ MathNodePtr TypstParser::parse_inline() {
   bool cramped = parse_cramped_param(lexer_);
   consume(TypstTokenType::RPAREN, "Expected ')' after inline argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::STYLE_CHANGE);
+  auto node = make_unique<MathNode>(NodeType::STYLE_CHANGE);
   node->display_style = MathDisplayStyle::TEXT;
   node->cramped = cramped;
   node->add_child(std::move(content));
@@ -2526,7 +2528,7 @@ MathNodePtr TypstParser::parse_script_style() {
   bool cramped = parse_cramped_param(lexer_);
   consume(TypstTokenType::RPAREN, "Expected ')' after script argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::STYLE_CHANGE);
+  auto node = make_unique<MathNode>(NodeType::STYLE_CHANGE);
   node->display_style = MathDisplayStyle::SCRIPT;
   node->cramped = cramped;
   node->add_child(std::move(content));
@@ -2539,7 +2541,7 @@ MathNodePtr TypstParser::parse_sscript_style() {
   bool cramped = parse_cramped_param(lexer_);
   consume(TypstTokenType::RPAREN, "Expected ')' after sscript argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::STYLE_CHANGE);
+  auto node = make_unique<MathNode>(NodeType::STYLE_CHANGE);
   node->display_style = MathDisplayStyle::SCRIPTSCRIPT;
   node->cramped = cramped;
   node->add_child(std::move(content));
@@ -2561,7 +2563,7 @@ MathNodePtr TypstParser::parse_op() {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after op argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::OPERATORNAME);
+  auto node = make_unique<MathNode>(NodeType::OPERATORNAME);
   node->value = name;
   return node;
 }
@@ -2605,7 +2607,7 @@ MathNodePtr TypstParser::parse_attach() {
 
   // If any corner position is used, create a MULTISCRIPT node
   if (tl || tr || bl || br) {
-    auto node = std::make_unique<MathNode>(NodeType::MULTISCRIPT);
+    auto node = make_unique<MathNode>(NodeType::MULTISCRIPT);
     // Children convention: [base, t, b, tl, tr, bl, br]
     node->add_child(std::move(base));
     node->add_child(t ? std::move(t) : nullptr);
@@ -2620,23 +2622,23 @@ MathNodePtr TypstParser::parse_attach() {
   // Fall back to STACK for simple t/b cases (backwards compatible)
   if (t && b) {
     // Nest overset inside underset; layout_stack has no three-way "attach"
-    auto over = std::make_unique<MathNode>(NodeType::STACK);
+    auto over = make_unique<MathNode>(NodeType::STACK);
     over->stack_type = "overset";
     over->add_child(std::move(t));
     over->add_child(std::move(base));
-    auto node = std::make_unique<MathNode>(NodeType::STACK);
+    auto node = make_unique<MathNode>(NodeType::STACK);
     node->stack_type = "underset";
     node->add_child(std::move(b));
     node->add_child(std::move(over));
     return node;
   } else if (t) {
-    auto node = std::make_unique<MathNode>(NodeType::STACK);
+    auto node = make_unique<MathNode>(NodeType::STACK);
     node->stack_type = "overset";
     node->add_child(std::move(t));
     node->add_child(std::move(base));
     return node;
   } else if (b) {
-    auto node = std::make_unique<MathNode>(NodeType::STACK);
+    auto node = make_unique<MathNode>(NodeType::STACK);
     node->stack_type = "underset";
     node->add_child(std::move(b));
     node->add_child(std::move(base));
@@ -2654,7 +2656,7 @@ MathNodePtr TypstParser::parse_overbrace() {
   if (match(TypstTokenType::COMMA)) {
     // Parse label - could be a string or expression
     if (check(TypstTokenType::STRING)) {
-      label = std::make_unique<MathNode>(NodeType::TEXT, lexer_.next().value);
+      label = make_unique<MathNode>(NodeType::TEXT, lexer_.next().value);
     } else {
       label = parse_math_list();
     }
@@ -2662,13 +2664,13 @@ MathNodePtr TypstParser::parse_overbrace() {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after overbrace arguments");
 
-  auto node = std::make_unique<MathNode>(NodeType::ACCENT);
+  auto node = make_unique<MathNode>(NodeType::ACCENT);
   node->command = "overbrace";
   node->wide = true;
   node->add_child(std::move(content));
   if (label) {
     // Create a superscript with the overbrace as base
-    auto result = std::make_unique<MathNode>(NodeType::SUPERSCRIPT);
+    auto result = make_unique<MathNode>(NodeType::SUPERSCRIPT);
     result->add_child(std::move(node));
     result->add_child(std::move(label));
     return result;
@@ -2684,7 +2686,7 @@ MathNodePtr TypstParser::parse_underbrace() {
   if (match(TypstTokenType::COMMA)) {
     // Parse label - could be a string or expression
     if (check(TypstTokenType::STRING)) {
-      label = std::make_unique<MathNode>(NodeType::TEXT, lexer_.next().value);
+      label = make_unique<MathNode>(NodeType::TEXT, lexer_.next().value);
     } else {
       label = parse_math_list();
     }
@@ -2692,13 +2694,13 @@ MathNodePtr TypstParser::parse_underbrace() {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after underbrace arguments");
 
-  auto node = std::make_unique<MathNode>(NodeType::ACCENT);
+  auto node = make_unique<MathNode>(NodeType::ACCENT);
   node->command = "underbrace";
   node->wide = true;
   node->add_child(std::move(content));
   if (label) {
     // Create a subscript with the underbrace as base
-    auto result = std::make_unique<MathNode>(NodeType::SUBSCRIPT);
+    auto result = make_unique<MathNode>(NodeType::SUBSCRIPT);
     result->add_child(std::move(node));
     result->add_child(std::move(label));
     return result;
@@ -2711,7 +2713,7 @@ MathNodePtr TypstParser::parse_overline() {
   auto content = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after overline argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::ACCENT);
+  auto node = make_unique<MathNode>(NodeType::ACCENT);
   node->command = "overline";
   node->wide = true;
   node->add_child(std::move(content));
@@ -2723,7 +2725,7 @@ MathNodePtr TypstParser::parse_underline() {
   auto content = parse_math_list();
   consume(TypstTokenType::RPAREN, "Expected ')' after underline argument");
 
-  auto node = std::make_unique<MathNode>(NodeType::ACCENT);
+  auto node = make_unique<MathNode>(NodeType::ACCENT);
   node->command = "underline";
   node->wide = true;
   node->add_child(std::move(content));
@@ -2783,7 +2785,7 @@ MathNodePtr TypstParser::parse_stretch() {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after stretch arguments");
 
-  auto node = std::make_unique<MathNode>(NodeType::STRETCHED);
+  auto node = make_unique<MathNode>(NodeType::STRETCHED);
   node->stretch_size = size_value;
   node->stretch_size_unit = size_unit;
   node->add_child(std::move(content));
@@ -2808,7 +2810,7 @@ MathNodePtr TypstParser::parse_class() {
 
   consume(TypstTokenType::RPAREN, "Expected ')' after class arguments");
 
-  auto node = std::make_unique<MathNode>(NodeType::CLASS_OVERRIDE);
+  auto node = make_unique<MathNode>(NodeType::CLASS_OVERRIDE);
   node->math_class = class_name;
   node->add_child(std::move(content));
   return node;

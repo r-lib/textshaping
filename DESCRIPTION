@@ -29,7 +29,7 @@ Suggests:
     grid,
     knitr,
     rmarkdown,
-    testthat (>= 3.0.0)
+    testthat (>= 3.3.0)
 LinkingTo:
     cpp11 (>= 0.2.1),
     systemfonts (>= 1.0.0)
@@ -42,5 +42,5 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 SystemRequirements: freetype2, harfbuzz, fribidi
-Remotes:  
+Remotes:
     r-lib/systemfonts

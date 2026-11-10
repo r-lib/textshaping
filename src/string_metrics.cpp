@@ -26,7 +26,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                         doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
                         doubles space_after, integers direction,
-                        list_of<integers> soft_wrap, list_of<integers> hard_wrap) {
+                        list_of<integers> wrap) {
   Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
   writable::data_frame string_df({
     "string"_nm = writable::logicals(),
@@ -191,7 +191,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                         doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
                         doubles space_after, integers direction,
-                        list_of<integers> soft_wrap, list_of<integers> hard_wrap) {
+                        list_of<integers> wrap) {
   int n_strings = string.size();
 
   // Return Columns
@@ -220,8 +220,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
         n_strings != space_before.size() ||
         n_strings != space_after.size() ||
         n_strings != direction.size() ||
-        n_strings != soft_wrap.size() ||
-        n_strings != hard_wrap.size()
+        n_strings != wrap.size()
     ) {
       cpp11::stop("All input must be the same size");
     }
@@ -235,14 +234,13 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
     bool success = false;
 
     HarfBuzzShaper& shaper = get_hb_shaper();
-    std::vector<int> soft, hard;
+    std::vector<int> wraps;
     for (int i = 0; i < n_strings; ++i) {
       const char* this_string = Rf_translateCharUTF8(string[i]);
       int this_id = id[i];
-      soft.assign(soft_wrap[i].begin(), soft_wrap[i].end());
-      hard.assign(hard_wrap[i].begin(), hard_wrap[i].end());
+      wraps.assign(wrap[i].begin(), wrap[i].end());
       if (cur_id == this_id) {
-        success = shaper.add_string(this_string, fonts[i], size[i], tracking[i], cpp11::is_na(string[i]), soft, hard);
+        success = shaper.add_string(this_string, fonts[i], size[i], tracking[i], cpp11::is_na(string[i]), wraps);
 
         if (!success) {
           cpp11::stop("Failed to shape string (%s) with font file (%s) with freetype error %i", this_string, Rf_translateCharUTF8(path[i]), shaper.error_code);
@@ -254,7 +252,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                                       width[i] * 64.0, tracking[i], indent[i] * 64.0,
                                       hanging[i] * 64.0, space_before[i] * 64.0,
                                       space_after[i] * 64.0, cpp11::is_na(string[i]),
-                                      direction[i], soft, hard);
+                                      direction[i], wraps);
 
         if (!success) {
           cpp11::stop("Failed to shape string (%s) with font file (%s) with freetype error %i", this_string, Rf_translateCharUTF8(STRING_ELT(path, i)), shaper.error_code);
