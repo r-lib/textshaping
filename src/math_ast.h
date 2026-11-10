@@ -118,6 +118,17 @@ struct MathNode;
 
 using MathNodePtr = std::unique_ptr<MathNode>;
 
+// std::make_unique requires C++14; provide a fallback for older compilers
+// (e.g. the default C++11 toolchain on R < 4.2 for Windows)
+#if __cplusplus < 201402L
+template<typename T, typename... Args>
+std::unique_ptr<T> make_unique(Args&&... args) {
+  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
+#else
+using std::make_unique;
+#endif
+
 struct MathNode {
   NodeType type;
 
