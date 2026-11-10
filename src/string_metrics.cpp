@@ -419,7 +419,17 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
   int result = ts_string_shape2(string, FontSettings2(font_info), size, res, loc, id, cluster, font, fallbacks2, fallback_scaling);
   fallbacks.clear();
   for (size_t i = 0; i < fallbacks2.size(); ++i) {
-    fallbacks.emplace_back(fallbacks2[i].file, fallbacks2[i].index, fallbacks2[i].features, fallbacks2[i].n_features);
+    // Avoid the FontSettings constructor: its strncpy triggers
+    // -Wstringop-truncation (bound equals destination size) on GCC
+    fallbacks.emplace_back();
+    FontSettings& fs = fallbacks.back();
+    size_t len = strlen(fallbacks2[i].file);
+    if (len > PATH_MAX) len = PATH_MAX;
+    memcpy(fs.file, fallbacks2[i].file, len);
+    fs.file[len] = '\0';
+    fs.index = fallbacks2[i].index;
+    fs.features = fallbacks2[i].features;
+    fs.n_features = fallbacks2[i].n_features;
   }
   return result;
 }
