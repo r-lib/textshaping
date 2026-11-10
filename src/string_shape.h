@@ -22,19 +22,21 @@
 static const uint32_t EMPTY_CHAR = 0xffffffff; // Largest possible value. Unlikely any font would use that
 static const uint32_t SPACER_CHAR = 0xffffffff - 1; // Second largest possible value. Also unlikely any font would use that
 
-static const bool ft_compat = systemfonts::ver2::check_ft_version();
-
 struct FT_Library_Safe {
   FT_Library library;
-  FT_Library_Safe() {
-    if (!ft_compat) FT_Init_FreeType(&library);
+  // Snapshot the compat check together with the library so the flag and the
+  // library state can never disagree if systemfonts is reloaded mid-session
+  const bool compat;
+  FT_Library_Safe() : library(nullptr), compat(systemfonts::ver2::check_ft_version()) {
+    if (!compat) FT_Init_FreeType(&library);
   }
   ~FT_Library_Safe() {
-    if (!ft_compat) FT_Done_FreeType(library);
+    if (!compat && library != nullptr) FT_Done_FreeType(library);
   }
 };
 
 static const FT_Library_Safe ft;
+static const bool& ft_compat = ft.compat;
 struct ShapeID {
   size_t string_hash;
   size_t embed_hash;
