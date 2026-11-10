@@ -4,6 +4,7 @@
 #include <systemfonts.h>
 #include <systemfonts-ft.h>
 #include <vector>
+#include <cmath>
 
 
 // Helper to load font and create HarfBuzz font object
@@ -25,12 +26,25 @@ static hb_font_t* load_math_font(const char* font_path, int index, double size, 
   hb_font_t* hb_font = hb_font_create(face);
   hb_face_destroy(face);  // font keeps a reference
 
-  // Set font scale: size in points * 64 (26.6 fixed point)
-  int scale = static_cast<int>(size * 64);
+  // Set font scale: size in points * 64 (26.6 fixed point), scaled to the
+  // requested resolution. Guard against non-finite or absurd input
+  double scale_d = size * 64.0 * (res > 0 ? res / 72.0 : 1.0);
+  if (!std::isfinite(scale_d) || scale_d < 1.0) scale_d = 1.0;
+  if (scale_d > 1e7) scale_d = 1e7;
+  int scale = static_cast<int>(scale_d);
   hb_font_set_scale(hb_font, scale, scale);
 
   return hb_font;
 }
+
+// RAII guard so R allocation failures can't leak the font
+struct HBFontGuard {
+  hb_font_t* font;
+  explicit HBFontGuard(hb_font_t* f) : font(f) {}
+  ~HBFontGuard() { if (font) hb_font_destroy(font); }
+  HBFontGuard(const HBFontGuard&) = delete;
+  HBFontGuard& operator=(const HBFontGuard&) = delete;
+};
 
 // Check if a font has MATH table data
 [[cpp11::register]]
@@ -131,11 +145,11 @@ cpp11::writable::list get_math_constants(
   double font_size = size.size() > 0 ? size[0] : 12.0;
   double resolution = res.size() > 0 ? res[0] : 72.0;
 
-  hb_font_t* font = load_math_font(path, idx, font_size, resolution);
+  HBFontGuard font_guard(load_math_font(path, idx, font_size, resolution));
+  hb_font_t* font = font_guard.font;
   hb_face_t* face = hb_font_get_face(font);
 
   if (!hb_ot_math_has_data(face)) {
-    hb_font_destroy(font);
     cpp11::stop("Font does not have MATH table: %s", path);
   }
 
@@ -154,8 +168,6 @@ cpp11::writable::list get_math_constants(
 
   result.push_back(cpp11::named_arg("name") = names);
   result.push_back(cpp11::named_arg("value") = values);
-
-  hb_font_destroy(font);
 
   // Convert to data frame
   result.attr("class") = "data.frame";
@@ -185,34 +197,33 @@ cpp11::writable::list get_math_glyph_variants(
   double font_size = size.size() > 0 ? size[0] : 12.0;
   double resolution = res.size() > 0 ? res[0] : 72.0;
 
-  hb_font_t* font = load_math_font(path, idx, font_size, resolution);
+  HBFontGuard font_guard(load_math_font(path, idx, font_size, resolution));
+  hb_font_t* font = font_guard.font;
   hb_face_t* face = hb_font_get_face(font);
 
   if (!hb_ot_math_has_data(face)) {
-    hb_font_destroy(font);
     cpp11::stop("Font does not have MATH table: %s", path);
   }
 
   hb_direction_t direction = is_vertical ? HB_DIRECTION_BTT : HB_DIRECTION_LTR;
 
-  // First call to get count
-  unsigned int count = 0;
-  hb_ot_math_get_glyph_variants(font, glyph, direction, 0, &count, nullptr);
+  // The return value is the total count; the in/out parameter is the
+  // buffer capacity, not the total
+  unsigned int count = hb_ot_math_get_glyph_variants(font, glyph, direction, 0, nullptr, nullptr);
 
   cpp11::writable::integers variant_glyphs;
   cpp11::writable::doubles variant_advances;
 
   if (count > 0) {
     std::vector<hb_ot_math_glyph_variant_t> variants(count);
-    hb_ot_math_get_glyph_variants(font, glyph, direction, 0, &count, variants.data());
+    unsigned int written = count;
+    hb_ot_math_get_glyph_variants(font, glyph, direction, 0, &written, variants.data());
 
-    for (unsigned int i = 0; i < count; i++) {
+    for (unsigned int i = 0; i < written; i++) {
       variant_glyphs.push_back(static_cast<int>(variants[i].glyph));
       variant_advances.push_back(static_cast<double>(variants[i].advance));
     }
   }
-
-  hb_font_destroy(font);
 
   cpp11::writable::list result;
   result.push_back(cpp11::named_arg("glyph") = variant_glyphs);
@@ -251,20 +262,20 @@ cpp11::writable::list get_math_glyph_assembly(
   double font_size = size.size() > 0 ? size[0] : 12.0;
   double resolution = res.size() > 0 ? res[0] : 72.0;
 
-  hb_font_t* font = load_math_font(path, idx, font_size, resolution);
+  HBFontGuard font_guard(load_math_font(path, idx, font_size, resolution));
+  hb_font_t* font = font_guard.font;
   hb_face_t* face = hb_font_get_face(font);
 
   if (!hb_ot_math_has_data(face)) {
-    hb_font_destroy(font);
     cpp11::stop("Font does not have MATH table: %s", path);
   }
 
   hb_direction_t direction = is_vertical ? HB_DIRECTION_BTT : HB_DIRECTION_LTR;
 
-  // First call to get count
-  unsigned int count = 0;
+  // The return value is the total count; the in/out parameter is the
+  // buffer capacity, not the total
   hb_position_t italics_correction = 0;
-  hb_ot_math_get_glyph_assembly(font, glyph, direction, 0, &count, nullptr, &italics_correction);
+  unsigned int count = hb_ot_math_get_glyph_assembly(font, glyph, direction, 0, nullptr, nullptr, &italics_correction);
 
   cpp11::writable::integers part_glyphs;
   cpp11::writable::doubles start_connectors;
@@ -274,9 +285,10 @@ cpp11::writable::list get_math_glyph_assembly(
 
   if (count > 0) {
     std::vector<hb_ot_math_glyph_part_t> parts(count);
-    hb_ot_math_get_glyph_assembly(font, glyph, direction, 0, &count, parts.data(), &italics_correction);
+    unsigned int written = count;
+    hb_ot_math_get_glyph_assembly(font, glyph, direction, 0, &written, parts.data(), &italics_correction);
 
-    for (unsigned int i = 0; i < count; i++) {
+    for (unsigned int i = 0; i < written; i++) {
       part_glyphs.push_back(static_cast<int>(parts[i].glyph));
       start_connectors.push_back(static_cast<double>(parts[i].start_connector_length));
       end_connectors.push_back(static_cast<double>(parts[i].end_connector_length));
@@ -284,8 +296,6 @@ cpp11::writable::list get_math_glyph_assembly(
       is_extender.push_back((parts[i].flags & HB_OT_MATH_GLYPH_PART_FLAG_EXTENDER) != 0);
     }
   }
-
-  hb_font_destroy(font);
 
   cpp11::writable::list result;
   result.push_back(cpp11::named_arg("glyph") = part_glyphs);
@@ -445,6 +455,11 @@ double get_math_kerning(
   }
 
   hb_font_t* font = load_math_font(path, idx, font_size, resolution);
+
+  // Guard against non-finite or huge correction heights (UB on cast)
+  if (!std::isfinite(corr_height)) corr_height = 0;
+  if (corr_height > 1e9) corr_height = 1e9;
+  if (corr_height < -1e9) corr_height = -1e9;
 
   hb_position_t kerning = hb_ot_math_get_glyph_kerning(
     font,

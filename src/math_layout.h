@@ -1,6 +1,6 @@
 #pragma once
 
-#include "math_parser.h"
+#include "math_ast.h"
 #include <hb.h>
 #include <hb-ft.h>
 #include <hb-ot.h>
@@ -140,6 +140,10 @@ public:
   MathLayout(const char* font_path, int font_index, double size, double res);
   ~MathLayout();
 
+  // Owns raw HarfBuzz/FreeType handles; copying would double-free
+  MathLayout(const MathLayout&) = delete;
+  MathLayout& operator=(const MathLayout&) = delete;
+
   // Layout the math expression and return positioned glyphs
   MathBox layout(const std::string& latex, bool display_mode = false);
 
@@ -161,6 +165,11 @@ private:
   bool owns_ft_library_;
   bool has_math_;
   double base_size_;
+  double res_ = 72.0;
+
+  // Point-based quantities (e.g. em spacing derived from the point size)
+  // must be scaled into box units, which are device pixels
+  double pt_to_box() const { return res_ / 72.0; }
   bool display_mode_;
   MathConstants constants_;
   std::vector<std::string> errors_;
@@ -173,6 +182,9 @@ private:
 
   // Current forced display style (for \displaystyle, \textstyle, etc.)
   MathDisplayStyle forced_style_;
+
+  // Whether currently in cramped style (reduces superscript height)
+  bool cramped_;
 
   // Flattened accent glyph lookup (regular glyph ID -> flattened glyph ID)
   std::unordered_map<uint32_t, uint32_t> flattened_accents_;
@@ -214,6 +226,7 @@ private:
   MathBox layout_superscript(MathNode* node);
   MathBox layout_subscript(MathNode* node);
   MathBox layout_subsuperscript(MathNode* node);
+  MathBox layout_multiscript(MathNode* node);
   MathBox layout_fraction(MathNode* node);
   MathBox layout_sqrt(MathNode* node);
   MathBox layout_delimited(MathNode* node);
@@ -240,6 +253,8 @@ private:
   MathBox layout_smash(MathNode* node);
   MathBox layout_mod(MathNode* node);
   MathBox layout_rule(MathNode* node);
+  MathBox layout_stretched(MathNode* node);
+  MathBox layout_class_override(MathNode* node);
 
   // Helper to layout text string
   MathBox layout_string(const std::string& str);

@@ -4,10 +4,10 @@ PKG_LIBS := $(shell $(PKG_CONFIG) --libs $(PKG_CONFIG_NAME))
 
 ifneq ($(PKG_LIBS),)
 $(info using $(PKG_CONFIG_NAME) from Rtools)
-PKG_CPPFLAGS := $(subst -mms-bitfields,,$(shell $(PKG_CONFIG) --cflags $(PKG_CONFIG_NAME)))
+PKG_CPPFLAGS := -DNDEBUG $(subst -mms-bitfields,,$(shell $(PKG_CONFIG) --cflags $(PKG_CONFIG_NAME)))
 else
 RWINLIB = ../windows/harfbuzz
-PKG_CPPFLAGS = -I$(RWINLIB)/include/harfbuzz -I$(RWINLIB)/include/fribidi -I$(RWINLIB)/include/freetype2
+PKG_CPPFLAGS = -DNDEBUG -DFRIBIDI_LIB_STATIC -I$(RWINLIB)/include/harfbuzz -I$(RWINLIB)/include/fribidi -I$(RWINLIB)/include/freetype2
 PKG_LIBS = -L$(RWINLIB)/lib$(R_ARCH) -L$(RWINLIB)/lib -lfribidi -lfreetype -lharfbuzz -lfreetype -lpng -lbz2 -lz -lrpcrt4 -lgdi32 -luuid
 endif
 

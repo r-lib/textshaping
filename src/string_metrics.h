@@ -23,7 +23,8 @@ struct Point {
 
 [[cpp11::register]]
 list get_string_shape_c(strings string, integers id, strings path, integers index,
-                        list_of<list> features, doubles size, doubles res,
+                        list_of<list> features, list_of<list> variations,
+                        doubles size, doubles res,
                         doubles lineheight, integers align, doubles hjust,
                         doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
@@ -32,7 +33,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
 
 [[cpp11::register]]
 doubles get_line_width_c(strings string, strings path, integers index, doubles size,
-                         doubles res, logicals include_bearing, list_of<list> features);
+                         doubles res, logicals include_bearing, list_of<list> features,
+                         list_of<list> variations);
 [[cpp11::register]]
 bool get_systemfont_cache_compat();
 int ts_string_width(const char* string, FontSettings font_info,
@@ -42,6 +44,13 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
                     std::vector<int>& cluster, std::vector<unsigned int>& font,
                     std::vector<FontSettings>& fallbacks,
                     std::vector<double>& fallback_scaling);
+int ts_string_width2(const char* string, FontSettings2 font_info,
+                     double size, double res, int include_bearing, double* width);
+int ts_string_shape2(const char* string, FontSettings2 font_info, double size,
+                     double res, std::vector<textshaping::Point>& loc, std::vector<uint32_t>& id,
+                     std::vector<int>& cluster, std::vector<unsigned int>& font,
+                     std::vector<FontSettings2>& fallbacks,
+                     std::vector<double>& fallback_scaling);
 int ts_string_shape_old(const char* string, FontSettings font_info, double size,
                         double res, double* x, double* y, int* id, int* n_glyphs,
                         unsigned int max_length);

@@ -18,6 +18,7 @@ writable::list get_face_features_c(strings path, integers index) {
 #include <hb-ot.h>
 #include <vector>
 #include <cpp11/r_string.hpp>
+#include <cpp11/protect.hpp>
 
 using namespace cpp11;
 
@@ -32,65 +33,60 @@ writable::list get_face_features_c(strings path, integers index) {
   }
 
   std::vector<hb_tag_t> tags;
-  unsigned int n_tags = 0;
   char tag_temp[5];
   tag_temp[4] = '\0';
 
-  FT_Library library;
-  FT_Face ft_face;
-  FT_Error error = FT_Init_FreeType(&library);
+  // RAII guard so error paths (exceptions) can't leak the library
+  struct FTLibraryGuard {
+    FT_Library library = nullptr;
+    ~FTLibraryGuard() {
+      if (library != nullptr) FT_Done_FreeType(library);
+    }
+  } guard;
+
+  FT_Error error = FT_Init_FreeType(&guard.library);
   if (error != 0) {
     stop("Freetype could not be initialised");
   }
 
   for (int i = 0; i < path.size(); ++i) {
-    error = FT_New_Face(library,
-                        Rf_translateCharUTF8(path[i]),
+    cpp11::check_user_interrupt();
+    if (path[i] == NA_STRING || index[i] == NA_INTEGER) {
+      stop("`path` and `index` cannot contain missing values");
+    }
+    FT_Face ft_face = nullptr;
+    error = FT_New_Face(guard.library,
+                        cpp11::safe[Rf_translateCharUTF8](path[i]),
                         index[i],
                         &ft_face);
-    if (error != 0) {
-      stop("Font could not be loaded");
+    if (error != 0 || ft_face == nullptr) {
+      stop("Font could not be loaded (freetype error %i)", (int) error);
     }
+    // hb_ft_face_create_referenced takes its own reference, so we can release
+    // ours immediately; hb_face_destroy below releases the rest
     hb_face_t *face = hb_ft_face_create_referenced(ft_face);
+    FT_Done_Face(ft_face);
     writable::strings font_tags;
 
-    // Get GPOS tags
-    n_tags = hb_ot_layout_table_get_feature_tags(face, HB_OT_TAG_GPOS, 0, NULL, NULL);
-    tags.clear();
-    tags.reserve(n_tags);
-    for (size_t j = 0; j < n_tags; ++j) {
-      hb_tag_t tag = {};
-      tags.push_back(tag);
-    }
-    if (n_tags > 0) {
-      n_tags = hb_ot_layout_table_get_feature_tags(face, HB_OT_TAG_GPOS, 0, &n_tags, &tags[0]);
-      for (size_t j = 0; j < n_tags; ++j) {
+    auto collect_tags = [&](hb_tag_t table) {
+      unsigned int n_tags = hb_ot_layout_table_get_feature_tags(face, table, 0, NULL, NULL);
+      if (n_tags == 0) return;
+      tags.assign(n_tags, 0);
+      unsigned int count = n_tags;
+      hb_ot_layout_table_get_feature_tags(face, table, 0, &count, tags.data());
+      for (unsigned int j = 0; j < count; ++j) {
         hb_tag_to_string(tags[j], tag_temp);
         font_tags.push_back(tag_temp);
       }
-    }
+    };
 
-    // Get GSUB tags — same as above
-    n_tags = hb_ot_layout_table_get_feature_tags(face, HB_OT_TAG_GSUB, 0, NULL, NULL);
-    tags.clear();
-    tags.reserve(n_tags);
-    for (size_t j = 0; j < n_tags; ++j) {
-      hb_tag_t tag = {};
-      tags.push_back(tag);
-    }
-    if (n_tags > 0) {
-      n_tags = hb_ot_layout_table_get_feature_tags(face, HB_OT_TAG_GSUB, 0, &n_tags, &tags[0]);
-      for (size_t j = 0; j < n_tags; ++j) {
-        hb_tag_to_string(tags[j], tag_temp);
-        font_tags.push_back(tag_temp);
-      }
-    }
+    collect_tags(HB_OT_TAG_GPOS);
+    collect_tags(HB_OT_TAG_GSUB);
 
     features[i] = (SEXP) font_tags;
     hb_face_destroy(face);
   }
 
-  FT_Done_FreeType(library);
   return features;
 }
 

@@ -1,5 +1,307 @@
-# Comprehensive LaTeX math expression tests for visual validation
+# Comprehensive math expression tests for visual validation
 # Run with: plot_math(shape_math(expr)) for each expression
+# Tests both LaTeX and Typst syntax
+
+# =============================================================================
+# Typst test expressions
+# =============================================================================
+
+typst_expressions <- c(
+  # === BASIC ELEMENTS ===
+  # Variables
+  "x + y = z",
+  "a^2 + b^2 = c^2",
+
+  # Numbers
+  "x = 42",
+  "y = 3.14159",
+
+  # Greek letters
+  "alpha + beta = gamma",
+  "Gamma Delta Theta Lambda Xi Pi Sigma Phi Psi Omega",
+
+  # Greek variants (dotted)
+  "epsilon.alt",
+  "phi.alt",
+  "theta.alt",
+
+  # === DOTTED/NAMESPACED SYMBOLS ===
+  # Arrows
+  "arrow.r",
+  "arrow.l",
+  "arrow.lr",
+  "arrow.r.double",
+  "arrow.r.long",
+  "arrow.hook.r",
+  "arrow.twohead.r",
+  "arrow.bar.r",
+
+  # Relations
+  "eq.not",
+  "lt.eq",
+  "gt.eq",
+  "approx.eq",
+  "subset.eq",
+  "prec.eq",
+
+  # Operators
+  "plus.minus",
+  "times.circle",
+  "dot.op",
+
+  # Sets
+  "union.big",
+  "sect.big",
+
+  # Logic
+  "exists.not",
+
+  # Miscellaneous
+  "planck.reduce",
+  "dots.h",
+  "dots.c",
+
+  # === SHORTHAND SEQUENCES ===
+  # Arrows
+  "a -> b",
+  "a <- b",
+  "a <-> b",
+  "a => b",
+  "a <=> b",
+  "a --> b",
+  "a <-- b",
+  "a ==> b",
+  "a <==> b",
+  "f: A |-> B",
+
+  # Relations
+  "a <= b",
+  "a >= b",
+  "a != b",
+  "a << b",
+  "a >> b",
+
+  # Operators
+  "a * b",
+  "a - b",
+  "a ~ b",
+
+  # Definitions
+  "x := 1",
+  "f ::= g",
+
+  # === OPERATORS AND RELATIONS ===
+  "a + b - c * d / e",
+
+  # === SCRIPTS ===
+  "x^2",
+  "x_i",
+  "x_i^2",
+  "x^(2n+1)",
+
+  # === FRACTIONS ===
+  "frac(a, b)",
+  "frac(x+1, x-1)",
+  "frac(frac(a, b), frac(c, d))",
+
+  # Fraction shorthand
+  "a/b",
+  "1/2",
+  "x^2/y^2",
+  "a/b/c",
+
+  # === ROOTS ===
+  "sqrt(x)",
+  "sqrt(x^2 + y^2)",
+  "root(3, x)",
+  "root(n, a^n)",
+
+  # === DELIMITERS ===
+  "abs(x)",
+  "norm(v)",
+  "floor(x)",
+  "ceil(x)",
+  "lr((frac(a, b)))",
+
+  # Explicit delimiter sizes
+  "lr(size: 2em, (x))",
+  "lr(size: 3, [a + b])",
+  "lr(size: 24pt, (y))",
+  "lr(size: 10mm, [z])",
+  "lr(size: 1cm, {w})",
+  "lr(size: 0.5in, (v))",
+  "lr(size: 150%, (frac(a, b)))",
+
+  # Non-scaling (escaped) delimiters
+  "\\(x\\)",
+  "\\[a + b\\]",
+  "f\\(x\\) = x^2",
+
+  # === ACCENTS ===
+  "hat(x) tilde(y) bar(z)",
+  "dot(x) ddot(x) vec(v)",
+  "acute(a) grave(e) breve(u)",
+
+  # Wide accents
+  "widehat(abc) widetilde(xyz)",
+  "overline(x+y) underline(a+b)",
+  "overbrace(a+b+c, n) underbrace(x+y+z, m)",
+  "overrightarrow(AB)",
+
+  # Generic accent function
+  "accent(x, hat)",
+  "accent(x, tilde)",
+  "accent(a, acute)",
+  'accent(x, "\u0302")',
+  'accent(v, "\u20D7")',
+
+  # === FUNCTIONS ===
+  "sin x cos y tan z",
+  "log x ln e exp(x)",
+  "lim max min",
+
+  # === DIFFERENTIAL OPERATORS ===
+  "dif",
+  "Dif",
+  "dd",
+  "integral dif x",
+  "integral_0^1 f(x) dif x",
+
+  # === PRIMES ===
+  "f'",
+  "f''",
+  "f'''",
+  "f''''",
+  "f^2'",
+  "f'(x)",
+
+  # === FONT STYLES ===
+  "upright(d) x",
+  "bold(v) + bold(w)",
+  "italic(text)",
+  "sans(text)",
+  "mono(code)",
+  "cal(L) frak(g)",
+  "bb(R) bb(C) bb(Z) bb(Q) bb(N)",
+
+  # === TEXT ===
+  'x "if" x > 0',
+
+  # === MATRICES ===
+  "mat(a, b; c, d)",
+  "mat(1, 0; 0, 1)",
+
+  # === CASES ===
+  "cases(1 &\"if\" x > 0, 0 &\"if\" x = 0)",
+
+  # === STACKED EXPRESSIONS ===
+  "binom(n, k)",
+
+  # === ATTACH (four-corner scripts) ===
+  "attach(T, t: mu, b: nu)",
+  "attach(T, tl: a, tr: b, bl: c, br: d)",
+  "attach(Gamma, tl: mu, tr: nu, bl: rho, br: sigma)",
+  "attach(R, tr: i, br: j, bl: k, tl: l)",
+
+  # === SPACING ===
+  "a thin b med c thick d",
+  "x quad y",
+
+  # Explicit spacing with h()
+  "a h(1em) b",
+  "a h(2em) b",
+  "a h(10pt) b",
+  "a h(5mm) b",
+  "a h(0.5cm) b",
+  "a h(0.25in) b",
+
+  # === CANCELLATION ===
+  "cancel(x)",
+  "cancel(x, inverted: true)",
+  "cancel(x, cross: true)",
+
+  # === PHANTOMS ===
+  "a + hide(b) + c",
+
+  # === DISPLAY STYLES ===
+  "display(sum_i^n x_i)",
+  "inline(sum_i^n x_i)",
+
+  # === NEW FUNCTIONS ===
+  # Round brackets shorthand
+  "round(x + y)",
+
+  # Primes function
+  "primes(1)",
+  "primes(2)",
+  "primes(3)",
+
+  # Additional style functions
+  "serif(x)",
+  "scr(L)",
+
+  # Mid delimiter (for set-builder notation)
+  "lr({ x mid(|) x > 0 })",
+
+  # Under/over bracket variants
+  "overbracket(a + b, n)",
+  "underbracket(x + y, m)",
+  "overparen(f(x))",
+  "underparen(g(x))",
+  "overshell(abc)",
+  "undershell(xyz)",
+
+  # === NEW FEATURES ===
+  # stretch() function
+  "stretch(=, size: 3em)",
+  "stretch(arrow.r, size: 2em)",
+
+  # class() function
+  'class("relation", x)',
+  'class("binary", +)',
+
+  # Matrix augment parameter
+  "mat(augment: 1, a, b; c, d)",
+  "mat(augment: #(vline: 1), a, b; c, d)",
+  "mat(augment: #(hline: 0), a, b; c, d)",
+  "mat(augment: #(vline: 1, hline: 0), a, b; c, d)",
+
+  # cramped parameter for display styles
+  "display(x^2, cramped: true)",
+  "inline(x^2, cramped: true)",
+  "script(x^2, cramped: true)",
+  "sscript(x^2, cramped: true)",
+
+  # accent size parameter
+  "accent(x, hat, size: 150%)",
+  "accent(x, hat, size: 2)",
+
+  # accent dotless parameter
+  "accent(i, hat, dotless: true)",
+  "accent(j, hat, dotless: true)",
+
+  # gap parameters (using non-hyphenated names; hyphenated row-gap/column-gap also work)
+  "mat(rowgap: 1em, a, b; c, d)",
+  "mat(columngap: 2em, a, b; c, d)",
+
+  # === MULTILINE (Typst linebreak and alignment) ===
+  "x &= 1 \\ &= 2",
+  "a &= b + c \\ &= d",
+
+  # === COMPLEX EXPRESSIONS ===
+  # Quadratic formula
+  "x = frac(-b + sqrt(b^2 - 4 a c), 2 a)",
+
+  # Taylor series (partial)
+  "e^x = sum_(n=0)^infinity frac(x^n, n!)",
+
+  # Matrix determinant
+  "det mat(a, b; c, d) = a d - b c"
+)
+
+# =============================================================================
+# LaTeX test expressions
+# =============================================================================
 
 test_expressions <- c(
   # === BASIC ELEMENTS ===
@@ -70,6 +372,23 @@ test_expressions <- c(
   r"(\sum_{i=1}^n x_i)",
   r"(\prod_{k=1}^n k)",
   r"(\int_0^\infty e^{-x} dx)",
+
+  # Differential operators
+  r"(\dif)",
+  r"(\Dif)",
+  r"(\dd)",
+  r"(\int \dif x)",
+  r"(\int_0^1 f(x) \dif x)",
+
+  # Primes
+  "f'",
+  "f''",
+  "f'''",
+  "f''''",
+  "f^2'",
+  r"(f^\prime)",
+  r"(f^{\prime\prime})",
+  "f'(x)",
 
   # With limits control
   r"(\sum\limits_{i=1}^n x_i)",
@@ -328,8 +647,8 @@ test_expressions <- c(
   r"(i\hbar \frac{\partial}{\partial t} \Psi = \hat{H} \Psi)"
 )
 
-# Test that all expressions can be shaped without error
-test_that("All test expressions shape without error", {
+# Test that all LaTeX expressions can be shaped without error
+test_that("All LaTeX test expressions shape without error", {
   for (i in seq_along(test_expressions)) {
     expr <- test_expressions[i]
     result <- tryCatch(
@@ -338,9 +657,42 @@ test_that("All test expressions shape without error", {
     )
     expect_false(
       inherits(result, "error"),
-      label = sprintf("Expression %d: %s", i, expr)
+      label = sprintf("LaTeX expression %d: %s", i, expr)
     )
   }
+})
+
+# Test that all Typst expressions can be shaped without error
+test_that("All Typst test expressions shape without error", {
+  for (i in seq_along(typst_expressions)) {
+    expr <- typst_expressions[i]
+    result <- tryCatch(
+      shape_math(expr),
+      error = function(e) e
+    )
+    expect_false(
+      inherits(result, "error"),
+      label = sprintf("Typst expression %d: %s", i, expr)
+    )
+  }
+})
+
+# Test syntax detection - LaTeX vs Typst should produce equivalent results
+test_that("LaTeX and Typst produce equivalent results for simple expressions", {
+  # Simple fraction
+  latex_result <- shape_math(r"(\frac{a}{b})")
+  typst_result <- shape_math("frac(a, b)")
+  expect_equal(nrow(latex_result$shape), nrow(typst_result$shape))
+
+  # Square root
+  latex_result <- shape_math(r"(\sqrt{x})")
+  typst_result <- shape_math("sqrt(x)")
+  expect_equal(nrow(latex_result$shape), nrow(typst_result$shape))
+
+  # Binomial
+  latex_result <- shape_math(r"(\binom{n}{k})")
+  typst_result <- shape_math("binom(n, k)")
+  expect_equal(nrow(latex_result$shape), nrow(typst_result$shape))
 })
 
 # Test display mode for expressions with big operators
@@ -466,3 +818,96 @@ validate_math <- function(
     }
   }
 }
+# Regression tests for parser bugs found in the 2026-11 C++ review
+
+test_that("typst brace groups with unexpected tokens error instead of hanging", {
+  expect_error(shape_math("arrow.r {a)}"))
+})
+
+test_that("typst augment dictionary with unexpected tokens errors instead of hanging", {
+  expect_error(shape_math("mat(augment: #(1), a)"))
+  expect_no_error(shape_math("mat(augment: #(vline: -1), a)"))
+  expect_no_error(shape_math("mat(augment: #(vline: (1, 2)), a)"))
+})
+
+test_that("typst parser reports trailing content instead of silently dropping it", {
+  expect_error(shape_math("arrow.r a, b"))
+  expect_error(shape_math("arrow.r f: A -> B"))
+})
+
+test_that("typst parenthesised comma lists work", {
+  expect_no_error(shape_math("f(x, y)"))
+})
+
+test_that("typst scripts, primes, and identifiers work", {
+  expect_no_error(shape_math("x_1 + y"))
+  expect_no_error(shape_math("xy + z"))
+  expect_no_error(shape_math("f'(x) + y"))
+  expect_no_error(shape_math("x^(a+b)"))
+})
+
+test_that("typst root, matrices, and cases handle ragged and empty cells", {
+  expect_no_error(shape_math("root(3, x)"))
+  expect_no_error(shape_math("mat(a; c, d)"))
+  expect_no_error(shape_math("mat(a, b; c, d)"))
+  expect_no_error(shape_math("cases(a & b, c & d)"))
+  expect_no_error(shape_math("mat(row-gap: 0.5em, a)"))
+  expect_no_error(shape_math("mat(column-gap: 1em, a)"))
+})
+
+test_that("typst delimiters and attachments work", {
+  expect_no_error(shape_math("lr(|x|)"))
+  expect_no_error(shape_math("lr((x + y))"))
+  expect_no_error(shape_math("attach(x, t: a, b: c)"))
+  expect_no_error(shape_math("attach(x, t: a)"))
+  expect_no_error(shape_math("attach(x, tl: a, br: b)"))
+})
+
+test_that("typst backslash escapes and line breaks work", {
+  expect_no_error(shape_math("arrow.r a \\ b"))
+  expect_no_error(shape_math("\\(a\\)"))
+})
+
+test_that("deeply nested input errors instead of overflowing the stack", {
+  expect_error(
+    shape_math(paste0(strrep("{", 2000), "x", strrep("}", 2000))),
+    "nested"
+  )
+  expect_error(
+    shape_math(paste0(strrep(r"(\frac{)", 1000), "1", strrep("}{1}", 1000))),
+    "nested"
+  )
+})
+
+test_that("latex displaystyle stops at \\right and friends", {
+  expect_no_error(shape_math(r"(\left( \displaystyle a \right))"))
+})
+
+test_that("latex non-ascii input is rendered", {
+  expect_no_error(shape_math(r"(\alpha + é)"))
+})
+
+test_that("latex primes combine with scripts in order", {
+  expect_no_error(shape_math("f'^2"))
+  expect_no_error(shape_math("f^2'"))
+  # f'^2 should produce a superscript containing both glyphs
+  s1 <- shape_math("f'^2")
+  s2 <- shape_math("f'")
+  expect_gt(nrow(s1$shape), nrow(s2$shape))
+})
+
+test_that("latex \\text preserves spaces", {
+  s <- shape_math(r"(\text{a b})")
+  expect_gte(nrow(s$shape), 2)
+})
+
+test_that("math glyph variants and assemblies are returned", {
+  loc <- "/System/Library/Fonts/Supplemental/STIXTwoMath.otf"
+  skip_if_not(file.exists(loc))
+  stopifnot(has_math_table(loc, 0L))
+  gid <- shape_math("(", path = loc)$shape$index[1]
+  variants <- get_math_glyph_variants(loc, 0L, as.integer(gid), TRUE, 12, 72)
+  expect_gt(nrow(variants), 0)
+  assembly <- get_math_glyph_assembly(loc, 0L, as.integer(gid), TRUE, 12, 72)
+  expect_gt(nrow(assembly), 0)
+})

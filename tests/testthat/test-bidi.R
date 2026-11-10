@@ -62,3 +62,18 @@ test_that("Textshaping follows UNICODE Bidi conventions", {
     )
   }
 })
+
+# Regression tests for bidi bugs found in the 2026-11 C++ review
+
+test_that("deeply nested bidi embeddings don't overflow the embed stack", {
+  # This corrupted the heap before the fix
+  expect_no_error(shape_text(paste0(strrep("\u202b", 130), "x")))
+})
+
+test_that("rtl embeddings ending in a line break don't throw", {
+  expect_no_error(shape_text(c("שלום ", "עולם\nאבג"), id = c(1, 1)))
+})
+
+test_that("single character strings resolve their direction", {
+  expect_true(shape_text("a")$metrics$ltr)
+})

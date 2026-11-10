@@ -1,4 +1,5 @@
 #include "math_layout.h"
+#include "math_parser.h"
 #include "math_symbols.h"
 #include <systemfonts.h>
 #include <systemfonts-ft.h>
@@ -68,6 +69,7 @@ MathLayout::MathLayout(const char* font_path, int font_index, double size, doubl
   , owns_ft_library_(false)
   , has_math_(false)
   , base_size_(size)
+  , res_(res > 0 ? res : 72.0)
   , display_mode_(false)
   , current_scale_(1.0 / 64.0)  // Convert from 26.6 fixed-point to points
 {
@@ -122,7 +124,9 @@ MathLayout::~MathLayout() {
   if (hb_font_) {
     hb_font_destroy(hb_font_);
   }
-  if (!ft_compat && ft_face_) {
+  // The face is ours regardless of the ft_compat path (cached faces are
+  // referenced for the caller), so always release it
+  if (ft_face_) {
     FT_Done_Face(ft_face_);
   }
   if (owns_ft_library_ && ft_library_) {
@@ -420,6 +424,7 @@ MathBox MathLayout::layout(MathNode* node, bool display_mode) {
   display_mode_ = display_mode;
   current_scale_ = 1.0 / 64.0;  // Reset to base scale (26.6 fixed-point to points)
   forced_style_ = MathDisplayStyle::INHERIT;  // No forced style by default
+  cramped_ = false;  // Not in cramped style by default
   return layout_node(node);
 }
 
@@ -441,6 +446,8 @@ MathBox MathLayout::layout_node(MathNode* node) {
       return layout_subscript(node);
     case NodeType::SUBSUPERSCRIPT:
       return layout_subsuperscript(node);
+    case NodeType::MULTISCRIPT:
+      return layout_multiscript(node);
     case NodeType::FRACTION:
       return layout_fraction(node);
     case NodeType::STACK:
@@ -493,6 +500,10 @@ MathBox MathLayout::layout_node(MathNode* node) {
       return layout_mod(node);
     case NodeType::RULE:
       return layout_rule(node);
+    case NodeType::STRETCHED:
+      return layout_stretched(node);
+    case NodeType::CLASS_OVERRIDE:
+      return layout_class_override(node);
     default:
       error("Unknown node type");
       return MathBox();
@@ -526,17 +537,22 @@ MathBox MathLayout::layout_symbol(MathNode* node) {
   const std::string& val = node->value;
   if (val.empty()) return MathBox();
 
-  // Decode UTF-8 to get first codepoint
+  // Decode UTF-8 to get first codepoint (bounds-checked)
   uint32_t codepoint = 0;
   const unsigned char* s = reinterpret_cast<const unsigned char*>(val.c_str());
+  size_t len = val.size();
   if ((s[0] & 0x80) == 0) {
     codepoint = s[0];
-  } else if ((s[0] & 0xE0) == 0xC0) {
+  } else if ((s[0] & 0xE0) == 0xC0 && len >= 2 && (s[1] & 0xC0) == 0x80) {
     codepoint = ((s[0] & 0x1F) << 6) | (s[1] & 0x3F);
-  } else if ((s[0] & 0xF0) == 0xE0) {
+  } else if ((s[0] & 0xF0) == 0xE0 && len >= 3 && (s[1] & 0xC0) == 0x80 && (s[2] & 0xC0) == 0x80) {
     codepoint = ((s[0] & 0x0F) << 12) | ((s[1] & 0x3F) << 6) | (s[2] & 0x3F);
-  } else if ((s[0] & 0xF8) == 0xF0) {
+  } else if ((s[0] & 0xF8) == 0xF0 && len >= 4 && (s[1] & 0xC0) == 0x80 &&
+             (s[2] & 0xC0) == 0x80 && (s[3] & 0xC0) == 0x80) {
     codepoint = ((s[0] & 0x07) << 18) | ((s[1] & 0x3F) << 12) | ((s[2] & 0x3F) << 6) | (s[3] & 0x3F);
+  } else {
+    // Invalid or truncated sequence
+    codepoint = s[0];
   }
 
   // Map ASCII characters to proper math Unicode equivalents
@@ -575,8 +591,32 @@ MathBox MathLayout::layout_string(const std::string& str) {
   MathBox result;
   double x = 0;
 
-  for (char c : str) {
-    uint32_t glyph_id = get_glyph(static_cast<uint32_t>(c));
+  // Decode UTF-8 codepoint by codepoint so non-ASCII text renders properly
+  size_t i = 0;
+  while (i < str.size()) {
+    const unsigned char* s = reinterpret_cast<const unsigned char*>(str.data()) + i;
+    size_t remaining = str.size() - i;
+    uint32_t codepoint = 0;
+    size_t len = 1;
+    if ((s[0] & 0x80) == 0) {
+      codepoint = s[0];
+    } else if ((s[0] & 0xE0) == 0xC0 && remaining >= 2 && (s[1] & 0xC0) == 0x80) {
+      codepoint = ((s[0] & 0x1F) << 6) | (s[1] & 0x3F);
+      len = 2;
+    } else if ((s[0] & 0xF0) == 0xE0 && remaining >= 3 && (s[1] & 0xC0) == 0x80 && (s[2] & 0xC0) == 0x80) {
+      codepoint = ((s[0] & 0x0F) << 12) | ((s[1] & 0x3F) << 6) | (s[2] & 0x3F);
+      len = 3;
+    } else if ((s[0] & 0xF8) == 0xF0 && remaining >= 4 && (s[1] & 0xC0) == 0x80 &&
+               (s[2] & 0xC0) == 0x80 && (s[3] & 0xC0) == 0x80) {
+      codepoint = ((s[0] & 0x07) << 18) | ((s[1] & 0x3F) << 12) | ((s[2] & 0x3F) << 6) | (s[3] & 0x3F);
+      len = 4;
+    } else {
+      // Invalid or truncated sequence: emit the byte as-is
+      codepoint = s[0];
+    }
+    i += len;
+
+    uint32_t glyph_id = get_glyph(codepoint);
     MathBox glyph_box = make_glyph_box(glyph_id);
     result.merge(glyph_box, x, 0);
     x += glyph_box.width;
@@ -665,8 +705,9 @@ MathBox MathLayout::layout_superscript(MathNode* node) {
   }
 
   // Standard side-script positioning
-  // Calculate superscript shift
-  double shift_up = scale(constants_.superscript_shift_up);
+  // Calculate superscript shift (use cramped value if in cramped style)
+  double shift_up = cramped_ ? scale(constants_.superscript_shift_up_cramped)
+                             : scale(constants_.superscript_shift_up);
   double sup_bottom_min = scale(constants_.superscript_bottom_min);
 
   // Ensure superscript bottom is above minimum
@@ -837,8 +878,10 @@ MathBox MathLayout::layout_subsuperscript(MathNode* node) {
   }
 
   // Standard side-script positioning
-  // Initial shifts
-  double sup_shift = std::max(scale(constants_.superscript_shift_up),
+  // Initial shifts (use cramped value for superscript if in cramped style)
+  double sup_shift_base = cramped_ ? scale(constants_.superscript_shift_up_cramped)
+                                   : scale(constants_.superscript_shift_up);
+  double sup_shift = std::max(sup_shift_base,
                                base.height - scale(constants_.superscript_baseline_drop_max));
   double sub_shift = std::max(scale(constants_.subscript_shift_down),
                                base.depth + scale(constants_.subscript_baseline_drop_min));
@@ -871,6 +914,120 @@ MathBox MathLayout::layout_subsuperscript(MathNode* node) {
   result.width = std::max(sup_x + sup.width, sub_x + sub.width) + scale(constants_.space_after_script);
   result.height = std::max(base.height, sup_shift + sup.height);
   result.depth = std::max(base.depth, sub_shift + sub.depth);
+
+  return result;
+}
+
+MathBox MathLayout::layout_multiscript(MathNode* node) {
+  // Children convention: [base, t, b, tl, tr, bl, br]
+  if (node->children.empty()) return MathBox();
+
+  MathNode* base_node = node->children[0].get();
+  MathNode* t_node = node->children.size() > 1 ? node->children[1].get() : nullptr;
+  MathNode* b_node = node->children.size() > 2 ? node->children[2].get() : nullptr;
+  MathNode* tl_node = node->children.size() > 3 ? node->children[3].get() : nullptr;
+  MathNode* tr_node = node->children.size() > 4 ? node->children[4].get() : nullptr;
+  MathNode* bl_node = node->children.size() > 5 ? node->children[5].get() : nullptr;
+  MathNode* br_node = node->children.size() > 6 ? node->children[6].get() : nullptr;
+
+  MathBox base = layout_node(base_node);
+
+  // Layout scripts at smaller scale
+  double old_scale = current_scale_;
+  current_scale_ *= constants_.script_percent_scale_down / 100.0;
+
+  MathBox t_box = t_node ? layout_node(t_node) : MathBox();
+  MathBox b_box = b_node ? layout_node(b_node) : MathBox();
+  MathBox tl_box = tl_node ? layout_node(tl_node) : MathBox();
+  MathBox tr_box = tr_node ? layout_node(tr_node) : MathBox();
+  MathBox bl_box = bl_node ? layout_node(bl_node) : MathBox();
+  MathBox br_box = br_node ? layout_node(br_node) : MathBox();
+
+  current_scale_ = old_scale;
+
+  // Get positioning constants
+  double sup_shift = std::max(scale(constants_.superscript_shift_up),
+                               base.height - scale(constants_.superscript_baseline_drop_max));
+  double sub_shift = std::max(scale(constants_.subscript_shift_down),
+                               base.depth + scale(constants_.subscript_baseline_drop_min));
+
+  // Calculate widths of left and right pre/post scripts
+  double left_width = std::max(tl_box.width, bl_box.width);
+  double right_width = std::max(tr_box.width, br_box.width);
+
+  // Small gap between pre-scripts and base
+  double kern = scale(constants_.space_after_script);
+
+  // Calculate total width
+  double total_width = (left_width > 0 ? left_width + kern : 0) +
+                       base.width +
+                       (right_width > 0 ? kern + right_width : 0);
+
+  // Base x position (after left scripts)
+  double base_x = left_width > 0 ? left_width + kern : 0;
+
+  MathBox result;
+
+  // Merge base
+  result.merge(base, base_x, 0);
+
+  // Position left scripts (tl, bl) - right-aligned before the base
+  if (tl_node) {
+    double tl_x = left_width - tl_box.width;
+    result.merge(tl_box, tl_x, sup_shift);
+  }
+  if (bl_node) {
+    double bl_x = left_width - bl_box.width;
+    result.merge(bl_box, bl_x, -sub_shift);
+  }
+
+  // Position right scripts (tr, br) - left-aligned after the base
+  double right_x = base_x + base.width + base.italic_corr + kern;
+  if (tr_node) {
+    result.merge(tr_box, right_x, sup_shift);
+  }
+  if (br_node) {
+    result.merge(br_box, right_x, -sub_shift);
+  }
+
+  // Position top script (centered above base)
+  if (t_node) {
+    double upper_gap = scale(constants_.upper_limit_gap_min);
+    double t_shift = base.height + upper_gap + t_box.depth;
+    double t_x = base_x + (base.width - t_box.width) / 2;
+    result.merge(t_box, t_x, t_shift);
+  }
+
+  // Position bottom script (centered below base)
+  if (b_node) {
+    double lower_gap = scale(constants_.lower_limit_gap_min);
+    double b_shift = base.depth + lower_gap + b_box.height;
+    double b_x = base_x + (base.width - b_box.width) / 2;
+    result.merge(b_box, b_x, -b_shift);
+  }
+
+  // Calculate final dimensions
+  result.width = total_width;
+
+  // Height: max of base, top scripts, and top center
+  result.height = base.height;
+  if (tl_node) result.height = std::max(result.height, sup_shift + tl_box.height);
+  if (tr_node) result.height = std::max(result.height, sup_shift + tr_box.height);
+  if (t_node) {
+    double upper_gap = scale(constants_.upper_limit_gap_min);
+    double t_shift = base.height + upper_gap + t_box.depth;
+    result.height = std::max(result.height, t_shift + t_box.height);
+  }
+
+  // Depth: max of base, bottom scripts, and bottom center
+  result.depth = base.depth;
+  if (bl_node) result.depth = std::max(result.depth, sub_shift + bl_box.depth);
+  if (br_node) result.depth = std::max(result.depth, sub_shift + br_box.depth);
+  if (b_node) {
+    double lower_gap = scale(constants_.lower_limit_gap_min);
+    double b_shift = base.depth + lower_gap + b_box.height;
+    result.depth = std::max(result.depth, b_shift + b_box.depth);
+  }
 
   return result;
 }
@@ -1048,10 +1205,38 @@ MathBox MathLayout::layout_delimited(MathNode* node) {
     content = layout_node(node->children[0].get());
   }
 
-  // Target height for delimiters - add clearance so delimiters extend beyond content
+  // Axis height for vertical centering
   double axis = scale(constants_.axis_height);
+
+  // Auto size calculation (used for auto mode and as base for relative mode)
   double clearance = axis * 0.5;  // Extra space above and below content
-  double target_height = content.height + content.depth + 2 * clearance;
+  double auto_height = content.height + content.depth + 2 * clearance;
+
+  // Target height for delimiters
+  double target_height;
+  if (node->delim_height > 0 && !node->delim_height_unit.empty()) {
+    if (node->delim_height_unit == "em") {
+      // em units: relative to font size
+      // 1 em = base_size_ * current_scale_ * 64 in box coordinate units
+      target_height = node->delim_height * base_size_ * current_scale_ * 64.0 * pt_to_box();
+    } else if (node->delim_height_unit == "pt") {
+      // pt units: absolute points
+      // 1 pt = current_scale_ * 64 * (res/72) in box coordinate units
+      target_height = node->delim_height * current_scale_ * 64.0 * pt_to_box();
+    } else if (node->delim_height_unit == "relative") {
+      // Percentage: relative to auto-calculated height
+      target_height = node->delim_height * auto_height;
+    } else {
+      // Unknown unit, fall back to em
+      target_height = node->delim_height * base_size_ * current_scale_ * 64.0 * pt_to_box();
+    }
+  } else if (node->delim_height > 0) {
+    // Legacy: no unit specified, assume em
+    target_height = node->delim_height * base_size_ * current_scale_ * 64.0 * pt_to_box();
+  } else {
+    // Auto size
+    target_height = auto_height;
+  }
 
   // Get delimiter glyphs using shared lookup
   uint32_t left_cp = get_delimiter_codepoint(node->left_delim);
@@ -1083,7 +1268,6 @@ MathBox MathLayout::layout_delimited(MathNode* node) {
   // Right delimiter - use get_stretched_glyph for potentially assembled glyphs
   if (right_glyph != 0) {
     MathBox right_box = get_stretched_glyph(right_glyph, target_height, true);
-    double axis = scale(constants_.axis_height);
     double delim_center = (right_box.height - right_box.depth) / 2;
     double y_offset = axis - delim_center;
     result.merge(right_box, x, y_offset);
@@ -1158,10 +1342,39 @@ MathBox MathLayout::layout_big_op(MathNode* node) {
 MathBox MathLayout::layout_accent(MathNode* node) {
   if (node->children.empty()) return MathBox();
 
+  // Handle dotless parameter: substitute i/j with dotless variants
+  MathNode* base_node = node->children[0].get();
+  if (node->dotless && base_node && base_node->type == NodeType::SYMBOL) {
+    const std::string& val = base_node->value;
+    if (val == "i" || val == "\xC4\xB1") {  // i or ı
+      base_node->value = "\xC4\xB1";  // ı (U+0131 LATIN SMALL LETTER DOTLESS I)
+    } else if (val == "j" || val == "\xC8\xB7") {  // j or ȷ
+      base_node->value = "\xC8\xB7";  // ȷ (U+0237 LATIN SMALL LETTER DOTLESS J)
+    }
+  }
+
   MathBox base = layout_node(node->children[0].get());
 
-  // Get accent codepoint using command_to_codepoint from math_parser
-  uint32_t accent_codepoint = command_to_codepoint(node->command);
+  // Get accent codepoint - first try named command, then direct character
+  uint32_t accent_codepoint = 0;
+  if (!node->command.empty()) {
+    accent_codepoint = command_to_codepoint(node->command);
+  }
+
+  // If command lookup failed, try using value as direct character
+  if (accent_codepoint == 0 && !node->value.empty()) {
+    // Decode UTF-8 to get first codepoint
+    const unsigned char* s = reinterpret_cast<const unsigned char*>(node->value.c_str());
+    if ((s[0] & 0x80) == 0) {
+      accent_codepoint = s[0];
+    } else if ((s[0] & 0xE0) == 0xC0 && (s[1] & 0xC0) == 0x80) {
+      accent_codepoint = ((s[0] & 0x1F) << 6) | (s[1] & 0x3F);
+    } else if ((s[0] & 0xF0) == 0xE0 && (s[1] & 0xC0) == 0x80 && (s[2] & 0xC0) == 0x80) {
+      accent_codepoint = ((s[0] & 0x0F) << 12) | ((s[1] & 0x3F) << 6) | (s[2] & 0x3F);
+    } else if ((s[0] & 0xF8) == 0xF0 && (s[1] & 0xC0) == 0x80 && (s[2] & 0xC0) == 0x80 && (s[3] & 0xC0) == 0x80) {
+      accent_codepoint = ((s[0] & 0x07) << 18) | ((s[1] & 0x3F) << 12) | ((s[2] & 0x3F) << 6) | (s[3] & 0x3F);
+    }
+  }
 
   if (accent_codepoint == 0) {
     return base;
@@ -1170,7 +1383,9 @@ MathBox MathLayout::layout_accent(MathNode* node) {
   // Determine if this is an over or under accent
   bool is_under = (node->command == "underline" || node->command == "underbrace" ||
                    node->command == "underrightarrow" || node->command == "underleftarrow" ||
-                   node->command == "underleftrightarrow");
+                   node->command == "underleftrightarrow" ||
+                   node->command == "underbracket" || node->command == "underparen" ||
+                   node->command == "undershell");
 
   uint32_t accent_glyph = get_glyph(accent_codepoint);
 
@@ -1180,6 +1395,22 @@ MathBox MathLayout::layout_accent(MathNode* node) {
     accent_box = get_stretched_glyph(accent_glyph, base.width, false);
   } else {
     accent_box = make_glyph_box(accent_glyph);
+  }
+
+  // Apply accent size scaling if specified
+  if (node->accent_size > 0 && !accent_box.glyphs.empty()) {
+    double scale_factor = node->accent_size;
+    // Scale the accent box dimensions
+    accent_box.width *= scale_factor;
+    accent_box.height *= scale_factor;
+    accent_box.depth *= scale_factor;
+    // Scale the glyph size
+    for (auto& g : accent_box.glyphs) {
+      g.size *= scale_factor;
+      g.x *= scale_factor;
+      g.y *= scale_factor;
+      g.advance *= scale_factor;
+    }
   }
 
   // Position accent above or below base
@@ -1262,7 +1493,7 @@ MathBox MathLayout::layout_accent(MathNode* node) {
     result.depth = base.depth;
   }
 
-  // Handle overbrace/underbrace annotations
+  // Handle overbrace/underbrace/overbracket/etc. annotations
   if (node->children.size() > 1) {
     double old_scale = current_scale_;
     current_scale_ *= constants_.script_percent_scale_down / 100.0;
@@ -1271,13 +1502,16 @@ MathBox MathLayout::layout_accent(MathNode* node) {
 
     double annot_x = (result.width - annotation.width) / 2;
 
-    if (node->command == "overbrace") {
-      // Annotation goes above the brace
+    // Over variants: annotation goes above
+    if (node->command == "overbrace" || node->command == "overbracket" ||
+        node->command == "overparen" || node->command == "overshell") {
       double annot_y = result.height + scale(constants_.upper_limit_gap_min);
       result.merge(annotation, annot_x, annot_y);
       result.height = annot_y + annotation.height;
-    } else if (node->command == "underbrace") {
-      // Annotation goes below the brace
+    }
+    // Under variants: annotation goes below
+    else if (node->command == "underbrace" || node->command == "underbracket" ||
+             node->command == "underparen" || node->command == "undershell") {
       double annot_y = -result.depth - annotation.height - scale(constants_.lower_limit_gap_min);
       result.merge(annotation, annot_x, annot_y);
       result.depth = -annot_y + annotation.depth;
@@ -1300,11 +1534,23 @@ MathBox MathLayout::layout_text(MathNode* node) {
 MathBox MathLayout::layout_space(MathNode* node) {
   MathBox result;
 
-  // Get space width in em using shared table
+  // Check for new-style spacing with explicit amount and unit
+  if (node->space_amount != 0 && !node->space_unit.empty()) {
+    if (node->space_unit == "em") {
+      // 1em = base_size * current_scale * 64 in box coordinate units
+      result.width = node->space_amount * base_size_ * current_scale_ * 64.0 * pt_to_box();
+    } else if (node->space_unit == "pt") {
+      // 1pt = current_scale * 64 in box coordinate units
+      result.width = node->space_amount * current_scale_ * 64.0 * pt_to_box();
+    }
+    return result;
+  }
+
+  // Legacy: Get space width in em using shared table (for LaTeX-style spacing)
   double em_amount = get_space_amount(node->value);
   if (em_amount != 0.0) {
     // 1em = base_size * script_scale (current_scale_ includes 1/64 factor, so multiply by 64)
-    result.width = em_amount * base_size_ * current_scale_ * 64.0;
+    result.width = em_amount * base_size_ * current_scale_ * 64.0 * pt_to_box();
   }
 
   return result;
@@ -1556,6 +1802,14 @@ MathBox MathLayout::layout_matrix(MathNode* node) {
     h_padding = base_size_ * 0.15;
   }
 
+  // Apply custom gap parameters if specified
+  if (node->column_gap >= 0) {
+    col_gap = node->column_gap * base_size_ * pt_to_box();  // Assume em units
+  }
+  if (node->row_gap >= 0) {
+    row_gap = node->row_gap * base_size_ * pt_to_box();  // Assume em units
+  }
+
   // Layout all cells and collect them
   std::vector<MathBox> cells;
   cells.reserve(rows * cols);
@@ -1643,6 +1897,55 @@ MathBox MathLayout::layout_matrix(MathNode* node) {
   content.width = total_width;
   content.height = total_height / 2 + axis;
   content.depth = total_height / 2 - axis;
+
+  // Draw augment lines (vertical and horizontal dividers)
+  double line_thickness = scale(constants_.fraction_rule_thickness);
+
+  // Vertical augment lines (after column i)
+  for (int vline_col : node->augment_vlines) {
+    if (vline_col >= 0 && vline_col < cols) {
+      // Calculate x position: after column vline_col (at the gap center)
+      double x_pos = 0;
+      for (int c = 0; c <= vline_col; c++) {
+        x_pos += col_widths[c];
+        if (c < vline_col) x_pos += col_gap;
+      }
+      x_pos += col_gap / 2;  // Center in the gap
+
+      LineInfo vline;
+      vline.x1 = x_pos;
+      vline.y1 = content.height;
+      vline.x2 = x_pos;
+      vline.y2 = -content.depth;
+      vline.thickness = line_thickness;
+      vline.color = current_color_;
+      content.lines.push_back(vline);
+    }
+  }
+
+  // Horizontal augment lines (after row i)
+  for (int hline_row : node->augment_hlines) {
+    if (hline_row >= 0 && hline_row < rows) {
+      // Calculate y position: after row hline_row
+      double y_pos = axis + total_height / 2 - row_heights[0];
+      for (int r = 0; r <= hline_row; r++) {
+        y_pos -= row_depths[r];
+        if (r < hline_row) {
+          y_pos -= row_gap + row_heights[r + 1];
+        }
+      }
+      y_pos -= row_gap / 2;  // Center in the gap
+
+      LineInfo hline;
+      hline.x1 = 0;
+      hline.y1 = y_pos;
+      hline.x2 = total_width;
+      hline.y2 = y_pos;
+      hline.thickness = line_thickness;
+      hline.color = current_color_;
+      content.lines.push_back(hline);
+    }
+  }
 
   // Add delimiters based on matrix type
   std::string left_delim, right_delim;
@@ -2257,14 +2560,18 @@ MathBox MathLayout::assemble_glyph(uint32_t glyph_id, double target_size, bool v
 
   // Calculate how many times to repeat extenders
   int repeat_count = 1;
-  if (!extender_parts.empty() && target_size > base_size) {
+  if (!extender_parts.empty() && target_size > base_size && std::isfinite(target_size)) {
     double extender_contribution = 0;
     for (size_t i : extender_parts) {
       extender_contribution += (parts[i].full_advance * current_scale_ - min_overlap_scaled);
     }
     if (extender_contribution > 0) {
       double needed = target_size - base_size;
-      repeat_count = 1 + static_cast<int>(std::ceil(needed / extender_contribution));
+      double reps = 1 + std::ceil(needed / extender_contribution);
+      // Cap the repeat count to bound memory use and avoid overflow on
+      // absurdly large target sizes
+      const double MAX_REPEATS = 10000;
+      repeat_count = reps > MAX_REPEATS ? static_cast<int>(MAX_REPEATS) : static_cast<int>(reps);
     }
   }
 
@@ -2310,8 +2617,9 @@ MathBox MathLayout::assemble_glyph(uint32_t glyph_id, double target_size, bool v
       is_first = false;
     }
 
-    // Add middle part after first set of extenders
-    if (r == 0 && middle_part != SIZE_MAX) {
+    // Add middle part in the middle of the extenders so the assembly
+    // stays centred
+    if (r == (repeat_count - 1) / 2 && middle_part != SIZE_MAX) {
       add_part(middle_part, is_first);
       is_first = false;
     }
@@ -2628,6 +2936,10 @@ MathBox MathLayout::layout_style_change(MathNode* node) {
   MathDisplayStyle saved_style = forced_style_;
   forced_style_ = node->display_style;
 
+  // Save and update cramped state
+  bool saved_cramped = cramped_;
+  cramped_ = node->cramped;
+
   // Adjust scale for script styles
   double old_scale = current_scale_;
   if (node->display_style == MathDisplayStyle::SCRIPT) {
@@ -2645,6 +2957,7 @@ MathBox MathLayout::layout_style_change(MathNode* node) {
   // Restore
   forced_style_ = saved_style;
   current_scale_ = old_scale;
+  cramped_ = saved_cramped;
 
   return result;
 }
@@ -2887,7 +3200,7 @@ MathBox MathLayout::layout_rule(MathNode* node) {
 
   // Convert dimensions from em to points
   // Assume dimensions are in em units
-  double em = base_size_ * current_scale_ * 64.0;
+  double em = base_size_ * current_scale_ * 64.0 * pt_to_box();
   double width = node->rule_width * em;
   double height = node->rule_height * em;
   double raise = node->rule_raise * em;
@@ -2907,6 +3220,51 @@ MathBox MathLayout::layout_rule(MathNode* node) {
   if (result.depth < 0) result.depth = 0;
 
   return result;
+}
+
+MathBox MathLayout::layout_stretched(MathNode* node) {
+  // stretch(body, size: Nem) - stretch a glyph to a specified size
+  if (node->children.empty()) return MathBox();
+
+  // Layout the content to get the glyph
+  MathBox content = layout_node(node->children[0].get());
+
+  // If no size specified or content is complex (multiple glyphs), just return content
+  if (node->stretch_size <= 0 || content.glyphs.size() != 1) {
+    return content;
+  }
+
+  // Calculate target size
+  double target_size;
+  if (node->stretch_size_unit == "em") {
+    target_size = node->stretch_size * base_size_ * current_scale_ * 64.0 * pt_to_box();
+  } else if (node->stretch_size_unit == "pt") {
+    target_size = node->stretch_size * current_scale_ * 64.0;
+  } else if (node->stretch_size_unit == "relative") {
+    // Relative to current width
+    target_size = node->stretch_size * content.width;
+  } else {
+    // Default to em
+    target_size = node->stretch_size * base_size_ * current_scale_ * 64.0 * pt_to_box();
+  }
+
+  // Get the glyph and try to stretch it horizontally
+  uint32_t glyph_id = content.glyphs[0].glyph_id;
+
+  // Use horizontal stretching (false = horizontal)
+  MathBox stretched = get_stretched_glyph(glyph_id, target_size, false);
+
+  return stretched;
+}
+
+MathBox MathLayout::layout_class_override(MathNode* node) {
+  // class("relation", body) - override math class for spacing
+  // For now, just layout the content normally
+  // Math class affects spacing in layout_row, which would need additional work
+  // to fully implement. For basic support, we just pass through.
+  if (node->children.empty()) return MathBox();
+
+  return layout_node(node->children[0].get());
 }
 
 } // namespace math

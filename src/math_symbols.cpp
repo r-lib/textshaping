@@ -97,6 +97,10 @@ const std::unordered_map<std::string, uint32_t> accents = {
 const std::unordered_map<std::string, uint32_t> wide_accents = {
   {"widehat", 0x0302}, {"widetilde", 0x0303}, {"overline", 0x0305},
   {"underline", 0x0332}, {"overbrace", 0x23DE}, {"underbrace", 0x23DF},
+  // Over/under bracket variants
+  {"overbracket", 0x23B4}, {"underbracket", 0x23B5},   // ⎴ ⎵ square brackets
+  {"overparen", 0x23DC}, {"underparen", 0x23DD},       // ⏜ ⏝ parentheses
+  {"overshell", 0x23E0}, {"undershell", 0x23E1},       // ⏠ ⏡ tortoise shell
   // Over/under arrows
   {"overrightarrow", 0x20D7}, {"overleftarrow", 0x20D6},
   {"overleftrightarrow", 0x20E1},
@@ -145,6 +149,11 @@ const std::unordered_map<std::string, uint32_t> misc_symbols = {
   {"hslash", 0x210F}, {"mho", 0x2127},
   // Semantic dots (map to appropriate ellipsis)
   {"dotsb", 0x22EF}, {"dotsc", 0x2026}, {"dotsi", 0x22EF}, {"dotsm", 0x22EF}, {"dotso", 0x2026}
+};
+
+// Differential operator names (handled specially to produce upright styled letters)
+const std::unordered_set<std::string> differential_operators = {
+  "dif", "Dif", "dd"
 };
 
 // Space commands: command -> em units (1em = 18mu in TeX)
@@ -359,6 +368,10 @@ bool is_cancel_command(const std::string& cmd) {
 
 bool is_extensible_arrow(const std::string& cmd) {
   return extensible_arrows.count(cmd) > 0;
+}
+
+bool is_differential_operator(const std::string& cmd) {
+  return differential_operators.count(cmd) > 0;
 }
 
 uint32_t command_to_codepoint(const std::string& cmd) {

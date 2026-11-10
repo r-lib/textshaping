@@ -2,7 +2,7 @@
 % Please edit documentation in R/shape_math.R
 \name{shape_math}
 \alias{shape_math}
-\title{Shape LaTeX math expression}
+\title{Shape math expression (LaTeX or Typst)}
 \usage{
 shape_math(
   math,
@@ -16,9 +16,10 @@ shape_math(
 )
 }
 \arguments{
-\item{math}{A character vector of LaTeX math expressions. Use raw strings
-for cleaner syntax, e.g., \code{r"(\\alpha)"} for α, \code{r"(\\frac{a}{b})"} for
-fractions. Alternatively escape backslashes: \code{"\\\\alpha"}.}
+\item{math}{A character vector of math expressions. Supports both LaTeX and
+Typst syntax (auto-detected). For LaTeX, use raw strings like \code{r"(\\alpha)"}
+or escape backslashes: \code{"\\\\alpha"}. For Typst, use function syntax like
+\code{"frac(a, b)"} or \code{"sqrt(x^2 + y^2)"}.}
 
 \item{family}{Font family name. For best results, use a font with an OpenType
 MATH table such as "STIX Two Math", "Latin Modern Math", "Cambria Math", or
@@ -90,10 +91,11 @@ overlines, cancel lines, etc.). \code{boxes} contain position and dimensions of 
 }
 }
 \description{
-Parses a LaTeX math expression and returns positioned glyphs for rendering.
+Parses a math expression and returns positioned glyphs for rendering.
 The function uses HarfBuzz's OpenType MATH table support to properly position
 mathematical symbols, scripts, fractions, and other structures according to
-the font's mathematical typesetting rules.
+the font's mathematical typesetting rules. Both LaTeX and Typst syntaxes are
+supported and automatically detected.
 }
 \details{
 \subsection{Font Requirements}{
@@ -104,6 +106,62 @@ radicals, and other structures. When using a font without a MATH table (such
 as Arial or Times New Roman), the function falls back to default positioning
 constants based on TeX conventions. The results will be reasonable but may
 not match the typographic quality of a dedicated math font.
+}
+
+\subsection{Syntax Detection}{
+
+The function automatically detects whether the input is LaTeX or Typst syntax.
+LaTeX is detected when the input contains backslash commands like \verb{\\frac} or
+\verb{\\alpha}. Otherwise, Typst syntax is assumed. You can freely mix expressions
+in a vector, each will be parsed independently.
+}
+
+\subsection{Supported Typst Syntax}{
+
+Typst math uses function-call syntax instead of backslash commands:
+
+\describe{
+\item{Symbols}{Greek letters as identifiers: \code{alpha}, \code{beta}, \code{gamma}, etc.
+Operators: \code{+}, \code{-}, \code{*}, \code{/}, \code{=}}
+\item{Numbers}{\code{123}, \code{3.14}}
+\item{Text}{\code{"text in quotes"}}
+\item{Styling}{\code{bold(x)}, \code{italic(x)}, \code{upright(x)}, \code{sans(x)}, \code{mono(x)},
+\code{cal(X)}, \code{frak(X)}, \code{bb(R)}}
+\item{Scripts}{\code{x^2}, \code{x_i}, \code{x_i^2}}
+\item{Fractions}{\code{frac(a, b)}}
+\item{Binomials}{\code{binom(n, k)}}
+\item{Over/under}{\code{overbrace(x, "label")}, \code{underbrace(x, "label")},
+\code{overline(x)}, \code{underline(x)}}
+\item{Radicals}{\code{sqrt(x)}, \code{root(n, x)}}
+\item{Delimiters}{\code{lr((x))}, \code{abs(x)}, \code{norm(x)}, \code{floor(x)}, \code{ceil(x)}}
+\item{Big operators}{\code{sum}, \code{integral}, \code{product} - use \code{limits(sum)} for
+above/below placement or \code{scripts(sum)} for side scripts}
+\item{Accents}{\code{hat(x)}, \code{tilde(x)}, \code{dot(x)}, \code{ddot(x)}, \code{bar(x)},
+\code{vec(x)}, \code{acute(x)}, \code{grave(x)}, \code{breve(x)}. Optional parameters:
+\code{accent(i, hat, dotless: true)} uses dotless ı/ȷ,
+\verb{accent(x, hat, size: 150\%)} scales the accent}
+\item{Wide accents}{\code{widehat(abc)}, \code{widetilde(abc)}, \code{overrightarrow(AB)},
+\code{overleftarrow(AB)}}
+\item{Spacing}{\code{thin}, \code{med}, \code{thick}, \code{quad}, \code{wide} or \verb{h(1em)}}
+\item{Functions}{\code{sin}, \code{cos}, \code{tan}, \code{log}, \code{exp}, \code{lim}}
+\item{Custom operator}{\code{op("name")}}
+\item{Matrices}{\verb{mat(1, 2; 3, 4)} - semicolon separates rows, comma separates
+columns. Optional parameters: \code{mat(augment: 1, ...)} for vertical divider
+after column 1, \verb{mat(augment: #(vline: 1, hline: 0), ...)} for both vertical
+and horizontal dividers, \verb{mat(rowgap: 1em, ...)} and \verb{mat(columngap: 2em, ...)}
+for custom spacing}
+\item{Cases}{\verb{cases(a &"if" b, c &"if" d)}}
+\item{Cancel}{\code{cancel(x)}}
+\item{Display styles}{\code{display(x)}, \code{inline(x)}, \code{script(x)}, \code{sscript(x)}.
+Optional \code{cramped: true} parameter reduces superscript height:
+\code{display(x^2, cramped: true)}}
+\item{Phantom}{\code{hide(x)}}
+\item{Attachment}{\code{attach(base, t: top, b: bot)}}
+\item{Stretch}{\verb{stretch(=, size: 3em)} stretches a glyph to a specified size}
+\item{Math class}{\code{class("relation", x)} forces a symbol to behave as a specific
+math class (affects spacing). Classes: normal, punctuation, opening, closing,
+fence, large, relation, unary, binary, vary}
+}
 }
 
 \subsection{Supported LaTeX Commands}{
@@ -217,33 +275,46 @@ alignment points}
 # Simple superscript
 shape_math("x^2")
 
-# Greek letters
+# === LaTeX syntax ===
+
+# Greek letters (LaTeX)
 shape_math(r"(\alpha + \beta)")
 
-# Fraction
+# Fraction (LaTeX)
 shape_math(r"(\frac{a}{b})")
 
 # Display mode sum (inline = FALSE)
 shape_math(r"(\sum_{i=1}^n i)", inline = FALSE)
 
-# Quadratic formula
+# Quadratic formula (LaTeX)
 shape_math(r"(x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a})")
 
-# Matrix
+# Matrix (LaTeX)
 shape_math(r"(\begin{pmatrix} a & b \\\\ c & d \end{pmatrix})")
 
-# Binomial coefficient
+# Binomial coefficient (LaTeX)
 shape_math(r"(\binom{n}{k})")
 
-# Cases environment
-shape_math(r"(f(x) = \begin{cases} 1 & x > 0 \\\\ 0 & x \\leq 0 \end{cases})")
+# === Typst syntax ===
 
-# Colored text
-shape_math(r"(x = \textcolor{red}{-b})")
+# Greek letters (Typst)
+shape_math("alpha + beta")
 
-# Cancellation
-shape_math(r"(\frac{\cancel{2}x}{\cancel{2}} = x)")
+# Fraction (Typst)
+shape_math("frac(a, b)")
 
-# Extensible arrow with text
-shape_math(r"(A \xrightarrow{f} B)")
+# Square root (Typst)
+shape_math("sqrt(x^2 + y^2)")
+
+# Matrix (Typst - semicolon separates rows)
+shape_math("mat(a, b; c, d)")
+
+# Styled text (Typst)
+shape_math("bold(x) + italic(y)")
+
+# Delimiters (Typst)
+shape_math("abs(x) + norm(v)")
+
+# Binomial (Typst)
+shape_math("binom(n, k)")
 }
