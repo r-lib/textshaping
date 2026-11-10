@@ -210,31 +210,34 @@ bool HarfBuzzShaper::add_spacer(FontSettings2& font_info, double height, double 
   // A spacer is encoded as an "unknown glyph" with ascend giving the height and
   //  width/x-advance giving the width
   info.font_info = font_info;
-  info.embeddings.push_back({
-    {filler}, // glyph_id
-    {0}, // glyph_cluster
-    {info.index}, // string_id
-    {clamp_i32(width)}, // x_advance
-    {0}, // y_advance
-    {0}, // x_offset
-    {0}, // y_offset
-    {0}, // x_bear
-    {ascend}, // y_bear
-    {clamp_i32(width)}, // width
-    {ascend - descend}, // height
-    {ascend}, // ascenders
-    {descend}, // descenders
-    {false}, // is_blank
-    {false}, // may_break
-    {false}, // may_stretch
-    {0}, // font
-    {dummy_font}, // fallbacks
-    {height}, // fallback_size
-    {-1}, // fallback_scaling
-    0, // ltr
-    clamp_i32(width), // full_width
-    false // Not a line breaker in itself
-  });
+  // EmbedInfo is not an aggregate under C++11 (it has default member
+  // initializers), so it must be built field by field
+  EmbedInfo spacer_embed;
+  spacer_embed.glyph_id.push_back(filler);
+  spacer_embed.glyph_cluster.push_back(0);
+  spacer_embed.string_id.push_back(info.index);
+  spacer_embed.x_advance.push_back(clamp_i32(width));
+  spacer_embed.y_advance.push_back(0);
+  spacer_embed.x_offset.push_back(0);
+  spacer_embed.y_offset.push_back(0);
+  spacer_embed.x_bear.push_back(0);
+  spacer_embed.y_bear.push_back(ascend);
+  spacer_embed.width.push_back(clamp_i32(width));
+  spacer_embed.height.push_back(ascend - descend);
+  spacer_embed.ascenders.push_back(ascend);
+  spacer_embed.descenders.push_back(descend);
+  spacer_embed.is_blank.push_back(false);
+  spacer_embed.may_break.push_back(false);
+  spacer_embed.may_stretch.push_back(false);
+  spacer_embed.font.push_back(0);
+  spacer_embed.fallbacks.push_back(dummy_font);
+  spacer_embed.fallback_size.push_back(height);
+  spacer_embed.fallback_scaling.push_back(-1);
+  // embedding_level = 0 (ltr)
+  spacer_embed.full_width = clamp_i32(width);
+  // Not a line breaker in itself
+  spacer_embed.terminates_paragraph = false;
+  info.embeddings.push_back(spacer_embed);
   shape_infos.push_back(info);
   return true;
 }
