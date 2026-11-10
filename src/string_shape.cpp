@@ -6,7 +6,7 @@
 #include <list>
 #include <vector>
 
-#include <hb-ft.h>
+#include "hb_ft_compat.h"
 #include <ft2build.h>
 #include FT_MULTIPLE_MASTERS_H
 #include "string_shape.h"
@@ -191,7 +191,7 @@ bool HarfBuzzShaper::add_spacer(FontSettings2& font_info, double height, double 
     Rprintf("Failed to get face: %s, %i\n", font_info.file, font_info.index);
     error_code = error;
   } else {
-    hb_font_t *font = hb_ft_font_create_referenced(face);
+    hb_font_t *font = ts_hb_ft_font_create_referenced(face);
     hb_font_extents_t fextent;
     hb_font_get_h_extents(font, &fextent);
     ascend = fextent.ascender;
@@ -658,7 +658,7 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
       Rprintf("Failed to get face: %s, %i\n", text_run.font_info.file, text_run.font_info.index);
       error_code = error;
     } else {
-      hb_font_t *font = hb_ft_font_create_referenced(face);
+      hb_font_t *font = ts_hb_ft_font_create_referenced(face);
       hb_font_extents_t fextent;
       hb_font_get_h_extents(font, &fextent);
       embedding.ascenders[0] = fextent.ascender;
@@ -801,7 +801,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
     return false;
   }
 
-  hb_font_t *font = hb_ft_font_create_referenced(face);
+  hb_font_t *font = ts_hb_ft_font_create_referenced(face);
   FT_Done_Face(face);
 
   // Do a first run of shaping. Hopefully it's enough
@@ -920,7 +920,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
           return false;
         }
 
-        font = hb_ft_font_create_referenced(face);
+        font = ts_hb_ft_font_create_referenced(face);
         FT_Done_Face(face);
 
         hb_buffer_reset(buffer);
@@ -956,7 +956,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
           return false;
         }
 
-        font = hb_ft_font_create_referenced(face);
+        font = ts_hb_ft_font_create_referenced(face);
         FT_Done_Face(face);
 
         hb_buffer_reset(buffer);
@@ -1021,7 +1021,7 @@ hb_font_t*  HarfBuzzShaper::load_fallback(unsigned int font, unsigned int start,
   if (!face) {
     return nullptr;
   }
-  hb_font_t* hbfont = hb_ft_font_create_referenced(face);
+  hb_font_t* hbfont = ts_hb_ft_font_create_referenced(face);
   FT_Done_Face(face);
   return hbfont;
 }
@@ -1208,7 +1208,7 @@ void HarfBuzzShaper::insert_hyphen(EmbedInfo& embedding, size_t where) {
   double scaling = embedding.fallback_scaling[embedding.font[where]];
   if (scaling < 0) scaling = 1.0;
 
-  hb_font_t *font = hb_ft_font_create_referenced(face);
+  hb_font_t *font = ts_hb_ft_font_create_referenced(face);
   FT_Done_Face(face);
   hb_codepoint_t glyph = 0;
   hb_bool_t found = hb_font_get_glyph(font, 8208, 0, &glyph); // True hyphen;

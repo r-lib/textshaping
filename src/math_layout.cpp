@@ -96,7 +96,7 @@ MathLayout::MathLayout(const char* font_path, int font_index, double size, doubl
   }
 
   // Create HarfBuzz font
-  hb_font_ = hb_ft_font_create_referenced(ft_face_);
+  hb_font_ = ts_hb_ft_font_create_referenced(ft_face_);
   if (hb_font_ == nullptr) {
     errors_.push_back("Failed to create HarfBuzz font");
     return;

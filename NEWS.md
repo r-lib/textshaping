@@ -1,5 +1,9 @@
 # textshaping (development version)
 
+* configure now link-tests `hb_ft_font_create_referenced()` and falls back to
+  the older two-argument `hb_ft_font_create()` when the symbol is missing from
+  libharfbuzz, fixing load-time "undefined symbol" failures on systems whose
+  harfbuzz headers and library don't match (#79)
 * Add LaTeX and Typst math shaping (at least a large subset of it)
 * Font variations (variable font axis coordinates) now travel through shaping.
   `shape_text()` and `text_width()` gain a `variation` argument accepting

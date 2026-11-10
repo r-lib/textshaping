@@ -27,14 +27,17 @@ if [ "`command -v pkg-config`" ]; then
 fi
 
 # Note that cflags may be empty in case of success
+TEST_LINK=0
 if [ "$INCLUDE_DIR" ] || [ "$LIB_DIR" ]; then
   echo "Found INCLUDE_DIR and/or LIB_DIR!"
   PKG_CFLAGS="-I$INCLUDE_DIR $PKG_CFLAGS"
   PKG_LIBS="-L$LIB_DIR $PKG_LIBS"
+  TEST_LINK=1
 elif [ "$PKGCONFIG_CFLAGS" ] || [ "$PKGCONFIG_LIBS" ]; then
   echo "Found pkg-config cflags and libs!"
   PKG_CFLAGS="${PKGCONFIG_CFLAGS}"
   PKG_LIBS="${PKGCONFIG_LIBS}"
+  TEST_LINK=1
 elif [ "`uname`" = "Darwin" ]; then
   test ! "$CI" && brew --version 2>/dev/null
   if [ $? -eq 0 ]; then
@@ -57,9 +60,44 @@ CPPFLAGS="`${R_HOME}/bin/R CMD config CPPFLAGS`"
 
 # Test configuration
 echo "$PKG_TEST_HEADER" | ${CC} ${CPPFLAGS} ${PKG_CFLAGS} ${CFLAGS} -E -xc - >/dev/null 2>configure.log
+HEADER_TEST=$?
+
+# Test that the hb-ft symbols we use actually exist in the library being
+# linked. Undefined symbols are permitted when linking a shared library on
+# Linux, so a harfbuzz built without FreeType support (or headers and a
+# runtime libharfbuzz that don't match) would otherwise only fail at load
+# time with an "undefined symbol" error.
+if [ $HEADER_TEST -eq 0 ] && [ $TEST_LINK -eq 1 ]; then
+  # Compile from src/ since PKG_LIBS may contain paths relative to src/
+  # (e.g. from autobrew bundles)
+  (cd src && echo '#include <hb-ft.h>
+int main(void) {
+  hb_font_t *font = hb_ft_font_create_referenced(NULL);
+  hb_font_destroy(font);
+  return 0;
+}' | ${CC} ${CPPFLAGS} ${PKG_CFLAGS} ${CFLAGS} -xc - -x none ${PKG_LIBS} -o conftest) 2>configure.log
+  if [ $? -ne 0 ]; then
+    # Try the two-argument hb_ft_font_create(), available in every harfbuzz
+    # release with FreeType support; the package falls back to it when
+    # TEXTSHAPING_NO_HB_FT_REFERENCED is defined
+    (cd src && echo '#include <hb-ft.h>
+int main(void) {
+  hb_font_t *font = hb_ft_font_create(NULL, NULL);
+  hb_font_destroy(font);
+  return 0;
+}' | ${CC} ${CPPFLAGS} ${PKG_CFLAGS} ${CFLAGS} -xc - -x none ${PKG_LIBS} -o conftest) 2>configure.log
+    if [ $? -eq 0 ]; then
+      echo "Found hb_ft_font_create() but not hb_ft_font_create_referenced(); using fallback!"
+      PKG_CFLAGS="$PKG_CFLAGS -DTEXTSHAPING_NO_HB_FT_REFERENCED"
+    else
+      HEADER_TEST=1
+    fi
+  fi
+  rm -f src/conftest
+fi
 
 # Customize the error
-if [ $? -ne 0 ]; then
+if [ $HEADER_TEST -ne 0 ]; then
   echo "--------------------------- [ANTICONF] --------------------------------"
   echo "Configuration failed to find the $PKG_CONFIG_NAME library. Try installing:"
   echo " * deb: $PKG_DEB_NAME (Debian, Ubuntu, etc)"
@@ -70,6 +108,10 @@ if [ $? -ne 0 ]; then
   echo "PATH and PKG_CONFIG_PATH contains a $PKG_CONFIG_NAME.pc file. If pkg-config"
   echo "is unavailable you can set INCLUDE_DIR and LIB_DIR manually via:"
   echo "R CMD INSTALL --configure-vars='INCLUDE_DIR=... LIB_DIR=...'"
+  echo "If the header was found but linking failed, your harfbuzz was likely built"
+  echo "without FreeType support, or the harfbuzz headers do not match the"
+  echo "libharfbuzz being linked. Rebuild harfbuzz with FreeType support, or"
+  echo "point INCLUDE_DIR/LIB_DIR to a matching harfbuzz installation."
   echo "-------------------------- [ERROR MESSAGE] ---------------------------"
   cat configure.log
   echo "--------------------------------------------------------------------"
