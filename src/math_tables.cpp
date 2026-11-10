@@ -11,8 +11,14 @@
 // Uses HarfBuzz blob API directly for MATH table access
 static hb_font_t* load_math_font(const char* font_path, int index, double size, double res) {
   // Load font directly through HarfBuzz (not FreeType) for proper MATH table access
+  // hb_blob_create_from_file_or_fail requires HarfBuzz 2.8.2; older versions
+  // (e.g. rtools40 winlibs) return the empty blob on failure instead of NULL
+#if HB_VERSION_ATLEAST(2, 8, 2)
   hb_blob_t* blob = hb_blob_create_from_file_or_fail(font_path);
-  if (!blob) {
+#else
+  hb_blob_t* blob = hb_blob_create_from_file(font_path);
+#endif
+  if (!blob || blob == hb_blob_get_empty()) {
     cpp11::stop("Failed to load font file: %s", font_path);
   }
 
