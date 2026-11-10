@@ -165,6 +165,8 @@ bool HarfBuzzShaper::add_string(const char* string, FontSettings2& font_info,
 
   // Add precalculated soft and hard break points to the sets
   for (auto iter = wrap.begin(); iter != wrap.end(); ++iter) {
+    // Guard against out-of-range positions (e.g. NA) coming from R
+    if (*iter < 1 || (size_t)(run_start + *iter) > full_string.size()) continue;
     int break_pos = run_start + (*iter) - 1;
     if (glyph_is_linebreak(full_string[break_pos])) {
       hard_break.insert(break_pos);
