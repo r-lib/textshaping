@@ -19,6 +19,11 @@ Useful links:
 \author{
 \strong{Maintainer}: Thomas Lin Pedersen \email{thomas.pedersen@posit.co} (\href{https://orcid.org/0000-0002-5147-4711}{ORCID})
 
+Authors:
+\itemize{
+  \item Thomas Lin Pedersen \email{thomas.pedersen@posit.co} (\href{https://orcid.org/0000-0002-5147-4711}{ORCID})
+}
+
 Other contributors:
 \itemize{
   \item Posit Software, PBC (\href{https://ror.org/03wc8by49}{ROR}) [copyright holder, funder]

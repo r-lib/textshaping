@@ -160,10 +160,15 @@ shape_text <- function(
     path <- loc$path[ido]
     index <- loc$index[ido]
     features <- Map(c, loc$features, features)[ido]
-    # Ensure the requested style is reflected on the variable axes
+    # Build up the variable axis coordinates from least to most important:
+    # the requested style settings, the coordinates carried by the matched
+    # font (e.g. from registered fonts), and the explicit variation settings
     variation <- Map(
-      add_standard_variations,
+      function(v, loc_v, it, wt, wd) {
+        merge_variations(add_standard_variations(loc_v, it, wt, wd), v)
+      },
       variation,
+      loc$variations,
       italic,
       weight,
       width
@@ -360,7 +365,19 @@ text_width <- function(
     path <- loc$path
     index <- loc$index
     features <- Map(c, loc$features, features)
-    variation <- Map(add_standard_variations, variation, italic, weight, width)
+    # Build up the variable axis coordinates from least to most important:
+    # the requested style settings, the coordinates carried by the matched
+    # font (e.g. from registered fonts), and the explicit variation settings
+    variation <- Map(
+      function(v, loc_v, it, wt, wd) {
+        merge_variations(add_standard_variations(loc_v, it, wt, wd), v)
+      },
+      variation,
+      loc$variations,
+      italic,
+      weight,
+      width
+    )
   } else {
     path <- rep_len(path, n_strings)
     index <- rep_len(index, n_strings)
@@ -385,6 +402,16 @@ text_width <- function(
 
 # Merge the top-level style settings into the variable axis coordinates. User
 # provided variation settings take precedence.
+# Merge two font_variation objects. Coordinates in `b` take precedence over
+# those in `a`.
+merge_variations <- function(a, b) {
+  a <- unclass(a)
+  b <- unclass(b)
+  new_axes <- setdiff(b$axis, a$axis)
+  a$axis <- c(a$axis, new_axes)
+  a$value[match(b$axis, a$axis)] <- b$value
+  structure(a, class = 'font_variation')
+}
 add_standard_variations <- function(variation, italic, weight, width) {
   standard <- unclass(font_variation(
     italic = if (isTRUE(italic)) 1 else NULL,

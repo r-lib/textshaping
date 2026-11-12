@@ -1,5 +1,11 @@
 # textshaping (development version)
 
+* Variation coordinates attached to registered fonts (via the `variation`
+  argument of `systemfonts::register_font()`) are now honoured during shaping.
+  Explicit `variation` settings take precedence over the registered
+  coordinates, which in turn take precedence over the conventional
+  `italic`/`weight`/`width` settings
+
 * Text-presentation-default emoji codepoints (e.g. U+2199) without an emoji
   variation selector that are not covered by the primary font are now shaped
   using the regular font fallback chain, with the emoji font only used as a

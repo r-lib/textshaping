@@ -98,7 +98,7 @@ A grob object of class \code{"math_grob"}.
 \description{
 This function creates a grid grob that renders a math expression.
 The grob can be used with standard grid functions like \code{\link[grid:grid.draw]{grid::grid.draw()}},
-combined with other grobs using \code{\link[grid:grid.grob]{grid::grobTree()}}, or used in ggplot2
+combined with other grobs using \code{\link[grid:grobTree]{grid::grobTree()}}, or used in ggplot2
 annotations. Like the standard grid grobs, \code{math_grob()} creates a grob
 object to pass around while \code{grid.math()} both creates the grob and render it
 in one pass.
