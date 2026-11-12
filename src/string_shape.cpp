@@ -648,7 +648,7 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
   // The emoji flag must cover the whole paragraph for the embedding split
   // loop below, even when this run contains no emoji
   if (emoji_flag.size() < full_string.size()) {
-    emoji_flag.resize(full_string.size(), false);
+    emoji_flag.resize(full_string.size(), 0);
   }
 
   if (n_chars == 0) {
@@ -696,8 +696,11 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
     systemfonts::ver2::detect_emoji_embedding(full_string.data() + text_run.run_start, n_chars, emoji_embeddings.data(), text_run.font_info);
     bool emoji_font_added = false;
     for (int i = 0; i < n_chars; ++i) {
-      if (emoji_embeddings[i] == 1) {
-        emoji_flag[text_run.run_start + i] = true;
+      // Older systemfonts versions only know 0/1 so a hard emoji (1) must
+      // keep its meaning. 2 marks soft (text-presentation-default) emoji that
+      // should only use the emoji font as a last resort
+      if (emoji_embeddings[i] != 0) {
+        emoji_flag[text_run.run_start + i] = emoji_embeddings[i];
         if (!emoji_font_added) {
           // Add the system emoji font to fallbacks
           fallback.push_back(systemfonts::ver2::locate_font("emoji", 0, 0, 0, nullptr, nullptr, 0));
@@ -784,7 +787,7 @@ EmbedInfo HarfBuzzShaper::shape_single_line(const char* string, FontSettings2& f
 
 bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
                                      std::vector<hb_feature_t>& features,
-                                     int dir, bool emoji, ShapeInfo& shape_info,
+                                     int dir, int emoji, ShapeInfo& shape_info,
                                      std::vector<FontSettings2>& fallbacks,
                                      std::vector<double>& fallback_sizes,
                                      std::vector<double>& fallback_scales) {
@@ -795,10 +798,10 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
   }
 
   int error = 0;
-  // Load main font (emoji font if flagged)
+  // Load main font (emoji font if flagged as hard emoji)
   // Shouldn't be able to fail as we have already tried to load it in the calling function
   FT_Face face = get_cached_or_new_face(
-    fallbacks[emoji ? 1 : 0],
+    fallbacks[emoji == 1 ? 1 : 0],
     shape_info.size,
     shape_info.res,
     &error
@@ -835,11 +838,14 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
   bool embed_is_ltr = dir % 2 == 0;
 
   // See if all characters hav been found in the default font
-  unsigned int current_font = emoji ? 1 : 0;
+  unsigned int current_font = emoji == 1 ? 1 : 0;
   std::vector<unsigned int> char_font(embedding_size, current_font);
   bool needs_fallback = false;
   bool any_resolved = false;
-  annotate_fallbacks(current_font + 1, embedding_size, char_font, glyph_info, n_glyphs, needs_fallback, any_resolved, embed_is_ltr, start);
+  // For soft emoji the emoji font (index 1) is only tried as a last resort,
+  // so unresolved characters are first directed at the regular fallbacks
+  // starting at index 2
+  annotate_fallbacks(emoji == 2 ? 2 : current_font + 1, embedding_size, char_font, glyph_info, n_glyphs, needs_fallback, any_resolved, embed_is_ltr, start);
 
   if (!needs_fallback) { // Short route - use existing shaping
     glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
@@ -862,6 +868,10 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
 
     // Find the next fallback font to try out (starting with default)
     ++current_font;
+    if (emoji == 2 && current_font == 1) {
+      // Skip the emoji font slot for soft emoji; it is tried last
+      ++current_font;
+    }
     unsigned int fallback_start = 0, fallback_end = 0;
     bool found = fallback_cluster(current_font, char_font, 0, fallback_start, fallback_end);
     if (!found) {
@@ -899,6 +909,50 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
     } while (found);
 
     hb_font_destroy(font);
+  }
+
+  // For soft emoji, characters left unresolved by the regular fallback chain
+  // get a final attempt with the emoji font
+  if (emoji == 2 && fallbacks.size() > 1) {
+    bool any_unresolved = false;
+    for (size_t i = 0; i < char_font.size(); ++i) {
+      if (char_font[i] >= fallbacks.size()) {
+        char_font[i] = 1;
+        any_unresolved = true;
+      }
+    }
+    if (any_unresolved) {
+      bool using_new = false;
+      unsigned int fallback_start = 0, fallback_end = 0;
+      bool found = fallback_cluster(1, char_font, 0, fallback_start, fallback_end);
+      if (found) {
+        font = load_fallback(1, start + fallback_start, start + fallback_end, using_new, shape_info, fallbacks, fallback_sizes, fallback_scales);
+        if (font == nullptr) {
+          shape_info.embeddings.pop_back();
+          return false;
+        }
+        do {
+          // Go through not yet resolved chars and see if the emoji font can resolve it
+          hb_buffer_reset(buffer);
+          hb_buffer_add_utf32(buffer, full_string.data(), full_string.size(), start + fallback_start, fallback_end - fallback_start);
+          hb_buffer_guess_segment_properties(buffer);
+          hb_buffer_set_direction(buffer, dir % 2 == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL);
+          hb_shape(font, buffer, features.data(), features.size());
+          glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
+
+          if (n_glyphs > 0) {
+            bool needs_fallback_2 = false;
+            bool any_resolved_2 = false;
+            // Characters the emoji font can't render either are marked with
+            // an out-of-range font so they end up as missing glyphs below
+            annotate_fallbacks(fallbacks.size(), fallback_end, char_font, glyph_info, n_glyphs, needs_fallback_2, any_resolved_2, embed_is_ltr, start);
+          }
+
+          found = fallback_cluster(1, char_font, fallback_end, fallback_start, fallback_end);
+        } while (found);
+        hb_font_destroy(font);
+      }
+    }
   }
 
   // Make sure char_font does not point to non-existing fonts

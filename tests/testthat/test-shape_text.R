@@ -101,3 +101,20 @@ test_that("shape_text handles RTL text with line breaks and wrapping", {
   )
   expect_gt(length(unique(rtl_wrap$shape$y_offset)), 1L)
 })
+
+test_that("text-presentation-default emoji prefer text fallback fonts", {
+  arrow <- "↙"
+  # Only meaningful on systems whose regular fallback chain covers the
+  # arrow with a non-emoji font
+  fb <- systemfonts::font_fallback(arrow, family = "sans")
+  skip_if(grepl("emoji", basename(fb$path), ignore.case = TRUE))
+
+  s <- shape_text(paste0(arrow, " text"), family = "sans")
+  arrow_font <- basename(s$shape$font_path[s$shape$glyph == 1])
+  expect_false(grepl("emoji", arrow_font, ignore.case = TRUE))
+
+  # An explicit emoji variation selector must still pick the emoji font
+  s_vs16 <- shape_text(paste0(arrow, "️ text"), family = "sans")
+  arrow_font_vs16 <- basename(s_vs16$shape$font_path[s_vs16$shape$glyph == 1])
+  expect_true(grepl("emoji", arrow_font_vs16, ignore.case = TRUE))
+})

@@ -1,5 +1,11 @@
 # textshaping (development version)
 
+* Text-presentation-default emoji codepoints (e.g. U+2199) without an emoji
+  variation selector that are not covered by the primary font are now shaped
+  using the regular font fallback chain, with the emoji font only used as a
+  last resort. This prevents text characters such as arrows from being
+  replaced by color emoji (requires systemfonts >= 1.3.3, r-lib/ragg#217)
+
 * configure now link-tests `hb_ft_font_create_referenced()` and falls back to
   the older two-argument `hb_ft_font_create()` when the symbol is missing from
   libharfbuzz, fixing load-time "undefined symbol" failures on systems whose

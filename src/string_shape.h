@@ -399,10 +399,12 @@ public:
 private:
   std::vector<uint32_t> full_string;
   std::vector<int> bidi_embedding;
-  // Paragraph-sized flag marking characters that must be shaped with the
-  // emoji fallback font (embedding level alone can't encode this since
-  // negating level 0 is a no-op)
-  std::vector<bool> emoji_flag;
+  // Paragraph-sized flag marking characters with special emoji handling
+  // (embedding level alone can't encode this since negating level 0 is a
+  // no-op). 0 = regular character, 1 = must be shaped with the emoji font,
+  // 2 = text-presentation-default emoji not covered by the main font; shaped
+  // with regular fallback fonts and the emoji font only as a last resort
+  std::vector<uint8_t> emoji_flag;
   static UTF_UCS utf_converter;
   static LRU_Cache<BidiID, std::vector<int> > bidi_cache;
   static LRU_Cache<ShapeID, ShapeInfo> shape_cache;
@@ -435,7 +437,7 @@ private:
   void reset();
   std::list<EmbedInfo> combine_embeddings(std::vector<ShapeInfo>& shapes, int& direction);
   bool shape_embedding(unsigned int start, unsigned int end, std::vector<hb_feature_t>& features,
-                       int dir, bool emoji, ShapeInfo& shape_info, std::vector<FontSettings2>& fallbacks,
+                       int dir, int emoji, ShapeInfo& shape_info, std::vector<FontSettings2>& fallbacks,
                        std::vector<double>& fallback_sizes, std::vector<double>& fallback_scales);
   hb_font_t* load_fallback(unsigned int font, unsigned int start, unsigned int end,
                            bool& new_added, ShapeInfo& shape_info,
