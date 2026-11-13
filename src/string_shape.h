@@ -45,12 +45,18 @@ struct ShapeID {
   double size;
   double font_size;
   double tracking;
+  // Resolved text direction (0/1/2 horizontal, 3 = ttb, 4 = btt) and
+  // mixed-script mode (0 = rotate, 1 = upright; only relevant when vertical)
+  int direction;
+  int mixed;
   // Content of the run and its embeddings. Compared on lookup so a hash
-  // collision can't silently return another string's shaping
+  // collision can't silently return another string's shaping. For vertical
+  // text `embedding` holds the per-char vertical run class instead of the
+  // bidi embedding level
   std::vector<uint32_t> string;
   std::vector<int> embedding;
 
-  inline ShapeID() : string_hash(0), embed_hash(0), font(""), index(0), size(0.0), font_size(0.0), tracking(0.0), string(), embedding() {}
+  inline ShapeID() : string_hash(0), embed_hash(0), font(""), index(0), size(0.0), font_size(0.0), tracking(0.0), direction(0), mixed(0), string(), embedding() {}
 
   inline bool operator==(const ShapeID &other) const {
     return string_hash == other.string_hash &&
@@ -60,6 +66,8 @@ struct ShapeID {
            font_size == other.font_size &&
            font == other.font &&
            tracking == other.tracking &&
+           direction == other.direction &&
+           mixed == other.mixed &&
            string == other.string &&
            embedding == other.embedding;
   }
@@ -88,8 +96,14 @@ struct EmbedInfo {
   std::vector<int32_t> y_bear;
   std::vector<int32_t> width;
   std::vector<int32_t> height;
+  // Horizontal advance of the glyph (em box width), used by the btt mirror
+  // to keep each glyph's designed placement within its em box
+  std::vector<int32_t> em_width;
   std::vector<int32_t> ascenders;
   std::vector<int32_t> descenders;
+  // Rotation in degrees the renderer should apply to the glyph (e.g. -90 for
+  // horizontal-script runs rotated into vertical text). 0 for upright glyphs
+  std::vector<double> rotation;
   std::vector<bool> is_blank;
   std::vector<bool> may_break;
   std::vector<bool> may_stretch;
@@ -118,8 +132,10 @@ struct EmbedInfo {
     y_bear.insert(y_bear.end(), other.y_bear.begin(), other.y_bear.end());
     width.insert(width.end(), other.width.begin(), other.width.end());
     height.insert(height.end(), other.height.begin(), other.height.end());
+    em_width.insert(em_width.end(), other.em_width.begin(), other.em_width.end());
     ascenders.insert(ascenders.end(), other.ascenders.begin(), other.ascenders.end());
     descenders.insert(descenders.end(), other.descenders.begin(), other.descenders.end());
+    rotation.insert(rotation.end(), other.rotation.begin(), other.rotation.end());
     is_blank.insert(is_blank.end(), other.is_blank.begin(), other.is_blank.end());
     may_break.insert(may_break.end(), other.may_break.begin(), other.may_break.end());
     may_stretch.insert(may_stretch.end(), other.may_stretch.begin(), other.may_stretch.end());
@@ -158,10 +174,14 @@ struct EmbedInfo {
     width.erase(width.begin() + from, width.begin() + to);
     into.height.insert(into.height.end(), height.begin() + from, height.begin() + to);
     height.erase(height.begin() + from, height.begin() + to);
+    into.em_width.insert(into.em_width.end(), em_width.begin() + from, em_width.begin() + to);
+    em_width.erase(em_width.begin() + from, em_width.begin() + to);
     into.ascenders.insert(into.ascenders.end(), ascenders.begin() + from, ascenders.begin() + to);
     ascenders.erase(ascenders.begin() + from, ascenders.begin() + to);
     into.descenders.insert(into.descenders.end(), descenders.begin() + from, descenders.begin() + to);
     descenders.erase(descenders.begin() + from, descenders.begin() + to);
+    into.rotation.insert(into.rotation.end(), rotation.begin() + from, rotation.begin() + to);
+    rotation.erase(rotation.begin() + from, rotation.begin() + to);
     into.is_blank.insert(into.is_blank.end(), is_blank.begin() + from, is_blank.begin() + to);
     is_blank.erase(is_blank.begin() + from, is_blank.begin() + to);
     into.may_break.insert(into.may_break.end(), may_break.begin() + from, may_break.begin() + to);
@@ -191,8 +211,10 @@ struct EmbedInfo {
       y_bear.pop_back();
       width.pop_back();
       height.pop_back();
+      em_width.pop_back();
       ascenders.pop_back();
       descenders.pop_back();
+      rotation.pop_back();
       is_blank.pop_back();
       may_break.pop_back();
       may_stretch.pop_back();
@@ -211,8 +233,10 @@ struct EmbedInfo {
       y_bear.erase(y_bear.begin());
       width.erase(width.begin());
       height.erase(height.begin());
+      em_width.erase(em_width.begin());
       ascenders.erase(ascenders.begin());
       descenders.erase(descenders.begin());
+      rotation.erase(rotation.begin());
       is_blank.erase(is_blank.begin());
       may_break.erase(may_break.begin());
       may_stretch.erase(may_stretch.begin());
@@ -276,6 +300,8 @@ struct hash<ShapeID> {
     h ^= std::hash<double>()(x.size) + 0x9e3779b9 + (h << 6) + (h >> 2);
     h ^= std::hash<double>()(x.font_size) + 0x9e3779b9 + (h << 6) + (h >> 2);
     h ^= std::hash<double>()(x.tracking) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<int>()(x.direction) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<int>()(x.mixed) + 0x9e3779b9 + (h << 6) + (h >> 2);
     return h;
   }
 };
@@ -305,6 +331,7 @@ public:
   advance(),
   ascender(),
   descender(),
+  rotation(),
   line_must_break(),
   width(0),
   height(0),
@@ -321,6 +348,9 @@ public:
   // Private
   full_string(),
   bidi_embedding(),
+  vert_class(),
+  vertical_allowed(false),
+  cur_mixed(0),
   soft_break(),
   hard_break(),
   cur_lineheight(0.0),
@@ -366,6 +396,13 @@ public:
   std::vector<int32_t> advance;
   std::vector<int32_t> ascender;
   std::vector<int32_t> descender;
+  std::vector<double> rotation;
+  // Per-glyph transformed-space bearings, only needed for the btt mirror in
+  // finish_string where glyph origins are corrected for the handedness flip
+  std::vector<int32_t> x_bear;
+  std::vector<int32_t> y_bear;
+  std::vector<int32_t> glyph_width;
+  std::vector<int32_t> em_width;
   std::vector<bool> line_must_break;
   int32_t width;
   int32_t height;
@@ -385,7 +422,7 @@ public:
                     double size, double res, double lineheight,
                     int align, double hjust, double vjust, double width,
                     double tracking, double ind, double hang, double before,
-                    double after, bool spacer, int direction,
+                    double after, bool spacer, int direction, int mixed,
                     std::vector<int>& wrap);
   bool add_string(const char* string, FontSettings2& font_info,
                   double size, double tracking, bool spacer,
@@ -394,11 +431,28 @@ public:
   bool finish_string();
 
   void shape_text_run(ShapeInfo &text_run, bool ltr);
-  EmbedInfo shape_single_line(const char* string, FontSettings2& font_info, double size, double res);
+  // direction: 0 = auto, 1 = ltr, 2 = rtl, 3 = ttb, 4 = btt
+  // mixed: 0 = rotate, 1 = upright (only used for vertical directions)
+  // allow_vertical: whether auto-detection may resolve to a vertical
+  // direction. Always false for the graphics-device C API, which must stay
+  // strictly horizontal
+  EmbedInfo shape_single_line(const char* string, FontSettings2& font_info, double size, double res,
+                              int direction = 0, int mixed = 0, bool allow_vertical = false);
 
 private:
   std::vector<uint32_t> full_string;
   std::vector<int> bidi_embedding;
+  // Paragraph-sized vertical run classification, used when the resolved
+  // direction is vertical (dir 3/4). Empty for horizontal text.
+  // 0 = shape vertically, 1 = horizontal-only script run (UAX#50 R),
+  // 2 = tate-chu-yoko combined run, 3 = UAX#50 Tr (vert glyph or rotated)
+  std::vector<uint8_t> vert_class;
+  // Whether auto direction detection may resolve to a vertical direction
+  // (required-vertical scripts such as Mongolian). False on the
+  // graphics-device C API path so devices always get horizontal layout
+  bool vertical_allowed;
+  // Mixed-script handling for vertical text: 0 = rotate, 1 = upright
+  int cur_mixed;
   // Paragraph-sized flag marking characters with special emoji handling
   // (embedding level alone can't encode this since negating level 0 is a
   // no-op). 0 = regular character, 1 = must be shaped with the emoji font,
@@ -455,7 +509,10 @@ private:
                        unsigned int n_glyphs, hb_font_t* font, unsigned int font_id,
                        unsigned int cluster_offset, ShapeInfo& shape_info,
                        std::vector<double>& fallback_sizes,
-                       std::vector<double>& fallback_scales);
+                       std::vector<double>& fallback_scales,
+                       std::vector<FontSettings2>& fallbacks,
+                       hb_direction_t hb_dir, double rotation, double run_middle,
+                       bool tate);
   void fill_glyph_info(EmbedInfo& embedding);
   FT_Face get_font_sizing(FontSettings2& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales, bool deref = false);
   void insert_hyphen(EmbedInfo& embedding, size_t where);

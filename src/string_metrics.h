@@ -28,13 +28,13 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                         doubles lineheight, integers align, doubles hjust,
                         doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
-                        doubles space_after, integers direction,
+                        doubles space_after, integers direction, integers mixed,
                         list_of<integers> wrap);
 
 [[cpp11::register]]
 doubles get_line_width_c(strings string, strings path, integers index, doubles size,
                          doubles res, logicals include_bearing, list_of<list> features,
-                         list_of<list> variations);
+                         list_of<list> variations, integers direction, integers mixed);
 [[cpp11::register]]
 bool get_systemfont_cache_compat();
 int ts_string_width(const char* string, FontSettings font_info,

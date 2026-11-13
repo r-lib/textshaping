@@ -33,9 +33,30 @@
 #' @param space_before,space_after The spacing above and below a paragraph,
 #' measured in points
 #' @param direction The overall directional flow of the text. The default
-#' (`"auto"`) will guess the direction based on the content of the string. Use
-#' `"ltr"` (left-to-right) and `"rtl"` (right-to-left) to turn detection of and
-#' set it manually.
+#' (`"auto"`) will guess the direction based on the content of the string,
+#' resolving to top-to-bottom if the string contains scripts that can only be
+#' typeset vertically (e.g. Mongolian) and to left-to-right or right-to-left
+#' otherwise. Use `"ltr"` (left-to-right), `"rtl"` (right-to-left), `"ttb"`
+#' (top-to-bottom), and `"btt"` (bottom-to-top) to turn off detection and set
+#' it manually. Scripts that can be typeset both horizontally and vertically
+#' (e.g. Japanese) are always set horizontally with `"auto"`.
+#' @param mixed How to treat runs of horizontal-only scripts (e.g. Latin) in
+#' vertical text: `"rotate"` shapes them horizontally and marks them for a 90
+#' degree rotation during rendering (see the `rotation` column in the output);
+#' `"upright"` sets them upright in the vertical line using the font's `vert`/
+#' `vrt2` substitutions, falling back to `"rotate"` behaviour if the font
+#' doesn't provide these; `"tate"` additionally sets ASCII digit runs of up
+#' to 4 digits horizontally on a single line (tate-chu-yoko), as is common
+#' for e.g. years and day numbers in Japanese typesetting. Tate runs use the
+#' font's `hwid`/`twid`/`qwid` narrow digit forms when available (unless the
+#' features are set explicitly), falling back to scaling down to fit the em
+#' box. `"combine"` generalises tate-chu-yoko to any horizontal-only run of
+#' up to 4 characters — Latin abbreviations, era names, etc. — equivalent to
+#' CSS `text-combine-upright: all` (narrow digit features are only used for
+#' all-digit runs). Finally, `"sideways"` shapes the entire string
+#' horizontally — CJK scripts included — and marks it for rotation,
+#' equivalent to CSS `text-orientation: sideways`. Ignored for horizontal
+#' text. Can be given per string.
 #' @param path,index path an index of a font file to circumvent lookup based on
 #' family and style
 #'
@@ -58,6 +79,7 @@
 #'   \item{advance}{The advancement amount to the next glyph}
 #'   \item{ascender}{The ascend of the font used for the glyph. This does not measure the actual glyph}
 #'   \item{descender}{The descend of the font used for the glyph. This does not measure the actual glyph}
+#'   \item{rotation}{The rotation in degrees the renderer should apply to the glyph. Non-zero for rotated runs in vertical text: horizontal-only scripts with `mixed = "rotate"` (the default), UAX#50 Tr characters when the font lacks `vert`/`vrt2`, and everything with `mixed = "sideways"`; `0` otherwise}
 #' }
 #'
 #' `metrics` is a data.frame with the following columns:
@@ -73,8 +95,17 @@
 #'   \item{top_border}{The position of the topmost edge of the textbox related to the origin}
 #'   \item{pen_x}{The horizontal position of the next glyph after the string}
 #'   \item{pen_y}{The vertical position of the next glyph after the string}
-#'   \item{ltr}{The global direction of the string. If `TRUE` then it is left-to-right, otherwise it is right-to-left}
+#'   \item{ltr}{The global direction of the string. If `TRUE` then it is left-to-right, otherwise it is right-to-left. Vertical text is not right-to-left so `ltr` is always `TRUE` for it; consult `direction` for the resolved direction}
+#'   \item{direction}{The resolved global direction of the string (`"ltr"`, `"rtl"`, `"ttb"`, or `"btt"`)}
 #' }
+#'
+#' For vertical text (`"ttb"`/`"btt"`) glyphs flow along the y axis and lines
+#' stack as columns (right-to-left for `"ttb"`, left-to-right for `"btt"`).
+#' Upright runs automatically use the font's `vert`/`vrt2` and `vkna`
+#' substitutions when available unless these features are set explicitly.
+#' `max_width` constrains the height of a column, and `hjust`/`vjust` justify
+#' along the main axis and across columns respectively. The `advance` column
+#' gives the advance along the main axis.
 #'
 #' @export
 #' @importFrom systemfonts font_feature font_variation match_fonts
@@ -93,6 +124,18 @@
 #' )
 #'
 #' shape_text(string, id = c(1, 1, 1), size = c(12, 24, 12))
+#'
+#' # Vertical text. CJK scripts stay horizontal with "auto", so request it
+#' # explicitly; runs of horizontal-only scripts are rotated by default
+#' shape_text("日本語ABCです", direction = "ttb")
+#'
+#' # ...or set them upright if the font provides vert/vrt2 substitutions
+#' shape_text("日本語ABCです", direction = "ttb", mixed = "upright")
+#'
+#' # Digit runs of up to 4 digits can be set horizontally on a single line
+#' # (tate-chu-yoko) with mixed = "tate", using the font's narrow digit
+#' # forms (hwid/twid/qwid) when available
+#' shape_text("2024年12月25日発売", direction = "ttb", mixed = "tate")
 #'
 shape_text <- function(
   strings,
@@ -116,6 +159,7 @@ shape_text <- function(
   space_before = 0,
   space_after = 0,
   direction = "auto",
+  mixed = c("rotate", "upright"),
   path = NULL,
   index = 0,
   bold = deprecated()
@@ -224,10 +268,22 @@ shape_text <- function(
   space_before <- rep_len(space_before, n_strings)[ido]
   space_after <- rep_len(space_after, n_strings)[ido]
   direction <- if (length(direction) != 0) {
-    match.arg(direction, c('auto', 'ltr', 'rtl'), TRUE)
+    match.arg(direction, c('auto', 'ltr', 'rtl', 'ttb', 'btt'), TRUE)
   }
-  direction <- match(direction, c('auto', 'ltr', 'rtl')) - 1L
+  direction <- match(direction, c('auto', 'ltr', 'rtl', 'ttb', 'btt')) - 1L
   direction <- rep_len(direction, n_strings)[ido]
+  mixed <- if (missing(mixed)) {
+    "rotate"
+  } else {
+    match.arg(
+      mixed,
+      c("rotate", "upright", "tate", "combine", "sideways"),
+      several.ok = TRUE
+    )
+  }
+  mixed <- match(mixed, c('rotate', 'upright', 'tate', 'combine', 'sideways')) -
+    1L
+  mixed <- rep_len(mixed, n_strings)[ido]
 
   max_width <- max_width * res
   tracking <- tracking * res
@@ -267,6 +323,7 @@ shape_text <- function(
     as.numeric(space_before),
     as.numeric(space_after),
     as.integer(direction),
+    as.integer(mixed),
     wraps
   )
   if (nrow(shape$shape) == 0) {
@@ -279,8 +336,8 @@ shape_text <- function(
     character(1),
     collapse = ''
   )
-  shape$metrics[-c(1, 12)] <- lapply(
-    shape$metrics[-c(1, 12)],
+  shape$metrics[-c(1, 12, 13)] <- lapply(
+    shape$metrics[-c(1, 12, 13)],
     function(x) x * 72 / res[!duplicated(id)]
   )
 
@@ -311,8 +368,9 @@ shape_text <- function(
 #' @param include_bearing Logical, should left and right bearing be included in
 #' the string width?
 #'
-#' @return A numeric vector giving the width of the strings in pixels. Use the
-#' provided `res` value to convert it into absolute values.
+#' @return A numeric vector giving the width of the strings in pixels, measured
+#' along the main text axis (i.e. the height of the string for vertical text).
+#' Use the provided `res` value to convert it into absolute values.
 #'
 #' @export
 #' @importFrom systemfonts match_fonts
@@ -332,6 +390,8 @@ text_width <- function(
   size = 12,
   res = 72,
   include_bearing = TRUE,
+  direction = "auto",
+  mixed = c("rotate", "upright"),
   path = NULL,
   index = 0,
   bold = deprecated()
@@ -385,6 +445,24 @@ text_width <- function(
   size <- rep_len(size, n_strings)
   res <- rep_len(res, n_strings)
   include_bearing <- rep_len(include_bearing, n_strings)
+  direction <- if (length(direction) != 0) {
+    match.arg(direction, c('auto', 'ltr', 'rtl', 'ttb', 'btt'), TRUE)
+  }
+  direction <- match(direction, c('auto', 'ltr', 'rtl', 'ttb', 'btt')) - 1L
+  direction <- rep_len(direction, n_strings)
+  mixed <- if (missing(mixed)) {
+    "rotate"
+  } else {
+    match.arg(
+      mixed,
+      c("rotate", "upright", "tate", "combine", "sideways"),
+      several.ok = TRUE
+    )
+  }
+  mixed <- rep_len(
+    match(mixed, c('rotate', 'upright', 'tate', 'combine', 'sideways')) - 1L,
+    n_strings
+  )
   if (!all(file.exists(path))) {
     stop("path must point to a valid file", call. = FALSE)
   }
@@ -396,7 +474,9 @@ text_width <- function(
     as.numeric(res),
     as.logical(include_bearing),
     features,
-    variation
+    variation,
+    as.integer(direction),
+    as.integer(mixed)
   )
 }
 
@@ -492,6 +572,16 @@ plot_shape <- function(shape, id = 1) {
   glyphs <- shape$shape[shape$shape$metric_id == id, ]
   box <- shape$metrics[id, ]
 
+  # Glyph positions are relative to the text origin; the textbox edges are at
+  # (left_border, top_border - height) to (left_border + width, top_border) in
+  # the same coordinates
+  box_left <- box$left_border
+  box_bottom <- box$top_border - box$height
+  x_range <- range(c(glyphs$x_offset, box_left, box_left + box$width))
+  y_range <- range(c(glyphs$y_offset, box_bottom, box$top_border))
+  x_pad <- max(diff(x_range) * 0.1, 1)
+  y_pad <- max(diff(y_range) * 0.1, 1)
+
   font_id <- paste0(glyphs$font_path, "&", glyphs$font_index)
   font_match <- match(font_id, unique(font_id))
   unique_font <- !duplicated(font_id)
@@ -504,32 +594,48 @@ plot_shape <- function(shape, id = 1) {
     ""
   )
   fonts <- do.call(glyphFontList, fonts)
+
+  grid::grid.newpage()
+
+  # Everything is drawn in absolute bigpts coordinates, shifted so the
+  # content (glyphs + textbox) sits in the positive quadrant with a small pad
+  shift_x <- -x_range[1] + x_pad
+  shift_y <- -y_range[1] + y_pad
+
+  vp <- grid::viewport(
+    width = grid::unit(diff(x_range) + 2 * x_pad, "bigpts"),
+    height = grid::unit(diff(y_range) + 2 * y_pad, "bigpts")
+  )
+
+  grid::pushViewport(vp)
+
   glyphs <- glyphInfo(
     id = glyphs$index,
-    x = glyphs$x_offset,
-    y = glyphs$y_offset,
+    x = glyphs$x_offset + shift_x,
+    y = glyphs$y_offset + shift_y,
     font = font_match,
     size = glyphs$font_size,
     fontList = fonts,
     width = box$width,
     height = -box$height,
     hAnchor = glyphAnchor(0, "left"),
-    vAnchor = glyphAnchor(0, "bottom")
+    vAnchor = glyphAnchor(0, "bottom"),
+    rot = glyphs$rotation
   )
 
-  grid::grid.newpage()
-
-  vp <- grid::viewport(
+  grid::grid.rect(
+    x = box_left + shift_x,
+    y = box_bottom + shift_y,
     width = box$width,
     height = box$height,
-    default.units = "bigpts"
+    hjust = 0,
+    vjust = 0,
+    default.units = "bigpts",
+    gp = grid::gpar(fill = "lightgrey", col = NA)
   )
-
-  grid::pushViewport(vp)
-  grid::grid.rect(gp = grid::gpar(fill = "lightgrey", col = NA))
   grid::grid.rect(
-    x = box$left_bearing,
-    y = box$bottom_bearing,
+    x = box_left + box$left_bearing + shift_x,
+    y = box_bottom + box$bottom_bearing + shift_y,
     width = box$width - box$left_bearing - box$right_bearing,
     height = box$height - box$top_bearing - box$bottom_bearing,
     hjust = 0,
@@ -545,8 +651,8 @@ plot_shape <- function(shape, id = 1) {
     vjust = 0
   )
   grid::grid.points(
-    x = box$pen_x,
-    y = box$pen_y,
+    x = box$pen_x + shift_x,
+    y = box$pen_y + shift_y,
     default.units = "bigpts",
     pch = 16,
     gp = grid::gpar(col = "red", cex = 0.5)
