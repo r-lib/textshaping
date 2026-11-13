@@ -25,7 +25,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                         doubles lineheight, integers align, doubles hjust,
                         doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
-                        doubles space_after, integers direction,
+                        doubles space_after, integers direction, integers mixed,
                         list_of<integers> wrap) {
   Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
   writable::data_frame string_df({
@@ -62,7 +62,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
 
 doubles get_line_width_c(strings string, strings path, integers index, doubles size,
                          doubles res, logicals include_bearing, list_of<list> features,
-                         list_of<list> variations) {
+                         list_of<list> variations, integers direction, integers mixed) {
   Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
   return {};
 }
@@ -190,7 +190,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                         doubles lineheight, integers align, doubles hjust,
                         doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
-                        doubles space_after, integers direction,
+                        doubles space_after, integers direction, integers mixed,
                         list_of<integers> wrap) {
   int n_strings = string.size();
 
@@ -198,8 +198,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
   writable::integers glyph, glyph_id, metric_id, string_id, fontindex;
   writable::doubles x_offset, y_offset, widths, heights, left_bearings, right_bearings,
     top_bearings, bottom_bearings, left_border, top_border, pen_x, pen_y, fontsize,
-    advance, ascender, descender;
-  writable::strings fontpath, str;
+    advance, ascender, descender, rotation;
+  writable::strings fontpath, str, directions;
   writable::logicals ltr;
 
   if (n_strings != 0) {
@@ -220,6 +220,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
         n_strings != space_before.size() ||
         n_strings != space_after.size() ||
         n_strings != direction.size() ||
+        n_strings != mixed.size() ||
         n_strings != wrap.size()
     ) {
       cpp11::stop("All input must be the same size");
@@ -252,7 +253,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                                       width[i] * 64.0, tracking[i], indent[i] * 64.0,
                                       hanging[i] * 64.0, space_before[i] * 64.0,
                                       space_after[i] * 64.0, cpp11::is_na(string[i]),
-                                      direction[i], wraps);
+                                      direction[i], mixed[i], wraps);
 
         if (!success) {
           cpp11::stop("Failed to shape string (%s) with font file (%s) with freetype error %i", this_string, Rf_translateCharUTF8(STRING_ELT(path, i)), shaper.error_code);
@@ -278,6 +279,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
           advance.push_back(double(shaper.advance[j]) / 64.0);
           ascender.push_back(double(shaper.ascender[j]) / 64.0);
           descender.push_back(double(shaper.descender[j]) / 64.0);
+          rotation.push_back(shaper.rotation[j]);
         }
         widths.push_back(double(shaper.width) / 64.0);
         heights.push_back(double(shaper.height) / 64.0);
@@ -289,7 +291,12 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
         top_border.push_back(double(shaper.top_border) / 64.0);
         pen_x.push_back(double(shaper.pen_x) / 64.0);
         pen_y.push_back(double(shaper.pen_y) / 64.0);
-        ltr.push_back(shaper.dir == 1);
+        // Vertical text has no left/right handedness; report it as not-RTL
+        // so consumers switching on ltr don't treat it as right-to-left
+        ltr.push_back(shaper.dir != 2);
+        directions.push_back(
+          shaper.dir == 2 ? "rtl" : (shaper.dir == 3 ? "ttb" : (shaper.dir == 4 ? "btt" : "ltr"))
+        );
       }
     }
     str = writable::strings(pen_x.size());
@@ -307,7 +314,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
     "top_border"_nm = top_border,
     "pen_x"_nm = pen_x,
     "pen_y"_nm = pen_y,
-    "ltr"_nm = ltr
+    "ltr"_nm = ltr,
+    "direction"_nm = directions
   });
   string_df.attr("class") = writable::strings({"tbl_df", "tbl", "data.frame"});
 
@@ -323,7 +331,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
     "font_size"_nm = fontsize,
     "advance"_nm = advance,
     "ascender"_nm = ascender,
-    "descender"_nm = descender
+    "descender"_nm = descender,
+    "rotation"_nm = rotation
   });
   info_df.attr("class") = writable::strings({"tbl_df", "tbl", "data.frame"});
 
@@ -335,7 +344,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
 
 doubles get_line_width_c(strings string, strings path, integers index, doubles size,
                          doubles res, logicals include_bearing, list_of<list> features,
-                         list_of<list> variations) {
+                         list_of<list> variations, integers direction, integers mixed) {
   int n_strings = string.size();
   writable::doubles widths;
   if (n_strings != 0) {
@@ -344,7 +353,9 @@ doubles get_line_width_c(strings string, strings path, integers index, doubles s
         n_strings != features.size() ||
         n_strings != size.size() ||
         n_strings != res.size() ||
-        n_strings != include_bearing.size()
+        n_strings != include_bearing.size() ||
+        n_strings != direction.size() ||
+        n_strings != mixed.size()
     ) {
       cpp11::stop("All input must be the same size");
     }
@@ -354,22 +365,32 @@ doubles get_line_width_c(strings string, strings path, integers index, doubles s
     create_font_variations(variations, all_axes, all_coords);
     auto fonts = create_font_settings(path, index, all_features, all_axes, all_coords);
 
-    int error = 1;
-    double width = 0;
-
+    HarfBuzzShaper& shaper = get_hb_shaper();
     for (int i = 0; i < n_strings; ++i) {
-      error = ts_string_width2(
+      shaper.error_code = 0;
+      // Vertical text is allowed here; the width is measured along the main
+      // axis so for vertical text this is the height of the string
+      EmbedInfo string_shape = shaper.shape_single_line(
         Rf_translateCharUTF8(string[i]),
         fonts[i],
         size[i],
         res[i],
-        include_bearing[i] == TRUE ? 1 : 0,
-        &width
+        direction[i],
+        mixed[i],
+        true
       );
-      if (error) {
-        cpp11::stop("Failed to calculate width of string (%s) with font file (%s) with freetype error %i", Rf_translateCharUTF8(string[i]), Rf_translateCharUTF8(path[i]), error);
+      if (shaper.error_code != 0) {
+        cpp11::stop("Failed to calculate width of string (%s) with font file (%s) with freetype error %i", Rf_translateCharUTF8(string[i]), Rf_translateCharUTF8(path[i]), shaper.error_code);
       }
-      widths.push_back(width);
+      int32_t width_tmp = 0;
+      for (size_t j = 0; j < string_shape.glyph_id.size(); ++j) {
+        width_tmp += string_shape.x_advance[j];
+      }
+      if (!include_bearing[i] && !string_shape.glyph_id.empty()) {
+        width_tmp -= string_shape.x_bear[0];
+        width_tmp -= string_shape.x_advance.back() - string_shape.x_bear.back() - string_shape.width.back();
+      }
+      widths.push_back(double(width_tmp) / 64.0);
     }
   }
 

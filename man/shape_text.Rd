@@ -26,6 +26,7 @@ shape_text(
   space_before = 0,
   space_after = 0,
   direction = "auto",
+  mixed = c("rotate", "upright"),
   path = NULL,
   index = 0,
   bold = deprecated()
@@ -90,9 +91,31 @@ inches.}
 measured in points}
 
 \item{direction}{The overall directional flow of the text. The default
-(\code{"auto"}) will guess the direction based on the content of the string. Use
-\code{"ltr"} (left-to-right) and \code{"rtl"} (right-to-left) to turn detection of and
-set it manually.}
+(\code{"auto"}) will guess the direction based on the content of the string,
+resolving to top-to-bottom if the string contains scripts that can only be
+typeset vertically (e.g. Mongolian) and to left-to-right or right-to-left
+otherwise. Use \code{"ltr"} (left-to-right), \code{"rtl"} (right-to-left), \code{"ttb"}
+(top-to-bottom), and \code{"btt"} (bottom-to-top) to turn off detection and set
+it manually. Scripts that can be typeset both horizontally and vertically
+(e.g. Japanese) are always set horizontally with \code{"auto"}.}
+
+\item{mixed}{How to treat runs of horizontal-only scripts (e.g. Latin) in
+vertical text: \code{"rotate"} shapes them horizontally and marks them for a 90
+degree rotation during rendering (see the \code{rotation} column in the output);
+\code{"upright"} sets them upright in the vertical line using the font's \code{vert}/
+\code{vrt2} substitutions, falling back to \code{"rotate"} behaviour if the font
+doesn't provide these; \code{"tate"} additionally sets ASCII digit runs of up
+to 4 digits horizontally on a single line (tate-chu-yoko), as is common
+for e.g. years and day numbers in Japanese typesetting. Tate runs use the
+font's \code{hwid}/\code{twid}/\code{qwid} narrow digit forms when available (unless the
+features are set explicitly), falling back to scaling down to fit the em
+box. \code{"combine"} generalises tate-chu-yoko to any horizontal-only run of
+up to 4 characters — Latin abbreviations, era names, etc. — equivalent to
+CSS \code{text-combine-upright: all} (narrow digit features are only used for
+all-digit runs). Finally, \code{"sideways"} shapes the entire string
+horizontally — CJK scripts included — and marks it for rotation,
+equivalent to CSS \code{text-orientation: sideways}. Ignored for horizontal
+text. Can be given per string.}
 
 \item{path, index}{path an index of a font file to circumvent lookup based on
 family and style}
@@ -118,6 +141,7 @@ about the full strings.
 \item{advance}{The advancement amount to the next glyph}
 \item{ascender}{The ascend of the font used for the glyph. This does not measure the actual glyph}
 \item{descender}{The descend of the font used for the glyph. This does not measure the actual glyph}
+\item{rotation}{The rotation in degrees the renderer should apply to the glyph. Non-zero for rotated runs in vertical text: horizontal-only scripts with \code{mixed = "rotate"} (the default), UAX#50 Tr characters when the font lacks \code{vert}/\code{vrt2}, and everything with \code{mixed = "sideways"}; \code{0} otherwise}
 }
 
 \code{metrics} is a data.frame with the following columns:
@@ -133,8 +157,17 @@ about the full strings.
 \item{top_border}{The position of the topmost edge of the textbox related to the origin}
 \item{pen_x}{The horizontal position of the next glyph after the string}
 \item{pen_y}{The vertical position of the next glyph after the string}
-\item{ltr}{The global direction of the string. If \code{TRUE} then it is left-to-right, otherwise it is right-to-left}
+\item{ltr}{The global direction of the string. If \code{TRUE} then it is left-to-right, otherwise it is right-to-left. Vertical text is not right-to-left so \code{ltr} is always \code{TRUE} for it; consult \code{direction} for the resolved direction}
+\item{direction}{The resolved global direction of the string (\code{"ltr"}, \code{"rtl"}, \code{"ttb"}, or \code{"btt"})}
 }
+
+For vertical text (\code{"ttb"}/\code{"btt"}) glyphs flow along the y axis and lines
+stack as columns (right-to-left for \code{"ttb"}, left-to-right for \code{"btt"}).
+Upright runs automatically use the font's \code{vert}/\code{vrt2} and \code{vkna}
+substitutions when available unless these features are set explicitly.
+\code{max_width} constrains the height of a column, and \code{hjust}/\code{vjust} justify
+along the main axis and across columns respectively. The \code{advance} column
+gives the advance along the main axis.
 }
 \description{
 Performs advanced text shaping of strings including font fallbacks,
@@ -155,5 +188,17 @@ string <- c(
 )
 
 shape_text(string, id = c(1, 1, 1), size = c(12, 24, 12))
+
+# Vertical text. CJK scripts stay horizontal with "auto", so request it
+# explicitly; runs of horizontal-only scripts are rotated by default
+shape_text("日本語ABCです", direction = "ttb")
+
+# ...or set them upright if the font provides vert/vrt2 substitutions
+shape_text("日本語ABCです", direction = "ttb", mixed = "upright")
+
+# Digit runs of up to 4 digits can be set horizontally on a single line
+# (tate-chu-yoko) with mixed = "tate", using the font's narrow digit
+# forms (hwid/twid/qwid) when available
+shape_text("2024年12月25日発売", direction = "ttb", mixed = "tate")
 
 }

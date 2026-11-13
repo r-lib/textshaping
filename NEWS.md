@@ -1,5 +1,68 @@
 # textshaping (development version)
 
+* Vertical text shaping is now supported through the `direction` argument of
+  `shape_text()` and `text_width()`, which now also accepts `"ttb"` and
+  `"btt"`. With `direction = "auto"` strings containing required-vertical
+  scripts (e.g. Mongolian) resolve to top-to-bottom, while scripts that can go
+  both ways (e.g. Japanese) stay horizontal unless vertical is explicitly
+  requested. Runs of horizontal-only scripts (e.g. Latin) inside vertical text
+  are handled according to the new `mixed` argument: `"rotate"` shapes them
+  horizontally and marks them for a 90 degree rotation during rendering (see
+  the new `rotation` column in the `shape` output), while `"upright"` sets
+  them upright using the font's `vert`/`vrt2` substitutions when available.
+  The `metrics` output gains a `direction` column with the resolved direction.
+  The device-facing C API (`ts_string_width`, `ts_string_shape`, etc.) is
+  unchanged and always shapes horizontally. Upright vertical runs
+  automatically use the font's `vkna` (vertical kana) substitutions when
+  available.
+
+* Prototype kinsoku shori support, in both ltr and rtl embedding levels:
+  line-end punctuation whose ink fits compresses onto the line with its
+  trailing blank hanging off; when wrapping is still forced, line-start-
+  prohibited punctuation (closing brackets, 、。！？ー etc.) hangs past the
+  line end (limited to about two em) and opening brackets are pulled down
+  to the next line
+
+* The trailing blank of fullwidth punctuation (。、！」etc.) now collapses
+  at line end per JLREQ line-end spacing rules: the empty half of the em
+  advance hangs outside the line box, so the reported line width and any
+  alignment/justification use the ink edge. The same applies to the leading
+  blank of opening brackets (「『（etc.) at line start, and to an opening
+  bracket following closing punctuation (。「etc.), where the facing half-em
+  blanks overlap into a single half em of separation
+
+* VORG vertical origins are honoured for main-axis glyph placement in
+  vertical text (via HarfBuzz's vertical offsets), so e.g. fullwidth Latin
+  letters sit at their designed optical position in the column
+
+* UAX#50 vertical orientation classes are now table-driven from the UCD
+  data file (src/vert_orientation.inc). Tr-class characters (brackets,
+  quotes, dashes) use the font's `vert`/`vrt2` typographic vertical glyphs
+  when available and fall back to 90 degree rotation per the spec, instead
+  of being placed upright untransformed
+
+* `mixed = "combine"` generalises tate-chu-yoko to arbitrary horizontal-only
+  runs of up to 4 characters (e.g. Latin abbreviations), equivalent to CSS
+  `text-combine-upright: all`. Narrow digit forms (`hwid`/`twid`/`qwid`) are
+  only injected for all-digit runs
+
+* `mixed = "sideways"` shapes the entire string horizontally and marks it
+  for rotation into the vertical column (equivalent to CSS
+  `text-orientation: sideways`), preserving horizontal kerning and
+  ligatures across the whole string
+
+* `mixed = "tate"` adds tate-chu-yoko support to vertical shaping: ASCII
+  digit runs of up to 4 digits (e.g. years and day numbers) are set
+  horizontally on a single line within the vertical column instead of being
+  rotated or set upright digit-by-digit. The font's `hwid`/`twid`/`qwid`
+  narrow digit forms are used automatically when available so runs fill the
+  em box at full size, with scaling down as a fallback. Combined runs always
+  occupy a full em slot on the main axis, even a single (half-width) digit
+
+* The bearings reported in the `metrics` output of `shape_text()` now account
+  for glyph offsets, affecting strings with positioned glyphs (e.g. some
+  combining accents and math layout)
+
 * Variation coordinates attached to registered fonts (via the `variation`
   argument of `systemfonts::register_font()`) are now honoured during shaping.
   Explicit `variation` settings take precedence over the registered
