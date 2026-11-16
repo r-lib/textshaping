@@ -196,7 +196,7 @@ shape_text <- function(
   strings <- as.character(strings)[ido]
 
   if (lifecycle::is_present(bold)) {
-    lifecycle::deprecate_soft(
+    lifecycle::deprecate_warn(
       "0.4.0",
       "shape_text(bold)",
       "shape_text(weight='bold')"
@@ -441,7 +441,7 @@ text_width <- function(
   n_strings <- length(strings)
 
   if (lifecycle::is_present(bold)) {
-    lifecycle::deprecate_soft(
+    lifecycle::deprecate_warn(
       "0.4.1",
       "text_width(bold)",
       "text_width(weight='bold')"
