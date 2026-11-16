@@ -2,8 +2,9 @@
 # macOS; skip otherwise
 cjk_family <- "Hiragino Sans"
 cjk_available <- function() {
-  loc <- try(systemfonts::match_fonts(cjk_family), silent = TRUE)
-  !inherits(loc, "try-error") && nrow(loc) > 0 && file.exists(loc$path[1])
+  # match_fonts() always returns a fallback, so check installed fonts directly
+  fonts <- try(systemfonts::system_fonts(), silent = TRUE)
+  !inherits(fonts, "try-error") && any(fonts$family == cjk_family)
 }
 
 test_that("ttb shaping stacks glyphs downward", {
