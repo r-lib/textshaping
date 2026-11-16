@@ -2,170 +2,89 @@
 
 * Vertical text shaping is now supported through the `direction` argument of
   `shape_text()` and `text_width()`, which now also accepts `"ttb"` and
-  `"btt"`. With `direction = "auto"` strings containing required-vertical
-  scripts (e.g. Mongolian) resolve to top-to-bottom, while scripts that can go
-  both ways (e.g. Japanese) stay horizontal unless vertical is explicitly
-  requested. Runs of horizontal-only scripts (e.g. Latin) inside vertical text
-  are handled according to the new `mixed` argument: `"rotate"` shapes them
-  horizontally and marks them for a 90 degree rotation during rendering (see
-  the new `rotation` column in the `shape` output), while `"upright"` sets
-  them upright using the font's `vert`/`vrt2` substitutions when available.
-  The `metrics` output gains a `direction` column with the resolved direction.
-  The device-facing C API (`ts_string_width`, `ts_string_shape`, etc.) is
-  unchanged and always shapes horizontally. Upright vertical runs
-  automatically use the font's `vkna` (vertical kana) substitutions when
-  available.
-
-* Kinsoku shori support, in both ltr and rtl embedding levels: line-end
-  punctuation whose ink fits compresses onto the line with its trailing blank
-  hanging off; when wrapping is still forced, line-start-prohibited
-  punctuation (closing brackets, 、。！？ー etc.) hangs past the line end
-  (limited to about two em) and opening brackets are pulled down to the next
-  line. The prohibition tables are driven by the UAX#14 line-break classes
-  (src/line_break_classes.inc, generated from the UCD by
-  data-raw/gen-linebreak-tables.R) and cover inseparable and number-binding
-  sequences (¥100, 50%, ‥…), which are now kept together even under forced
-  breaks. The strictness is configurable with the new `kinsoku` argument of
-  `shape_text()`: `"strict"` (default), `"loose"` (like CSS
-  `line-break: loose`, permitting lines to start with small kana, ー, and
-  iteration marks), or `"none"` (kinsoku processing disabled)
-
+  `"btt"` (with `"auto"` resolving required-vertical scripts like Mongolian
+  to top-to-bottom). The new `mixed` argument controls how horizontal-only
+  runs (e.g. Latin) are set in vertical text: `"rotate"` shapes them
+  horizontally and marks them for a 90 degree rotation (new `rotation` column
+  in the `shape` output), `"upright"` uses the font's `vert`/`vrt2`
+  substitutions, `"tate"` sets short digit runs horizontally within the
+  column (tate-chu-yoko), `"combine"` extends this to arbitrary runs of up to
+  4 characters (like CSS `text-combine-upright: all`), and `"sideways"`
+  shapes the whole string horizontally for rotation into the column (like
+  CSS `text-orientation: sideways`). Vertical glyph placement follows the
+  font's VORG origins and UAX#50 orientation classes, with Tr-class
+  characters (brackets, quotes, dashes) using `vert`/`vrt2` glyphs when
+  available. The `metrics` output gains a `direction` column
+* Kinsoku shori (Japanese line-break prohibition) support, driven by UAX#14
+  line-break classes and covering inseparable and number-binding sequences
+  (¥100, 50%, ‥…). The new `kinsoku` argument of `shape_text()` selects
+  `"strict"` (default), `"loose"` (like CSS `line-break: loose`), or `"none"`
 * The new `kinsoku_style` argument of `shape_text()` selects how line-break
-  prohibition violations are resolved: `"hang"` (ぶら下げ, the default) lets
-  offending punctuation hang past the line end, `"push-out"` (追い出し) moves
-  it to the next line and expands the vacated line's spacing (punctuation
-  blanks first, then inter-character gaps), and `"push-in"` (追い込み) pulls
-  it onto the current line by compressing its spacing (up to the full
-  punctuation blank, then 1/4 em per inter-character gap per JLREQ
-  tolerance), falling back to hanging when the line cannot absorb the
-  overflow
-
-* The trailing blank of fullwidth punctuation (。、！」etc.) now collapses
-  at line end per JLREQ line-end spacing rules: the empty half of the em
-  advance hangs outside the line box, so the reported line width and any
-  alignment/justification use the ink edge. The same applies to the leading
-  blank of opening brackets (「『（etc.) at line start, and to an opening
-  bracket following closing punctuation (。「etc.), where the facing half-em
-  blanks overlap into a single half em of separation
-
-* VORG vertical origins are honoured for main-axis glyph placement in
-  vertical text (via HarfBuzz's vertical offsets), so e.g. fullwidth Latin
-  letters sit at their designed optical position in the column
-
-* UAX#50 vertical orientation classes are now table-driven from the UCD
-  data file (src/vert_orientation.inc). Tr-class characters (brackets,
-  quotes, dashes) use the font's `vert`/`vrt2` typographic vertical glyphs
-  when available and fall back to 90 degree rotation per the spec, instead
-  of being placed upright untransformed
-
-* `mixed = "combine"` generalises tate-chu-yoko to arbitrary horizontal-only
-  runs of up to 4 characters (e.g. Latin abbreviations), equivalent to CSS
-  `text-combine-upright: all`. Narrow digit forms (`hwid`/`twid`/`qwid`) are
-  only injected for all-digit runs
-
-* `mixed = "sideways"` shapes the entire string horizontally and marks it
-  for rotation into the vertical column (equivalent to CSS
-  `text-orientation: sideways`), preserving horizontal kerning and
-  ligatures across the whole string
-
-* `mixed = "tate"` adds tate-chu-yoko support to vertical shaping: ASCII
-  digit runs of up to 4 digits (e.g. years and day numbers) are set
-  horizontally on a single line within the vertical column instead of being
-  rotated or set upright digit-by-digit. The font's `hwid`/`twid`/`qwid`
-  narrow digit forms are used automatically when available so runs fill the
-  em box at full size, with scaling down as a fallback. Combined runs always
-  occupy a full em slot on the main axis, even a single (half-width) digit
-
+  prohibition violations are resolved: `"hang"` (ぶら下げ, default),
+  `"push-out"` (追い出し), or `"push-in"` (追い込み)
+* The trailing blank of fullwidth punctuation (。、！」etc.) now hangs outside
+  the line box at line end per JLREQ line-end spacing rules, as does the
+  leading blank of opening brackets at line start, so reported line widths
+  and alignment use the ink edge
 * The bearings reported in the `metrics` output of `shape_text()` now account
-  for glyph offsets, affecting strings with positioned glyphs (e.g. some
-  combining accents and math layout)
-
-* Variation coordinates attached to registered fonts (via the `variation`
-  argument of `systemfonts::register_font()`) are now honoured during shaping.
-  Explicit `variation` settings take precedence over the registered
-  coordinates, which in turn take precedence over the conventional
-  `italic`/`weight`/`width` settings
-
-* Text-presentation-default emoji codepoints (e.g. U+2199) without an emoji
-  variation selector that are not covered by the primary font are now shaped
-  using the regular font fallback chain, with the emoji font only used as a
-  last resort. This prevents text characters such as arrows from being
-  replaced by color emoji (requires systemfonts >= 1.3.3, r-lib/ragg#217)
-
-* configure now link-tests `hb_ft_font_create_referenced()` and falls back to
-  the older two-argument `hb_ft_font_create()` when the symbol is missing from
-  libharfbuzz, fixing load-time "undefined symbol" failures on systems whose
-  harfbuzz headers and library don't match (#79)
-* Add LaTeX and Typst math shaping (at least a large subset of it)
-* Font variations (variable font axis coordinates) now travel through shaping.
-  `shape_text()` and `text_width()` gain a `variation` argument accepting
-  `systemfonts::font_variation()` objects. The C API has been extended with
-  `textshaping::ver2::string_width()` and `textshaping::ver2::string_shape()`
-  that take `FontSettings2`; the existing `FontSettings`-based entry points
-  remain available unchanged during the transition.
+  for glyph offsets (e.g. combining accents, math layout)
+* Variation coordinates attached to registered fonts (via
+  `systemfonts::register_font()`) are now honoured during shaping
+* Text-presentation-default emoji codepoints without an emoji variation
+  selector now use the regular font fallback chain, with the emoji font only
+  as a last resort
+* Fixed load-time "undefined symbol" failures on systems whose harfbuzz
+  headers and library don't match (#79)
+* Added LaTeX and Typst math shaping
+* `shape_text()` and `text_width()` gain a `variation` argument accepting
+  `systemfonts::font_variation()` objects for setting variable font axes
 
 ## Crash and memory-safety fixes
 
-* Fixed a crash (and a potential infinite loop) when a forced line break was
-  needed on a line too narrow for a single glyph, both left-to-right and
-  right-to-left
+* Fixed a crash (and potential infinite loop) when a forced line break was
+  needed on a line too narrow for a single glyph, in both ltr and rtl
 * Fixed a crash when shaping an empty string with justified alignment
 * Fixed a crash when calculating the width of an empty string with
   `include_bearing = FALSE`
-* Fixed a crash (integer division by zero) with distributed alignment on lines
-  containing a single glyph
-* Fixed a heap corruption when text contained more bidi embedding levels than
-  the embedding stack had room for; the stack now grows on demand
+* Fixed a crash with distributed alignment on lines containing a single glyph
+* Fixed heap corruption with more bidi embedding levels than the stack had
+  room for; the stack now grows on demand
 * Fixed use-after-free and double-free bugs in font loading on systems where
   the FreeType versions of systemfonts and textshaping differ
-* Fixed an out-of-bounds read when converting truncated or invalid UTF-8
-  input to codepoints
-* Fixed a format-string vulnerability where user-provided math input was
-  passed as the format string of an error message
+* Fixed an out-of-bounds read on truncated or invalid UTF-8 input
 * Fixed FreeType face leaks in `get_font_features()` and in math layout, and
-  made font and library handles exception-safe so they can't leak on error
-  paths
-* Fixed a leak of the global shaper after package unload/reload; C-callable
-  entry points now lazily recreate it instead of risking a use-after-free
+  made font and library handles exception-safe
+* Fixed a leak of the global shaper after package unload/reload
 * Fixed a leak of the HarfBuzz font when hyphen substitution failed
-* Handle-owning C++ classes can no longer be copied (which would have led to
-  double frees)
+* Handle-owning C++ classes can no longer be copied (preventing double frees)
 * Guarded against undefined behaviour when converting non-finite or
-  out-of-range doubles (widths, indents, sizes, etc.) to integers
+  out-of-range doubles to integers
 * Fixed potential out-of-bounds reads on fonts without a family name and on
   bitmap fonts reporting a zero strike height
 
 ## Shaping correctness fixes
 
-* The shape cache now stores glyph clusters relative to the run start, so
-  cached shaping is correct when the same run appears at different positions
-  in a paragraph; previously, stale paragraph positions could leak into
-  subsequent shaping and lead to out-of-bounds reads
-* Cache keys for shaping, bidi, and math layout now compare the actual string
-  content rather than only a hash, so a hash collision can no longer silently
-  return another string's result
-* Fixed emoji handling in left-to-right text: emoji detection no longer
-  relies on negating the embedding level (a no-op for level 0) and now uses
-  the correct paragraph offset
+* Fixed stale paragraph positions leaking from the shape cache into
+  subsequent shaping when the same run appears at different positions in a
+  paragraph
+* Cache keys for shaping, bidi, and math layout now compare actual string
+  content, so a hash collision can no longer return another string's result
+* Fixed emoji detection in left-to-right text
 * Fixed an error ("Can't combine embeddings past termination point") when an
-  rtl embedding ended a paragraph; rtl runs are now merged in reverse order
-  rather than reversing first
+  rtl embedding ended a paragraph
 * Fixed fallback sizing tables getting out of sync with the fallback font
-  list when an existing font was retried, leading to wrong scaling, tracking,
-  and sizes
-* Fixed shaping failures leaving half-built embeddings behind that could be
-  indexed out of bounds downstream
+  list, leading to wrong scaling, tracking, and sizes
+* Fixed shaping failures leaving half-built embeddings behind
 * Single-character strings now resolve their direction through the bidi
   algorithm, so `ltr` is reported correctly
 * Fixed hyphen kerning being computed against a Unicode codepoint rather than
   a glyph id
 * Fixed the line-break glyph advance being subtracted from the wrong end in
-  right-to-left embeddings
+  rtl embeddings
 * Fixed the glyph-per-line count in justified alignment being off by one
 * Fixed the "largest strike" selection for bitmap fonts never being updated
-* Feature tags shorter or longer than 4 characters are now padded or rejected
-  instead of being read out of bounds, and mismatched tag/setting lengths are
-  caught early
+* Feature tags not exactly 4 characters long are now padded or rejected
+  instead of being read out of bounds
 * The exported C API `ts_string_shape2()` now fills the `cluster` output and
   clears all outputs on error
 * Fixed reading `include_bearing` from the wrong element and treating `NA` as
@@ -173,66 +92,8 @@
 * Fixed a potential crash when the last line of a paragraph ended in a hard
   line break
 * Font and shaping failures during a paragraph are now reported as errors
-  when finalising shaping instead of silently dropping the failed text
-* The bidi algorithm now falls back to neutral embeddings if analysis fails,
-  rather than returning uninitialised embedding levels
-
-## Math (LaTeX/Typst) fixes
-
-* Fixed two infinite loops in the Typst parser (`{...}` groups with
-  unexpected tokens and `mat(augment: #(...))` with non-identifier entries)
-* Deeply nested math input now raises a parse error instead of crashing R
-  with a stack overflow (both parsers are depth-limited)
-* Typst backslash sequences now work: escaped delimiters (`\(`, `\,`, ...),
-  and `\` line breaks, which were previously dead code
-* The Typst parser now reports unexpected trailing content instead of
-  silently dropping it (e.g. after `,`, `:`, `;`, or non-ASCII input)
-* Typst primes (`f'(x)`), parenthesised comma lists (`f(x, y)`), subscripts
-  on identifiers (`x_1`), and multi-letter identifiers (`xy`) now parse
-  correctly
-* `root(n, x)` no longer swaps the index and radicand
-* Ragged and empty cells in Typst `mat()`/`cases()` no longer shift or lose
-  columns, and `cases()` keeps its condition column
-* Typst `row-gap:`/`column-gap:` matrix parameters now work ('-' was being
-  rewritten to a minus sign before the parameter name was checked)
-* `mat(augment:)` now accepts negative values and arrays of positions
-* `lr(|x|)` no longer swallows the closing delimiter into the content
-* `attach(x, t:, b:)` now renders instead of producing nothing
-* Parentheses used for grouping in Typst scripts (`x^(a+b)`) are stripped as
-  Typst does
-* LaTeX `\displaystyle` (and friends) now stop at `\right`, `&`, `\\`, and
-  `\end` instead of swallowing the rest of the group
-* LaTeX `\text{}` and `\operatorname{}` now preserve spaces and backslashes
-  by copying the raw input
-* LaTeX non-ASCII input is now rendered instead of silently dropped
-* LaTeX `f'^2` now puts the prime and the `2` in the same superscript in the
-  right order
-* Fixed `get_math_glyph_variants()` and `get_math_glyph_assembly()` always
-  returning empty results
-* Glyph assemblies from MATH tables are now capped in size, centred around
-  the middle piece, and no longer risk undefined behaviour on infinite or
-  huge target sizes
-* `\rule` no longer accepts infinite or NaN dimensions
-* Text in `\text{}`, strings, and operator names is now decoded as UTF-8
-  instead of byte by byte
-* Em-based spacing and matrix gaps in math layout now scale with the device
-  resolution, matching the glyph metrics
-* Typst `phi`/`epsilon` and their `.alt` variants now follow Typst's
-  conventions rather than LaTeX's, and a duplicate `diamond.stroked` symbol
-  table key was removed
-* Font variations and MATH table queries now handle the `res` argument and
-  guard against invalid font sizes
-* The LaTeX/Typst syntax detector no longer misclassifies LaTeX thin spaces
-  (`\,`, `\;`, `\!`, `\:`) as Typst escapes when LaTeX commands are present
-
-## Build fixes
-
-* Fixed the `NO_HARFBUZZ_FRIBIDI` fallback build (stub signature mismatches
-  and an undeclared constant)
-* Removed the `all: clean` rule from `Makevars.in` that forced full rebuilds
-  on every compile and was racy under parallel make
-* Windows build now defines `NDEBUG` and `FRIBIDI_LIB_STATIC` consistently
-  with the Unix build
+  instead of silently dropping the failed text
+* The bidi algorithm now falls back to neutral embeddings if analysis fails
 
 # textshaping 1.0.5
 
