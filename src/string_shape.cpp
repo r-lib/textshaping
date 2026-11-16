@@ -2494,6 +2494,14 @@ std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::
           line.splice(line.begin(), all_embeddings, all_embeddings.begin(), iter);
           line.emplace_back();
           iter->split(from, to, line.back());
+          // A break at the very end of the embedding leaves an empty shell
+          // behind. Drop it so it doesn't perturb the layout of what follows
+          // (spurious pen reset, phantom line metrics), but keep a paragraph
+          // termination alive
+          if (iter->glyph_id.empty()) {
+            if (iter->terminates_paragraph) hard_break = true;
+            all_embeddings.erase(iter);
+          }
           if (is_shy) { // Substitute soft hyphen with hyphen
             size_t at = line.back().embedding_level % 2 == 0 ? line.back().glyph_id.size() - 1 : 0;
             insert_hyphen(line.back(), at);
@@ -2520,6 +2528,12 @@ std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::
             line.splice(line.begin(), all_embeddings, all_embeddings.begin(), iter);
             line.emplace_back();
             iter->split(from, to, line.back());
+            // See above: drop an empty shell left by a break at the very
+            // end of the embedding
+            if (iter->glyph_id.empty()) {
+              if (iter->terminates_paragraph) hard_break = true;
+              all_embeddings.erase(iter);
+            }
           }
           break;
         }
