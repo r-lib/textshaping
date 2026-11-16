@@ -70,72 +70,109 @@ static inline bool char_is_rtl_strong(uint32_t cp) {
          (cp >= 0xFE70 && cp <= 0xFEFF);    // Arabic presentation forms-B
 }
 
-// JLREQ kinsoku shori: characters that may not start a line (closing
-// brackets, sentence punctuation, prolonged sound marks, middle dots,
-// iteration marks, small kana). When wrapping is forced these are allowed
-// to hang past the line end instead
+// Line-break class lookups, generated from the UAX#14 data file
+// (LineBreak.txt). The kinsoku shori and JLREQ spacing logic below is
+// expressed in terms of these classes
+#include "line_break_classes.inc"
+
+// The UAX#14 line-break class of a codepoint (LB_OTHER for classes we don't
+// use: letters, spaces, etc.)
+static inline uint8_t char_lb_class(uint32_t cp) {
+  size_t lo = 0, hi = sizeof(lb_class_ranges) / sizeof(lb_class_ranges[0]);
+  while (lo < hi) {
+    size_t mid = (lo + hi) / 2;
+    if (cp < lb_class_ranges[mid].first) {
+      hi = mid;
+    } else if (cp > lb_class_ranges[mid].last) {
+      lo = mid + 1;
+    } else {
+      return lb_class_ranges[mid].cls;
+    }
+  }
+  return LB_OTHER;
+}
+
+// JLREQ kinsoku shori: characters that may not start a line — closing
+// punctuation (CL/CP), non-starters (NS/CJ: iteration marks, ・：；, small
+// kana, ー), exclamation marks (EX), inseparable ellipses (IN), hyphens and
+// dashes (HY/BA/B2), and postfix numerics (PO, which bind to the preceding
+// number). When wrapping is forced these are allowed to hang past the line
+// end instead
 static inline bool char_is_line_start_prohibited(uint32_t cp) {
-  switch (cp) {
-  case 0x3001: case 0x3002:              // 、。
-  case 0xFF0C: case 0xFF0E:              // ，．
-  case 0x3009: case 0x300A:              // 〉》
-  case 0x300D: case 0x300F:              // 」』
-  case 0x3011: case 0x3015:              // 】〕
-  case 0x3017: case 0x3019: case 0x301B: // 〗〙〛
-  case 0xFF09: case 0xFF5D:              // ）｝
-  case 0x30FC: case 0x30A0:              // ー゠
-  case 0x2014: case 0x2015:              // —―
-  case 0xFF01: case 0xFF1F:              // ！？
-  case 0x30FB: case 0xFF1A: case 0xFF1B: // ・：；
-  case 0x2025: case 0x2026:              // ‥…
-  case 0x3005: case 0x303B:              // 々〻
-  case 0x309D: case 0x309E:              // ゝゞ
-  case 0x30FD: case 0x30FE:              // ヽヾ
-  case 0x3041: case 0x3043: case 0x3045: case 0x3047: case 0x3049: // ぁぃぅぇぉ
-  case 0x3063:                          // っ
-  case 0x3083: case 0x3085: case 0x3087: case 0x308E: // ゃゅょゎ
-  case 0x3095: case 0x3096:              // ゕゖ
-  case 0x30A1: case 0x30A3: case 0x30A5: case 0x30A7: case 0x30A9: // ァィゥェォ
-  case 0x30C3:                          // ッ
-  case 0x30E3: case 0x30E5: case 0x30E7: case 0x30EE: // ャュョヮ
-  case 0x30F5: case 0x30F6:              // ヵヶ
+  // U+2015 HORIZONTAL BAR is class AI (ambiguous); it is a dash for kinsoku
+  if (cp == 0x2015) return true;
+  switch (char_lb_class(cp)) {
+  case LB_CL: case LB_CP: case LB_NS: case LB_CJ: case LB_EX:
+  case LB_IN: case LB_HY: case LB_BA: case LB_B2: case LB_PO:
     return true;
   }
-  if (cp >= 0x31F0 && cp <= 0x31FF) return true; // katakana phonetic extensions (small)
   return false;
 }
 
 // Fullwidth punctuation whose trailing blank (the empty half of its em
-// advance) may collapse at line end, per JLREQ line-end spacing rules
+// advance) may collapse at line end, per JLREQ line-end spacing rules.
+// Small kana and ー (CJ) are excluded: their ink is smaller than the em box
+// but that is not a collapsible punctuation blank
 static inline bool char_is_trailing_collapsible(uint32_t cp) {
-  switch (cp) {
-  case 0x3001: case 0x3002:              // 、。
-  case 0xFF0C: case 0xFF0E:              // ，．
-  case 0xFF01: case 0xFF1F:              // ！？
-  case 0xFF1A: case 0xFF1B:              // ：；
-  case 0x30FB:                           // ・
-  case 0x3009: case 0x300A:              // 〉》
-  case 0x300D: case 0x300F:              // 」』
-  case 0x3011: case 0x3015:              // 】〕
-  case 0x3017: case 0x3019: case 0x301B: // 〗〙〛
-  case 0xFF09: case 0xFF5D:              // ）｝
+  switch (char_lb_class(cp)) {
+  case LB_CL: case LB_CP: case LB_EX: case LB_NS:
     return true;
   }
   return false;
 }
 
-// Characters that may not end a line (opening brackets). When wrapping is
-// forced these are pulled down to the next line
-static inline bool char_is_line_end_prohibited(uint32_t cp) {
-  switch (cp) {
-  case 0x3008: case 0x300A:              // 〈《
-  case 0x300C: case 0x300E:              // 「『
-  case 0x3010: case 0x3014:              // 【〔
-  case 0x3016: case 0x3018: case 0x301A: // 〖〘〚
-  case 0x301D:                           // 〝
-  case 0xFF08: case 0xFF3B: case 0xFF5B: // （［｛
+// The subset of line-start-prohibited characters exempt from kinsoku in
+// "loose" mode (CSS line-break: loose): the non-starters (small kana,
+// prolonged sound mark, iteration marks, ・：；) and the inseparable
+// ellipses ‥…
+static inline bool char_is_loose_prohibited(uint32_t cp) {
+  switch (char_lb_class(cp)) {
+  case LB_NS: case LB_CJ: case LB_IN:
     return true;
   }
+  return false;
+}
+
+// Characters that may not end a line: opening punctuation (OP) and prefix
+// numerics (PR, e.g. ¥$, which bind to the following number). When wrapping
+// is forced these are pulled down to the next line
+static inline bool char_is_line_end_prohibited(uint32_t cp) {
+  uint8_t cls = char_lb_class(cp);
+  return cls == LB_OP || cls == LB_PR;
+}
+
+// Are two adjacent characters inseparable (分離禁止): glue-joined pairs
+// (UAX#14 LB10) and runs of inseparable characters (‥…)
+static inline bool char_is_inseparable_pair(uint32_t a, uint32_t b) {
+  uint8_t ca = char_lb_class(a);
+  uint8_t cb = char_lb_class(b);
+  return ca == LB_GL || cb == LB_GL || (ca == LB_IN && cb == LB_IN);
+}
+
+// Is the character line-start prohibited under the active kinsoku mode
+// (loose mode exempts small kana, ー, iteration marks, and ‥…)
+static inline bool char_prohibited_at_line_start(uint32_t cp, int kinsoku_mode) {
+  if (!char_is_line_start_prohibited(cp)) return false;
+  return kinsoku_mode != 1 || !char_is_loose_prohibited(cp);
+}
+
+// Is a forced break between glyphs a and b of the embedding prohibited by
+// kinsoku: after opening punctuation or prefix numerics (which bind
+// forwards), inside inseparable pairs, or inside number-binding sequences
+// (¥100, 50%, digit runs)
+static bool forced_break_prohibited(const std::vector<uint32_t>& full_string,
+                                    const EmbedInfo& embedding, size_t a, size_t b) {
+  if (a >= embedding.glyph_id.size() || b >= embedding.glyph_id.size()) return false;
+  int32_t cl_a = embedding.glyph_cluster[a];
+  int32_t cl_b = embedding.glyph_cluster[b];
+  uint32_t cpa = cl_a < (int32_t) full_string.size() ? full_string[cl_a] : 0;
+  uint32_t cpb = cl_b < (int32_t) full_string.size() ? full_string[cl_b] : 0;
+  if (char_is_line_end_prohibited(cpa)) return true;
+  if (char_is_inseparable_pair(cpa, cpb)) return true;
+  uint8_t la = char_lb_class(cpa);
+  uint8_t lb = char_lb_class(cpb);
+  if (la == LB_PR && lb == LB_NU) return true;
+  if (la == LB_NU && (lb == LB_NU || lb == LB_PO)) return true;
   return false;
 }
 
@@ -271,7 +308,7 @@ bool HarfBuzzShaper::shape_string(const char* string, FontSettings2& font_info,
                                   int align, double hjust, double vjust, double width,
                                   double tracking, double ind, double hang, double before,
                                   double after, bool spacer, int direction, int mixed,
-                                  std::vector<int>& wrap) {
+                                  int kinsoku, int kinsoku_style_, std::vector<int>& wrap) {
   reset();
 
   // Set global settings
@@ -293,6 +330,8 @@ bool HarfBuzzShaper::shape_string(const char* string, FontSettings2& font_info,
 
   dir = direction;
   cur_mixed = mixed;
+  kinsoku_mode = kinsoku;
+  kinsoku_style = kinsoku_style_;
   // The R-level API allows auto-detection of vertical text; the
   // graphics-device C API never reaches this function
   vertical_allowed = true;
@@ -392,6 +431,7 @@ bool HarfBuzzShaper::add_spacer(FontSettings2& font_info, double height, double 
   spacer_embed.is_blank.push_back(false);
   spacer_embed.may_break.push_back(false);
   spacer_embed.may_stretch.push_back(false);
+  spacer_embed.space_adjust.push_back(0);
   spacer_embed.font.push_back(0);
   spacer_embed.fallbacks.push_back(dummy_font);
   spacer_embed.fallback_size.push_back(height);
@@ -487,6 +527,8 @@ bool HarfBuzzShaper::finish_string() {
             if (lead > 0) pen_x -= lead;
           }
         }
+        // Apply any kinsoku spacing adjustment to the gap before this glyph
+        pen_x += iter->space_adjust[i];
         if (iter->glyph_id[i] != EMPTY_CHAR) { // Avoid adding made up glyph info for empty text runs
           glyph_id.push_back(iter->glyph_id[i]);
           glyph_cluster.push_back(iter->glyph_cluster[i]);
@@ -716,6 +758,8 @@ void HarfBuzzShaper::reset() {
   vert_class.clear();
   vertical_allowed = false;
   cur_mixed = 0;
+  kinsoku_mode = 0;
+  kinsoku_style = 0;
   emoji_flag.clear();
   glyph_id.clear();
   glyph_cluster.clear();
@@ -1833,6 +1877,7 @@ void HarfBuzzShaper::fill_shape_info(hb_glyph_info_t* glyph_info,
     embedding.full_width += embedding.x_advance.back();
 
     embedding.rotation.push_back(rotation);
+    embedding.space_adjust.push_back(0);
 
     embedding.ascenders.push_back(ascend * scaling);
     embedding.descenders.push_back(descend * scaling);
@@ -1937,7 +1982,92 @@ void HarfBuzzShaper::insert_hyphen(EmbedInfo& embedding, size_t where) {
   hb_font_destroy(font);
 }
 
-bool HarfBuzzShaper::has_valid_break(const EmbedInfo& embedding, int32_t width, size_t& break_pos, bool force) {
+// Classify the gap before glyph j of the embedding (see header)
+int HarfBuzzShaper::gap_adjust_class(const EmbedInfo& embedding, size_t j, int32_t& cap) {
+  cap = 0;
+  int32_t cl_prev = embedding.glyph_cluster[j - 1];
+  int32_t cl_cur = embedding.glyph_cluster[j];
+  uint32_t cp_prev = cl_prev < (int32_t) full_string.size() ? full_string[cl_prev] : 0;
+  uint32_t cp_cur = cl_cur < (int32_t) full_string.size() ? full_string[cl_cur] : 0;
+  if (char_is_inseparable_pair(cp_prev, cp_cur)) return 0;
+  // The punctuation blank on the gap side of the previous glyph adjusts by
+  // up to the full blank (half em), at the highest priority
+  if (char_is_trailing_collapsible(cp_prev)) {
+    int32_t trail = embedding.x_advance[j - 1] - embedding.x_offset[j - 1] -
+                    embedding.x_bear[j - 1] - embedding.width[j - 1];
+    if (trail > 0) {
+      cap = trail;
+      return 1;
+    }
+  }
+  // Inter-character gaps between solid CJK characters compress up to 1/4 em
+  // (JLREQ tolerance) and expand without a hard cap
+  uint8_t ca = char_lb_class(cp_prev);
+  uint8_t cb = char_lb_class(cp_cur);
+  bool cjk_a = ca == LB_ID || ca == LB_CJ;
+  bool cjk_b = cb == LB_ID || cb == LB_CJ;
+  if (cjk_a && cjk_b) {
+    int32_t em = std::min(embedding.em_width[j - 1], embedding.em_width[j]);
+    cap = em > 0 ? em / 4 : 0;
+    return 2;
+  }
+  return 0;
+}
+
+// Distribute `amount` of spacing over the gaps before glyphs lo+1..hi (see
+// header)
+int32_t HarfBuzzShaper::distribute_spacing(EmbedInfo& embedding, size_t lo, size_t hi, int32_t amount) {
+  if (amount == 0 || hi <= lo || hi >= embedding.glyph_id.size()) return amount;
+  // Punctuation blanks first, left to right
+  for (size_t j = lo + 1; j <= hi && amount != 0; ++j) {
+    int32_t cap;
+    if (gap_adjust_class(embedding, j, cap) != 1) continue;
+    int32_t take = std::min(cap, std::abs(amount));
+    int32_t adj = amount > 0 ? take : -take;
+    embedding.space_adjust[j] += adj;
+    amount -= adj;
+  }
+  if (amount == 0) return 0;
+  // Then inter-character gaps: compression greedily up to the 1/4 em caps,
+  // expansion spread evenly (no hard cap)
+  if (amount < 0) {
+    for (size_t j = lo + 1; j <= hi && amount != 0; ++j) {
+      int32_t cap;
+      if (gap_adjust_class(embedding, j, cap) != 2) continue;
+      int32_t take = std::min(cap, -amount);
+      embedding.space_adjust[j] -= take;
+      amount += take;
+    }
+    return amount;
+  }
+  size_t n_gaps = 0;
+  for (size_t j = lo + 1; j <= hi; ++j) {
+    int32_t cap;
+    if (gap_adjust_class(embedding, j, cap) == 2) ++n_gaps;
+  }
+  if (n_gaps == 0) return amount;
+  int32_t share = amount / (int32_t) n_gaps;
+  int32_t remainder = amount - share * (int32_t) n_gaps;
+  for (size_t j = lo + 1; j <= hi; ++j) {
+    int32_t cap;
+    if (gap_adjust_class(embedding, j, cap) != 2) continue;
+    embedding.space_adjust[j] += share + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) --remainder;
+  }
+  return 0;
+}
+
+// Total compression available in the gaps before glyphs lo+1..hi
+int32_t HarfBuzzShaper::spacing_capacity(const EmbedInfo& embedding, size_t lo, size_t hi) {
+  int32_t total = 0;
+  for (size_t j = lo + 1; j <= hi && j < embedding.glyph_id.size(); ++j) {
+    int32_t cap;
+    if (gap_adjust_class(embedding, j, cap) != 0) total += cap;
+  }
+  return total;
+}
+
+bool HarfBuzzShaper::has_valid_break(EmbedInfo& embedding, int32_t width, size_t& break_pos, bool force, bool desperate) {
   bool has_break = false;
   int32_t w = 0;
   if (embedding.embedding_level % 2 == 0) { // ltr
@@ -1952,8 +2082,9 @@ bool HarfBuzzShaper::has_valid_break(const EmbedInfo& embedding, int32_t width, 
       if (w > width) {
         // Compression: the trailing blank of collapsible punctuation need
         // not fit — if the glyph's ink fits it may end the line here, with
-        // the blank hanging off (it collapses at the line end anyway)
-        if (embedding.may_break[i]) {
+        // the blank hanging off (it collapses at the line end anyway). Not
+        // in push-out style, where the glyph moves to the next line instead
+        if (kinsoku_mode != 2 && kinsoku_style != 1 && embedding.may_break[i]) {
           int32_t cluster = embedding.glyph_cluster[i];
           uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
           if (char_is_trailing_collapsible(cp)) {
@@ -1965,38 +2096,132 @@ bool HarfBuzzShaper::has_valid_break(const EmbedInfo& embedding, int32_t width, 
           }
         }
         if (force) {
-          // Kinsoku shori (prototype): line-start-prohibited punctuation
-          // hangs past the line end (buried style) rather than starting the
-          // next line. The overhang is limited to about two em (twice the
-          // advance of the first hung glyph)
-          int32_t hang_limit = 0;
-          int32_t hung_w = 0;
-          size_t j = i;
-          while (j < embedding.glyph_id.size()) {
-            int32_t cluster = embedding.glyph_cluster[j];
-            uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
-            if (!char_is_line_start_prohibited(cp)) break;
-            int32_t adv = embedding.x_advance[j];
-            if (hang_limit == 0) hang_limit = 2 * adv;
-            if (hung_w + adv > hang_limit) break;
-            hung_w += adv;
-            if (embedding.may_break[j]) {
-              break_pos = j;
-              return true;
+          if (!desperate && kinsoku_mode != 2) {
+            // Is the glyph at index k line-start prohibited under the
+            // active kinsoku mode? (loose mode exempts small kana, ー, and
+            // iteration marks)
+            auto prohibited_here = [&](size_t k) {
+              int32_t cluster = embedding.glyph_cluster[k];
+              uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+              if (!char_is_line_start_prohibited(cp)) return false;
+              return kinsoku_mode != 1 || !char_is_loose_prohibited(cp);
+            };
+            if (kinsoku_style == 2 && prohibited_here(i)) {
+              // Push-in (追い込み): pull the prohibited run onto the line by
+              // compressing its spacing (punctuation blanks first, then
+              // inter-character gaps), if the line can absorb the overflow
+              int32_t w_run = w;
+              for (size_t j = i; j < embedding.glyph_id.size(); ++j) {
+                if (j > i) w_run += embedding.x_advance[j];
+                if (embedding.may_break[j]) {
+                  int32_t need = w_run - width;
+                  if (need <= 0 || spacing_capacity(embedding, 0, j) >= need) {
+                    distribute_spacing(embedding, 0, j, -need);
+                    break_pos = j;
+                    return true;
+                  }
+                }
+                if (j + 1 >= embedding.glyph_id.size() || !prohibited_here(j + 1)) break;
+              }
+              // Fall through to hanging when the line cannot absorb it
             }
-            ++j;
+            if (kinsoku_style != 1) {
+              // Kinsoku shori: line-start-prohibited punctuation hangs past
+              // the line end (buried style) rather than starting the next
+              // line. The overhang is limited to about two em (twice the
+              // advance of the first hung glyph)
+              int32_t hang_limit = 0;
+              int32_t hung_w = 0;
+              size_t j = i;
+              while (j < embedding.glyph_id.size()) {
+                if (!prohibited_here(j)) break;
+                int32_t adv = embedding.x_advance[j];
+                if (hang_limit == 0) hang_limit = 2 * adv;
+                if (hung_w + adv > hang_limit) break;
+                hung_w += adv;
+                if (embedding.may_break[j]) {
+                  break_pos = j;
+                  return true;
+                }
+                ++j;
+              }
+            }
           }
           // If forcing we need to consume at least one glyph
           break_pos = i == 0 ? 0 : i - 1;
-          // Kinsoku shori: an opening bracket may not end the line — pull
-          // it (and any run of them) down to the next line
-          while (break_pos > 0) {
-            int32_t cluster = embedding.glyph_cluster[break_pos];
-            uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
-            if (!char_is_line_end_prohibited(cp)) break;
-            --break_pos;
+          if (!desperate && kinsoku_mode != 2) {
+            // Kinsoku shori: the break may not dangle opening punctuation
+            // or split inseparable/number-binding pairs (¥100, 50%, ‥…) —
+            // retreat to a permitted position
+            while (break_pos > 0 && forced_break_prohibited(full_string, embedding, break_pos, break_pos + 1)) {
+              --break_pos;
+            }
+            if (kinsoku_style == 1) {
+              // Push-out (追い出し): the prohibited run and the character
+              // before it move to the next line, so the next line never
+              // starts with a prohibited character
+              while (break_pos > 0) {
+                int32_t cluster = embedding.glyph_cluster[break_pos + 1];
+                uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+                if (!char_prohibited_at_line_start(cp, kinsoku_mode)) break;
+                --break_pos;
+                while (break_pos > 0 && forced_break_prohibited(full_string, embedding, break_pos, break_pos + 1)) {
+                  --break_pos;
+                }
+              }
+            }
+            // Even the first glyph may not be separable from the rest
+            if (break_pos == 0) {
+              bool blocked = forced_break_prohibited(full_string, embedding, 0, 1);
+              if (!blocked && kinsoku_style == 1 && embedding.glyph_id.size() > 1) {
+                int32_t cluster = embedding.glyph_cluster[1];
+                uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+                blocked = char_prohibited_at_line_start(cp, kinsoku_mode);
+              }
+              if (blocked) return false;
+            }
+            if (kinsoku_style == 1) {
+              // Spread the vacated slack over the kept line
+              int32_t kept = 0;
+              for (size_t k = 0; k <= break_pos; ++k) {
+                kept += embedding.x_advance[k];
+              }
+              distribute_spacing(embedding, 0, break_pos, width - kept);
+            }
           }
           return true;
+        }
+        if (has_break && kinsoku_mode != 2) {
+          if (kinsoku_style == 1) {
+            // Push-out (追い出し): the remaining segment moves to the next
+            // line; spread the slack over this line's adjustable gaps
+            // (punctuation blanks first, then inter-character gaps). The
+            // expansion is limited to about two em, mirroring the hang limit
+            int32_t kept = 0;
+            for (size_t k = 0; k <= break_pos; ++k) {
+              kept += embedding.x_advance[k];
+            }
+            int32_t slack = width - kept;
+            if (slack > 0 && slack <= 2 * embedding.em_width[0]) {
+              distribute_spacing(embedding, 0, break_pos, slack);
+            }
+          } else if (kinsoku_style == 2) {
+            // Push-in (追い込み): pull the next run onto the line if the
+            // adjustable gaps can absorb the overflow
+            int32_t w_run = w;
+            for (size_t j = i; j < embedding.glyph_id.size(); ++j) {
+              if (j > i) w_run += embedding.x_advance[j];
+              if (embedding.may_break[j]) {
+                int32_t need = w_run - width;
+                if (need > 0 && spacing_capacity(embedding, 0, j) >= need) {
+                  distribute_spacing(embedding, 0, j, -need);
+                  break_pos = j;
+                  return true;
+                }
+                break; // Only the next break candidate is a pull-in target
+              }
+            }
+          }
         }
         return has_break;
       }
@@ -2017,8 +2242,9 @@ bool HarfBuzzShaper::has_valid_break(const EmbedInfo& embedding, int32_t width, 
       if (w > width) {
         // Compression (mirror of the ltr branch): the trailing blank of
         // collapsible punctuation need not fit — if the glyph's ink fits
-        // it may end the line here with the blank hanging off
-        if (embedding.may_break[i - 1]) {
+        // it may end the line here with the blank hanging off. Not in
+        // push-out style, where the glyph moves to the next line instead
+        if (kinsoku_mode != 2 && kinsoku_style != 1 && embedding.may_break[i - 1]) {
           int32_t cluster = embedding.glyph_cluster[i - 1];
           uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
           if (char_is_trailing_collapsible(cp)) {
@@ -2030,41 +2256,140 @@ bool HarfBuzzShaper::has_valid_break(const EmbedInfo& embedding, int32_t width, 
           }
         }
         if (force) {
-          // Kinsoku shori (mirror of the ltr branch): line-start-prohibited
-          // punctuation hangs past the line end instead of starting the
-          // next line. The line's end is its left edge in rtl, so hanging
-          // extends towards lower indices. The overhang is limited to
-          // about two em (twice the advance of the first hung glyph)
-          int32_t hang_limit = 0;
-          int32_t hung_w = 0;
-          size_t j = i - 1;
-          while (true) {
-            int32_t cluster = embedding.glyph_cluster[j];
-            uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
-            if (!char_is_line_start_prohibited(cp)) break;
-            int32_t adv = embedding.x_advance[j];
-            if (hang_limit == 0) hang_limit = 2 * adv;
-            if (hung_w + adv > hang_limit) break;
-            hung_w += adv;
-            if (embedding.may_break[j]) {
-              break_pos = j;
-              return true;
+          if (!desperate && kinsoku_mode != 2) {
+            // Mirror of the ltr branch
+            auto prohibited_here = [&](size_t k) {
+              int32_t cluster = embedding.glyph_cluster[k];
+              uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+              if (!char_is_line_start_prohibited(cp)) return false;
+              return kinsoku_mode != 1 || !char_is_loose_prohibited(cp);
+            };
+            if (kinsoku_style == 2 && prohibited_here(i - 1)) {
+              // Push-in (追い込み): pull the prohibited run onto the line by
+              // compressing its spacing, if the line can absorb the
+              // overflow. Hanging extends towards lower indices in rtl, so
+              // the prohibited run is scanned downwards
+              int32_t w_run = w;
+              size_t j = i - 1;
+              while (true) {
+                if (embedding.may_break[j]) {
+                  int32_t need = w_run - width;
+                  if (need <= 0 || spacing_capacity(embedding, j, embedding.glyph_id.size() - 1) >= need) {
+                    distribute_spacing(embedding, j, embedding.glyph_id.size() - 1, -need);
+                    break_pos = j;
+                    return true;
+                  }
+                }
+                if (j == 0 || !prohibited_here(j - 1)) break;
+                --j;
+                w_run += embedding.x_advance[j];
+              }
+              // Fall through to hanging when the line cannot absorb it
             }
-            if (j == 0) break;
-            --j;
+            if (kinsoku_style != 1) {
+              // Kinsoku shori (mirror of the ltr branch): line-start-prohibited
+              // punctuation hangs past the line end instead of starting the
+              // next line. The line's end is its left edge in rtl, so hanging
+              // extends towards lower indices. The overhang is limited to
+              // about two em (twice the advance of the first hung glyph)
+              int32_t hang_limit = 0;
+              int32_t hung_w = 0;
+              size_t j = i - 1;
+              while (true) {
+                if (!prohibited_here(j)) break;
+                int32_t adv = embedding.x_advance[j];
+                if (hang_limit == 0) hang_limit = 2 * adv;
+                if (hung_w + adv > hang_limit) break;
+                hung_w += adv;
+                if (embedding.may_break[j]) {
+                  break_pos = j;
+                  return true;
+                }
+                if (j == 0) break;
+                --j;
+              }
+            }
           }
           // If forcing we need to consume at least one glyph
           break_pos = std::min(i, embedding.glyph_id.size() - 1);
-          // An opening bracket may not end the line — pull it down to the
-          // next line. The line ends at its left edge in rtl, i.e. at the
-          // glyph with the lowest kept index
-          while (break_pos + 1 < embedding.glyph_id.size()) {
-            int32_t cluster = embedding.glyph_cluster[break_pos];
-            uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
-            if (!char_is_line_end_prohibited(cp)) break;
-            ++break_pos;
+          if (!desperate && kinsoku_mode != 2) {
+            // The break may not dangle opening punctuation or split
+            // inseparable/number-binding pairs. The break sits between glyph
+            // break_pos (kept) and break_pos - 1 (next line), which in
+            // logical order is the pair (break_pos, break_pos - 1); the
+            // line's end is its left edge in rtl
+            while (break_pos + 1 < embedding.glyph_id.size() &&
+                   forced_break_prohibited(full_string, embedding, break_pos, break_pos - 1)) {
+              ++break_pos;
+            }
+            if (kinsoku_style == 1) {
+              // Push-out (追い出し): the prohibited run and the character
+              // before it move to the next line. The next line's start in
+              // logical order is glyph break_pos - 1
+              while (break_pos + 1 < embedding.glyph_id.size()) {
+                int32_t cluster = embedding.glyph_cluster[break_pos - 1];
+                uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+                if (!char_prohibited_at_line_start(cp, kinsoku_mode)) break;
+                ++break_pos;
+                while (break_pos + 1 < embedding.glyph_id.size() &&
+                       forced_break_prohibited(full_string, embedding, break_pos, break_pos - 1)) {
+                  ++break_pos;
+                }
+              }
+            }
+            // Even the last glyph may not be separable from the rest
+            if (break_pos + 1 >= embedding.glyph_id.size()) {
+              bool blocked = break_pos > 0 && forced_break_prohibited(full_string, embedding, break_pos, break_pos - 1);
+              if (!blocked && kinsoku_style == 1 && break_pos > 0) {
+                int32_t cluster = embedding.glyph_cluster[break_pos - 1];
+                uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+                blocked = char_prohibited_at_line_start(cp, kinsoku_mode);
+              }
+              if (blocked) return false;
+            }
+            if (kinsoku_style == 1) {
+              // Spread the vacated slack over the kept line
+              int32_t kept = 0;
+              for (size_t k = break_pos; k < embedding.glyph_id.size(); ++k) {
+                kept += embedding.x_advance[k];
+              }
+              distribute_spacing(embedding, break_pos, embedding.glyph_id.size() - 1, width - kept);
+            }
           }
           return true;
+        }
+        if (has_break && kinsoku_mode != 2) {
+          if (kinsoku_style == 1) {
+            // Push-out (mirror of the ltr branch): spread the slack over the
+            // kept glyphs' adjustable gaps
+            int32_t kept = 0;
+            for (size_t k = break_pos; k < embedding.glyph_id.size(); ++k) {
+              kept += embedding.x_advance[k];
+            }
+            int32_t slack = width - kept;
+            if (slack > 0 && slack <= 2 * embedding.em_width.back()) {
+              distribute_spacing(embedding, break_pos, embedding.glyph_id.size() - 1, slack);
+            }
+          } else if (kinsoku_style == 2) {
+            // Push-in (mirror of the ltr branch): pull the next run onto
+            // the line if the adjustable gaps can absorb the overflow
+            int32_t w_run = w;
+            size_t j = i - 1;
+            while (true) {
+              if (embedding.may_break[j]) {
+                int32_t need = w_run - width;
+                if (need > 0 && spacing_capacity(embedding, j, embedding.glyph_id.size() - 1) >= need) {
+                  distribute_spacing(embedding, j, embedding.glyph_id.size() - 1, -need);
+                  break_pos = j;
+                  return true;
+                }
+                break; // Only the next break candidate is a pull-in target
+              }
+              if (j == 0) break;
+              --j;
+              w_run += embedding.x_advance[j];
+            }
+          }
         }
         return has_break;
       }
@@ -2154,7 +2479,7 @@ std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::
         --iter;
         cum_width -= iter->full_width;
         // Search for a break in the embedding that satisfies our width constraint
-        if (has_valid_break(*iter, width - cum_width, break_at, force)) {
+        if (has_valid_break(*iter, width - cum_width, break_at, force, false)) {
           if (iter->embedding_level % 2 == 0) {
             from = 0;
             to = break_at + 1;
@@ -2175,8 +2500,29 @@ std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::
           }
           break;
         }
-        // We shouldn't hit the below condition since force == true should find a break immediately
-        if (iter == all_embeddings.begin() && force) break;
+        if (iter == all_embeddings.begin() && force) {
+          // No embedding on the line offers an acceptable break (kinsoku
+          // prohibitions). If earlier embeddings fit on their own, end the
+          // line before the original overflower; otherwise break the first
+          // embedding disregarding the prohibitions — something must be
+          // placed on the line
+          auto overflower = std::prev(orig_iter);
+          if (overflower != all_embeddings.begin()) {
+            line.splice(line.begin(), all_embeddings, all_embeddings.begin(), overflower);
+          } else if (has_valid_break(*iter, width - cum_width, break_at, true, true)) {
+            if (iter->embedding_level % 2 == 0) {
+              from = 0;
+              to = break_at + 1;
+            } else {
+              from = break_at;
+              to = iter->glyph_id.size();
+            }
+            line.splice(line.begin(), all_embeddings, all_embeddings.begin(), iter);
+            line.emplace_back();
+            iter->split(from, to, line.back());
+          }
+          break;
+        }
 
         if (iter == all_embeddings.begin()) {
           // We didn't find a break. Reset and set force = true

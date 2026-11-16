@@ -478,7 +478,11 @@ test_that("mixed = combine combines arbitrary short runs", {
   )
 
   # The digit combines with narrow forms as in tate mode, in a full em slot
-  expect_equal(shape$shape$advance[shape$shape$glyph == 2], 12, tolerance = 1e-6)
+  expect_equal(
+    shape$shape$advance[shape$shape$glyph == 2],
+    12,
+    tolerance = 1e-6
+  )
 
   # The 3-letter run combines upright on one line, scaled to the em
   abc <- shape$shape[shape$shape$glyph %in% 4:6, ]
@@ -539,6 +543,227 @@ test_that("line-end punctuation fits by ink (compression)", {
     max_width = w_in
   )
   expect_equal(length(unique(round(v$shape$x_offset, 1))), 1)
+})
+
+test_that("kinsoku = none allows prohibited characters at column starts", {
+  skip_if_not(cjk_available())
+  txt <- "彼は言った。「それは面白い、とても面白い。」しかし、疑問は残る（本当に？）"
+  chars <- strsplit(txt, "")[[1]]
+  col_starts <- function(shape) {
+    x <- round(shape$shape$x_offset, 1)
+    chars[shape$shape$glyph[c(TRUE, x[-1] != x[-length(x)])]]
+  }
+  none <- shape_text(
+    txt,
+    family = cjk_family,
+    direction = "ttb",
+    max_width = 0.4,
+    kinsoku = "none"
+  )
+  # With kinsoku disabled the violations the strict mode suppresses reappear
+  expect_true(any(col_starts(none) %in% c("。", "」", "）")))
+  strict <- shape_text(
+    txt,
+    family = cjk_family,
+    direction = "ttb",
+    max_width = 0.4
+  )
+  expect_false(any(col_starts(strict) %in% c("。", "、", "」", "）")))
+})
+
+test_that("kinsoku = loose permits small kana but not closing punctuation at line starts", {
+  skip_if_not(cjk_available())
+  # At one glyph per column the unbreakable segment うっ straddles the column
+  # end: strict hangs っ, loose lets it start a column
+  txt <- "あいうっえ"
+  chars <- strsplit(txt, "")[[1]]
+  col_starts <- function(kinsoku) {
+    shape <- shape_text(
+      txt,
+      family = cjk_family,
+      direction = "ttb",
+      max_width = 0.2,
+      kinsoku = kinsoku
+    )
+    x <- round(shape$shape$x_offset, 1)
+    chars[shape$shape$glyph[c(TRUE, x[-1] != x[-length(x)])]]
+  }
+  expect_false("っ" %in% col_starts("strict"))
+  expect_true("っ" %in% col_starts("loose"))
+
+  # Closing punctuation still hangs in loose mode
+  txt2 <- "彼は言った。「それは面白い、とても面白い。」しかし、疑問は残る（本当に？）"
+  chars2 <- strsplit(txt2, "")[[1]]
+  loose <- shape_text(
+    txt2,
+    family = cjk_family,
+    direction = "ttb",
+    max_width = 0.4,
+    kinsoku = "loose"
+  )
+  x <- round(loose$shape$x_offset, 1)
+  starts <- chars2[loose$shape$glyph[c(TRUE, x[-1] != x[-length(x)])]]
+  expect_false(any(starts %in% c("。", "、", "」", "）")))
+})
+
+test_that("inseparable and number-binding characters stay together (UAX#14 tables)", {
+  skip_if_not(cjk_available())
+  # …… may not split across columns
+  txt <- "あいうえお……かきくけこさしすせそ"
+  for (w in seq(0.3, 0.8, by = 0.1)) {
+    shape <- shape_text(
+      txt,
+      family = cjk_family,
+      direction = "ttb",
+      max_width = w
+    )
+    x <- round(shape$shape$x_offset, 1)
+    col <- cumsum(c(TRUE, x[-1] != x[-length(x)]))
+    ellipsis <- col[shape$shape$glyph %in% 6:7]
+    expect_equal(length(unique(ellipsis)), 1)
+  }
+  # ¥ binds to the following digits, % to the preceding ones: neither may be
+  # split from its number even when wrapping is forced. (Widths below the
+  # width of the ¥100 unit itself are excluded — there an emergency break is
+  # unavoidable)
+  txt2 <- "代金は¥100で50%引き"
+  for (w in seq(0.45, 0.85, by = 0.1)) {
+    shape <- shape_text(
+      txt2,
+      family = cjk_family,
+      direction = "ttb",
+      max_width = w
+    )
+    x <- round(shape$shape$x_offset, 1)
+    col <- cumsum(c(TRUE, x[-1] != x[-length(x)]))
+    g <- shape$shape$glyph
+    expect_equal(length(unique(col[g %in% 4:7])), 1) # ¥100
+    expect_equal(length(unique(col[g %in% 9:11])), 1) # 50%
+  }
+})
+
+test_that("kinsoku_style = push-out moves punctuation down and expands the line", {
+  skip_if_not(cjk_available())
+  txt <- paste0(paste(rep("あ", 9), collapse = ""), "」い")
+  w <- 9.5 * 12 / 72
+  out <- shape_text(
+    txt,
+    family = cjk_family,
+    max_width = w,
+    kinsoku_style = "push-out"
+  )
+  y <- round(out$shape$y_offset, 1)
+  # 」 moves to the second line instead of hanging
+  expect_equal(out$shape$glyph[y == y[1]], 1:8)
+  expect_equal(out$shape$glyph[y != y[1]], 9:11)
+  # The slack is spread over the inter-character gaps: the line is flush
+  expect_equal(max(out$shape$x_offset[y == y[1]]), 102, tolerance = 0.1)
+  expect_equal(
+    diff(out$shape$x_offset[y == y[1]]),
+    rep(102 / 7, 7),
+    tolerance = 0.1
+  )
+  expect_equal(out$metrics$width, w * 72, tolerance = 0.1)
+
+  # Default (hang) keeps 」 on the first line
+  hang <- shape_text(txt, family = cjk_family, max_width = w)
+  y_h <- round(hang$shape$y_offset, 1)
+  expect_equal(hang$shape$glyph[y_h == y_h[1]], 1:10)
+})
+
+test_that("kinsoku_style = push-in compresses gaps to fit the line", {
+  skip_if_not(cjk_available())
+  txt <- paste0(paste(rep("あ", 10), collapse = ""), "」い")
+  # 」 overflows by 700/64 pt — beyond its hanging blank, but within the
+  # cumulative 1/4 em tolerance of the ten inter-character gaps
+  w <- (11 * 768 - 700) / 64 / 72
+  out <- shape_text(
+    txt,
+    family = cjk_family,
+    max_width = w,
+    kinsoku_style = "push-in"
+  )
+  y <- round(out$shape$y_offset, 1)
+  # 」 is pulled onto the first line
+  expect_equal(out$shape$glyph[y == y[1]], 1:11)
+  # The gaps are compressed by up to 1/4 em (3 pt) each
+  steps <- diff(out$shape$x_offset[y == y[1]])
+  expect_true(all(steps <= 12))
+  expect_true(any(steps < 12))
+  expect_true(all(steps >= 12 - 3))
+  expect_equal(sum(steps) + 12, w * 72, tolerance = 0.1)
+
+  # Default (hang) breaks earlier, leaving 」 for the second line
+  hang <- shape_text(txt, family = cjk_family, max_width = w)
+  y_h <- round(hang$shape$y_offset, 1)
+  expect_equal(hang$shape$glyph[y_h == y_h[1]], 1:9)
+})
+
+test_that("push-in compresses punctuation blanks before inter-character gaps", {
+  skip_if_not(cjk_available())
+  txt <- paste0("あ。", paste(rep("あ", 7), collapse = ""), "」い")
+  w <- 7100 / 64 / 72
+  out <- shape_text(
+    txt,
+    family = cjk_family,
+    max_width = w,
+    kinsoku_style = "push-in"
+  )
+  y <- round(out$shape$y_offset, 1)
+  x <- out$shape$x_offset[y == y[1]]
+  # The blank inside 。 is consumed first (7.73 pt), the inter-character
+  # gaps only take the remainder
+  expect_equal(x[3] - x[2], 12 - 7.73, tolerance = 0.1)
+  expect_true(all(diff(x[3:length(x)]) >= 12 - 3))
+})
+
+test_that("kinsoku styles leave Latin justification untouched", {
+  skip_if_not(cjk_available())
+  txt <- "word word word word word word"
+  base <- shape_text(txt, max_width = 1.2, align = "justified")
+  po <- shape_text(
+    txt,
+    max_width = 1.2,
+    align = "justified",
+    kinsoku_style = "push-out"
+  )
+  pi_ <- shape_text(
+    txt,
+    max_width = 1.2,
+    align = "justified",
+    kinsoku_style = "push-in"
+  )
+  expect_equal(base$shape, po$shape)
+  expect_equal(base$shape, pi_$shape)
+})
+
+test_that("kinsoku styles work in rtl embeddings", {
+  skip_if_not(cjk_available())
+  txt <- "בדיקהבדיקה。」בדיקהבדיקה」בדיקה"
+  for (style in c("hang", "push-out", "push-in")) {
+    shape <- shape_text(
+      txt,
+      family = cjk_family,
+      direction = "rtl",
+      max_width = 0.5,
+      kinsoku_style = style
+    )
+    expect_equal(shape$metrics$direction, "rtl")
+    expect_equal(nrow(shape$shape), nchar(txt))
+  }
+  # Push-out never lets the prohibited glyphs start a line
+  po <- shape_text(
+    txt,
+    family = cjk_family,
+    direction = "rtl",
+    max_width = 0.5,
+    kinsoku_style = "push-out"
+  )
+  y <- round(po$shape$y_offset, 1)
+  chars <- strsplit(txt, "")[[1]]
+  line_end <- c(y[-1] != y[-length(y)], TRUE)
+  start_chars <- chars[pmin(po$shape$glyph[line_end], nchar(txt))]
+  expect_false(any(start_chars %in% c("。", "」")))
 })
 
 test_that("vertical shaping with multiple lines and hard breaks", {

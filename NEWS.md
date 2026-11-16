@@ -16,12 +16,29 @@
   automatically use the font's `vkna` (vertical kana) substitutions when
   available.
 
-* Prototype kinsoku shori support, in both ltr and rtl embedding levels:
-  line-end punctuation whose ink fits compresses onto the line with its
-  trailing blank hanging off; when wrapping is still forced, line-start-
-  prohibited punctuation (closing brackets, 、。！？ー etc.) hangs past the
-  line end (limited to about two em) and opening brackets are pulled down
-  to the next line
+* Kinsoku shori support, in both ltr and rtl embedding levels: line-end
+  punctuation whose ink fits compresses onto the line with its trailing blank
+  hanging off; when wrapping is still forced, line-start-prohibited
+  punctuation (closing brackets, 、。！？ー etc.) hangs past the line end
+  (limited to about two em) and opening brackets are pulled down to the next
+  line. The prohibition tables are driven by the UAX#14 line-break classes
+  (src/line_break_classes.inc, generated from the UCD by
+  data-raw/gen-linebreak-tables.R) and cover inseparable and number-binding
+  sequences (¥100, 50%, ‥…), which are now kept together even under forced
+  breaks. The strictness is configurable with the new `kinsoku` argument of
+  `shape_text()`: `"strict"` (default), `"loose"` (like CSS
+  `line-break: loose`, permitting lines to start with small kana, ー, and
+  iteration marks), or `"none"` (kinsoku processing disabled)
+
+* The new `kinsoku_style` argument of `shape_text()` selects how line-break
+  prohibition violations are resolved: `"hang"` (ぶら下げ, the default) lets
+  offending punctuation hang past the line end, `"push-out"` (追い出し) moves
+  it to the next line and expands the vacated line's spacing (punctuation
+  blanks first, then inter-character gaps), and `"push-in"` (追い込み) pulls
+  it onto the current line by compressing its spacing (up to the full
+  punctuation blank, then 1/4 em per inter-character gap per JLREQ
+  tolerance), falling back to hanging when the line cannot absorb the
+  overflow
 
 * The trailing blank of fullwidth punctuation (。、！」etc.) now collapses
   at line end per JLREQ line-end spacing rules: the empty half of the em

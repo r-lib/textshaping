@@ -107,6 +107,10 @@ struct EmbedInfo {
   std::vector<bool> is_blank;
   std::vector<bool> may_break;
   std::vector<bool> may_stretch;
+  // Per-glyph main-axis spacing adjustment (in 1/64 pt) applied to the gap
+  // before the glyph, written at break time by the kinsoku spacing logic
+  // (push-out expansion / push-in compression). All zero for normal shaping
+  std::vector<int32_t> space_adjust;
   std::vector<unsigned int> font;
   std::vector<FontSettings2> fallbacks;
   std::vector<double> fallback_size;
@@ -139,6 +143,7 @@ struct EmbedInfo {
     is_blank.insert(is_blank.end(), other.is_blank.begin(), other.is_blank.end());
     may_break.insert(may_break.end(), other.may_break.begin(), other.may_break.end());
     may_stretch.insert(may_stretch.end(), other.may_stretch.begin(), other.may_stretch.end());
+    space_adjust.insert(space_adjust.end(), other.space_adjust.begin(), other.space_adjust.end());
     size_t current_font_size = font.size();
     font.insert(font.end(), other.font.begin(), other.font.end());
     std::for_each(font.begin() + current_font_size, font.end(), [this](unsigned int& f) { f+=this->fallbacks.size();});
@@ -188,6 +193,8 @@ struct EmbedInfo {
     may_break.erase(may_break.begin() + from, may_break.begin() + to);
     into.may_stretch.insert(into.may_stretch.end(), may_stretch.begin() + from, may_stretch.begin() + to);
     may_stretch.erase(may_stretch.begin() + from, may_stretch.begin() + to);
+    into.space_adjust.insert(into.space_adjust.end(), space_adjust.begin() + from, space_adjust.begin() + to);
+    space_adjust.erase(space_adjust.begin() + from, space_adjust.begin() + to);
     into.font.insert(into.font.end(), font.begin() + from, font.begin() + to);
     font.erase(font.begin() + from, font.begin() + to);
     into.fallbacks.insert(into.fallbacks.end(), fallbacks.begin(), fallbacks.end());
@@ -218,6 +225,7 @@ struct EmbedInfo {
       is_blank.pop_back();
       may_break.pop_back();
       may_stretch.pop_back();
+      space_adjust.pop_back();
       font.pop_back();
     } else {
       // This is not efficient but we would generally only do this on small embeddings
@@ -240,6 +248,7 @@ struct EmbedInfo {
       is_blank.erase(is_blank.begin());
       may_break.erase(may_break.begin());
       may_stretch.erase(may_stretch.begin());
+      space_adjust.erase(space_adjust.begin());
       font.erase(font.begin());
     }
     return glyph_height;
@@ -423,7 +432,7 @@ public:
                     int align, double hjust, double vjust, double width,
                     double tracking, double ind, double hang, double before,
                     double after, bool spacer, int direction, int mixed,
-                    std::vector<int>& wrap);
+                    int kinsoku, int kinsoku_style, std::vector<int>& wrap);
   bool add_string(const char* string, FontSettings2& font_info,
                   double size, double tracking, bool spacer,
                   std::vector<int>& wrap);
@@ -453,6 +462,14 @@ private:
   bool vertical_allowed;
   // Mixed-script handling for vertical text: 0 = rotate, 1 = upright
   int cur_mixed;
+  // Kinsoku shori (JLREQ line-break prohibition handling):
+  // kinsoku_mode: 0 = strict, 1 = loose (small kana, ー, iteration marks may
+  // start a line), 2 = none (kinsoku processing disabled; JLREQ spacing
+  // collapses are unaffected)
+  // kinsoku_style: 0 = hang (ぶら下げ), 1 = push-out (追い出し), 2 = push-in
+  // (追い込み)
+  int kinsoku_mode = 0;
+  int kinsoku_style = 0;
   // Paragraph-sized flag marking characters with special emoji handling
   // (embedding level alone can't encode this since negating level 0 is a
   // no-op). 0 = regular character, 1 = must be shaped with the emoji font,
@@ -516,7 +533,22 @@ private:
   void fill_glyph_info(EmbedInfo& embedding);
   FT_Face get_font_sizing(FontSettings2& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales, bool deref = false);
   void insert_hyphen(EmbedInfo& embedding, size_t where);
-  bool has_valid_break(const EmbedInfo& embedding, int32_t width, size_t& break_pos, bool force);
+  // desperate: last-resort break disregarding kinsoku prohibitions, used
+  // when no embedding on the line offers an acceptable break. Non-const: the
+  // kinsoku spacing styles (push-out/push-in) write per-glyph space_adjust
+  bool has_valid_break(EmbedInfo& embedding, int32_t width, size_t& break_pos, bool force, bool desperate);
+  // Classify the gap before glyph j of the embedding for spacing adjustment:
+  // 0 = not adjustable, 1 = punctuation blank (used first), 2 = inter-
+  // character gap between solid CJK characters. Returns the compression cap
+  // in `cap` (the full blank for blanks, 1/4 em for inter-character gaps)
+  int gap_adjust_class(const EmbedInfo& embedding, size_t j, int32_t& cap);
+  // Total compression available in the gaps before glyphs lo+1..hi
+  int32_t spacing_capacity(const EmbedInfo& embedding, size_t lo, size_t hi);
+  // Distribute `amount` of spacing (1/64 pt; negative compresses) over the
+  // gaps before glyphs lo+1..hi of the embedding, punctuation blanks first,
+  // then inter-character gaps. Returns the amount that could not be
+  // distributed
+  int32_t distribute_spacing(EmbedInfo& embedding, size_t lo, size_t hi, int32_t amount);
   void rearrange_embeddings(std::list<EmbedInfo>& line);
   std::list<EmbedInfo> get_next_line_at_width(int32_t width, std::list<EmbedInfo>& all_embeddings, bool& hard_break, int32_t& break_height);
   void do_alignment(bool ltr);

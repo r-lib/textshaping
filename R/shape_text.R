@@ -57,6 +57,22 @@
 #' horizontally — CJK scripts included — and marks it for rotation,
 #' equivalent to CSS `text-orientation: sideways`. Ignored for horizontal
 #' text. Can be given per string.
+#' @param kinsoku How to handle CJK line-break prohibitions (kinsoku shori)
+#' when wrapping is forced past the last valid break opportunity: `"strict"`
+#' (the default) prohibits lines from starting with closing brackets, sentence
+#' punctuation, small kana, the prolonged sound mark, and iteration marks, and
+#' from ending with opening brackets; `"loose"` (like CSS `line-break: loose`)
+#' additionally permits lines to start with small kana, the prolonged sound
+#' mark, iteration marks, and centred punctuation (・：；); `"none"` disables
+#' kinsoku processing entirely (the JLREQ spacing collapses of fullwidth
+#' punctuation blanks are unaffected). Can be given per string.
+#' @param kinsoku_style How line-break prohibition violations are resolved
+#' when wrapping is forced: `"hang"` (ぶら下げ, the default) lets offending
+#' punctuation hang past the line end; `"push-out"` (追い出し) moves it to the
+#' next line and expands the spacing of the vacated line; `"push-in"`
+#' (追い込み) pulls it onto the current line by compressing its spacing
+#' (punctuation blanks first, then inter-character gaps), falling back to
+#' hanging when the line cannot absorb the overflow. Can be given per string.
 #' @param path,index path an index of a font file to circumvent lookup based on
 #' family and style
 #'
@@ -160,6 +176,8 @@ shape_text <- function(
   space_after = 0,
   direction = "auto",
   mixed = c("rotate", "upright"),
+  kinsoku = c("strict", "loose", "none"),
+  kinsoku_style = c("hang", "push-out", "push-in"),
   path = NULL,
   index = 0,
   bold = deprecated()
@@ -284,6 +302,28 @@ shape_text <- function(
   mixed <- match(mixed, c('rotate', 'upright', 'tate', 'combine', 'sideways')) -
     1L
   mixed <- rep_len(mixed, n_strings)[ido]
+  kinsoku <- if (missing(kinsoku)) {
+    "strict"
+  } else {
+    match.arg(kinsoku, c("strict", "loose", "none"), several.ok = TRUE)
+  }
+  kinsoku <- rep_len(
+    match(kinsoku, c("strict", "loose", "none")) - 1L,
+    n_strings
+  )[ido]
+  kinsoku_style <- if (missing(kinsoku_style)) {
+    "hang"
+  } else {
+    match.arg(
+      kinsoku_style,
+      c("hang", "push-out", "push-in"),
+      several.ok = TRUE
+    )
+  }
+  kinsoku_style <- rep_len(
+    match(kinsoku_style, c("hang", "push-out", "push-in")) - 1L,
+    n_strings
+  )[ido]
 
   max_width <- max_width * res
   tracking <- tracking * res
@@ -324,6 +364,8 @@ shape_text <- function(
     as.numeric(space_after),
     as.integer(direction),
     as.integer(mixed),
+    as.integer(kinsoku),
+    as.integer(kinsoku_style),
     wraps
   )
   if (nrow(shape$shape) == 0) {

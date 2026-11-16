@@ -29,6 +29,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                         doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
                         doubles space_after, integers direction, integers mixed,
+                        integers kinsoku, integers kinsoku_style,
                         list_of<integers> wrap);
 
 [[cpp11::register]]

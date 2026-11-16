@@ -26,6 +26,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                         doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
                         doubles space_after, integers direction, integers mixed,
+                        integers kinsoku, integers kinsoku_style,
                         list_of<integers> wrap) {
   Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
   writable::data_frame string_df({
@@ -191,6 +192,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                         doubles vjust, doubles width, doubles tracking,
                         doubles indent, doubles hanging, doubles space_before,
                         doubles space_after, integers direction, integers mixed,
+                        integers kinsoku, integers kinsoku_style,
                         list_of<integers> wrap) {
   int n_strings = string.size();
 
@@ -221,6 +223,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
         n_strings != space_after.size() ||
         n_strings != direction.size() ||
         n_strings != mixed.size() ||
+        n_strings != kinsoku.size() ||
+        n_strings != kinsoku_style.size() ||
         n_strings != wrap.size()
     ) {
       cpp11::stop("All input must be the same size");
@@ -253,7 +257,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
                                       width[i] * 64.0, tracking[i], indent[i] * 64.0,
                                       hanging[i] * 64.0, space_before[i] * 64.0,
                                       space_after[i] * 64.0, cpp11::is_na(string[i]),
-                                      direction[i], mixed[i], wraps);
+                                      direction[i], mixed[i], kinsoku[i], kinsoku_style[i],
+                                      wraps);
 
         if (!success) {
           cpp11::stop("Failed to shape string (%s) with font file (%s) with freetype error %i", this_string, Rf_translateCharUTF8(STRING_ELT(path, i)), shaper.error_code);
