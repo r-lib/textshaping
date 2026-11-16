@@ -9,11 +9,205 @@
 #include "hb_ft_compat.h"
 #include <ft2build.h>
 #include FT_MULTIPLE_MASTERS_H
+#include <hb-ot.h>
 #include "string_shape.h"
 #include "string_bidi.h"
 #include <systemfonts.h>
 #include <systemfonts-ft.h>
 #include <algorithm>
+
+// Does the codepoint belong to a script that can only be typeset vertically
+// (UAX#50). Such scripts make direction = "auto" resolve to top-to-bottom
+static inline bool char_is_required_vertical(uint32_t cp) {
+  return (cp >= 0x1800 && cp <= 0x18AF) ||  // Mongolian (incl. Manchu, Sibe, etc.)
+         (cp >= 0xA840 && cp <= 0xA87F);    // Phags-pa
+}
+
+// Vertical orientation lookups, generated from the UAX#50 data file
+// (Vertical_Orientation.txt): vo_r_ranges is the R (rotated) class, i.e.
+// scripts and characters that are never typeset upright, and vo_tr_ranges
+// is the Tr (transformed) class, i.e. characters that require a typographic
+// vertical glyph (brackets, quotes, dashes) and fall back to rotation
+#include "vert_orientation.inc"
+
+static inline bool in_ranges(const std::pair<uint32_t, uint32_t>* ranges, size_t n, uint32_t cp) {
+  size_t lo = 0, hi = n;
+  while (lo < hi) {
+    size_t mid = (lo + hi) / 2;
+    if (cp < ranges[mid].first) {
+      hi = mid;
+    } else if (cp > ranges[mid].second) {
+      lo = mid + 1;
+    } else {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Does the codepoint belong to the UAX#50 R class (never typeset upright).
+// Inside vertical text these runs are either rotated 90 degrees or set
+// upright with vert/vrt2 substitutions
+static inline bool char_is_horizontal_only(uint32_t cp) {
+  return in_ranges(vo_r_ranges, sizeof(vo_r_ranges) / sizeof(vo_r_ranges[0]), cp);
+}
+
+// Does the codepoint belong to the UAX#50 Tr class (requires a typographic
+// vertical glyph via vert/vrt2, with rotated display as fallback)
+static inline bool char_is_tr(uint32_t cp) {
+  return in_ranges(vo_tr_ranges, sizeof(vo_tr_ranges) / sizeof(vo_tr_ranges[0]), cp);
+}
+
+// Does the codepoint have a strong RTL direction (Hebrew, Arabic, and
+// friends). Used to give horizontal-only runs inside vertical text their own
+// direction when they are rotated, since the bidi algorithm is bypassed
+// there
+static inline bool char_is_rtl_strong(uint32_t cp) {
+  return (cp >= 0x0590 && cp <= 0x07FF) ||  // Hebrew, Arabic, Syriac, Thaana, NKo, Samaritan, Mandaic
+         (cp >= 0x08A0 && cp <= 0x08FF) ||  // Arabic extended-A
+         (cp >= 0xFB1D && cp <= 0xFB4F) ||  // Hebrew presentation forms
+         (cp >= 0xFB50 && cp <= 0xFDFF) ||  // Arabic presentation forms-A
+         (cp >= 0xFE70 && cp <= 0xFEFF);    // Arabic presentation forms-B
+}
+
+// Line-break class lookups, generated from the UAX#14 data file
+// (LineBreak.txt). The kinsoku shori and JLREQ spacing logic below is
+// expressed in terms of these classes
+#include "line_break_classes.inc"
+
+// The UAX#14 line-break class of a codepoint (LB_OTHER for classes we don't
+// use: letters, spaces, etc.)
+static inline uint8_t char_lb_class(uint32_t cp) {
+  size_t lo = 0, hi = sizeof(lb_class_ranges) / sizeof(lb_class_ranges[0]);
+  while (lo < hi) {
+    size_t mid = (lo + hi) / 2;
+    if (cp < lb_class_ranges[mid].first) {
+      hi = mid;
+    } else if (cp > lb_class_ranges[mid].last) {
+      lo = mid + 1;
+    } else {
+      return lb_class_ranges[mid].cls;
+    }
+  }
+  return LB_OTHER;
+}
+
+// JLREQ kinsoku shori: characters that may not start a line — closing
+// punctuation (CL/CP), non-starters (NS/CJ: iteration marks, ・：；, small
+// kana, ー), exclamation marks (EX), inseparable ellipses (IN), hyphens and
+// dashes (HY/BA/B2), and postfix numerics (PO, which bind to the preceding
+// number). When wrapping is forced these are allowed to hang past the line
+// end instead
+static inline bool char_is_line_start_prohibited(uint32_t cp) {
+  // U+2015 HORIZONTAL BAR is class AI (ambiguous); it is a dash for kinsoku
+  if (cp == 0x2015) return true;
+  switch (char_lb_class(cp)) {
+  case LB_CL: case LB_CP: case LB_NS: case LB_CJ: case LB_EX:
+  case LB_IN: case LB_HY: case LB_BA: case LB_B2: case LB_PO:
+    return true;
+  }
+  return false;
+}
+
+// Fullwidth punctuation whose trailing blank (the empty half of its em
+// advance) may collapse at line end, per JLREQ line-end spacing rules.
+// Small kana and ー (CJ) are excluded: their ink is smaller than the em box
+// but that is not a collapsible punctuation blank
+static inline bool char_is_trailing_collapsible(uint32_t cp) {
+  switch (char_lb_class(cp)) {
+  case LB_CL: case LB_CP: case LB_EX: case LB_NS:
+    return true;
+  }
+  return false;
+}
+
+// The subset of line-start-prohibited characters exempt from kinsoku in
+// "loose" mode (CSS line-break: loose): the non-starters (small kana,
+// prolonged sound mark, iteration marks, ・：；) and the inseparable
+// ellipses ‥…
+static inline bool char_is_loose_prohibited(uint32_t cp) {
+  switch (char_lb_class(cp)) {
+  case LB_NS: case LB_CJ: case LB_IN:
+    return true;
+  }
+  return false;
+}
+
+// Characters that may not end a line: opening punctuation (OP) and prefix
+// numerics (PR, e.g. ¥$, which bind to the following number). When wrapping
+// is forced these are pulled down to the next line
+static inline bool char_is_line_end_prohibited(uint32_t cp) {
+  uint8_t cls = char_lb_class(cp);
+  return cls == LB_OP || cls == LB_PR;
+}
+
+// Are two adjacent characters inseparable (分離禁止): glue-joined pairs
+// (UAX#14 LB10) and runs of inseparable characters (‥…)
+static inline bool char_is_inseparable_pair(uint32_t a, uint32_t b) {
+  uint8_t ca = char_lb_class(a);
+  uint8_t cb = char_lb_class(b);
+  return ca == LB_GL || cb == LB_GL || (ca == LB_IN && cb == LB_IN);
+}
+
+// Is the character line-start prohibited under the active kinsoku mode
+// (loose mode exempts small kana, ー, iteration marks, and ‥…)
+static inline bool char_prohibited_at_line_start(uint32_t cp, int kinsoku_mode) {
+  if (!char_is_line_start_prohibited(cp)) return false;
+  return kinsoku_mode != 1 || !char_is_loose_prohibited(cp);
+}
+
+// Is a forced break between glyphs a and b of the embedding prohibited by
+// kinsoku: after opening punctuation or prefix numerics (which bind
+// forwards), inside inseparable pairs, or inside number-binding sequences
+// (¥100, 50%, digit runs)
+static bool forced_break_prohibited(const std::vector<uint32_t>& full_string,
+                                    const EmbedInfo& embedding, size_t a, size_t b) {
+  if (a >= embedding.glyph_id.size() || b >= embedding.glyph_id.size()) return false;
+  int32_t cl_a = embedding.glyph_cluster[a];
+  int32_t cl_b = embedding.glyph_cluster[b];
+  uint32_t cpa = cl_a < (int32_t) full_string.size() ? full_string[cl_a] : 0;
+  uint32_t cpb = cl_b < (int32_t) full_string.size() ? full_string[cl_b] : 0;
+  if (char_is_line_end_prohibited(cpa)) return true;
+  if (char_is_inseparable_pair(cpa, cpb)) return true;
+  uint8_t la = char_lb_class(cpa);
+  uint8_t lb = char_lb_class(cpb);
+  if (la == LB_PR && lb == LB_NU) return true;
+  if (la == LB_NU && (lb == LB_NU || lb == LB_PO)) return true;
+  return false;
+}
+
+// Does the font provide real vertical metrics (vhea table or vertical
+// origins), i.e. can it be shaped upright in vertical text with proper
+// advances, or must vertical presentation be faked by rotation
+static bool face_has_vertical_metrics(hb_face_t* face) {
+  hb_blob_t* blob = hb_face_reference_table(face, HB_TAG('v', 'h', 'e', 'a'));
+  unsigned int len = hb_blob_get_length(blob);
+  hb_blob_destroy(blob);
+  if (len > 0) return true;
+  blob = hb_face_reference_table(face, HB_TAG('V', 'O', 'R', 'G'));
+  len = hb_blob_get_length(blob);
+  hb_blob_destroy(blob);
+  return len > 0;
+}
+
+// Does the font's GSUB table contain a given feature
+static bool face_has_feature(hb_face_t* face, hb_tag_t tag) {
+  unsigned int count = hb_ot_layout_table_get_feature_tags(face, HB_OT_TAG_GSUB, 0, 0, nullptr);
+  if (count == 0) return false;
+  std::vector<hb_tag_t> tags(count);
+  hb_ot_layout_table_get_feature_tags(face, HB_OT_TAG_GSUB, 0, &count, tags.data());
+  for (unsigned int i = 0; i < count; ++i) {
+    if (tags[i] == tag) return true;
+  }
+  return false;
+}
+
+// Does the font's GSUB table contain vert or vrt2 substitutions, i.e. can it
+// set horizontal-script glyphs upright in vertical text
+static bool face_has_vert_subs(hb_face_t* face) {
+  return face_has_feature(face, HB_TAG('v', 'e', 'r', 't')) ||
+         face_has_feature(face, HB_TAG('v', 'r', 't', '2'));
+}
 
 UTF_UCS HarfBuzzShaper::utf_converter = UTF_UCS();
 LRU_Cache<BidiID, std::vector<int> > HarfBuzzShaper::bidi_cache = {1000};
@@ -113,8 +307,8 @@ bool HarfBuzzShaper::shape_string(const char* string, FontSettings2& font_info,
                                   double size, double res, double lineheight,
                                   int align, double hjust, double vjust, double width,
                                   double tracking, double ind, double hang, double before,
-                                  double after, bool spacer, int direction,
-                                  std::vector<int>& wrap) {
+                                  double after, bool spacer, int direction, int mixed,
+                                  int kinsoku, int kinsoku_style_, std::vector<int>& wrap) {
   reset();
 
   // Set global settings
@@ -135,6 +329,12 @@ bool HarfBuzzShaper::shape_string(const char* string, FontSettings2& font_info,
   cur_vjust = vjust;
 
   dir = direction;
+  cur_mixed = mixed;
+  kinsoku_mode = kinsoku;
+  kinsoku_style = kinsoku_style_;
+  // The R-level API allows auto-detection of vertical text; the
+  // graphics-device C API never reaches this function
+  vertical_allowed = true;
 
   return add_string(string, font_info, size, tracking, spacer, wrap);
 }
@@ -224,11 +424,14 @@ bool HarfBuzzShaper::add_spacer(FontSettings2& font_info, double height, double 
   spacer_embed.y_bear.push_back(ascend);
   spacer_embed.width.push_back(clamp_i32(width));
   spacer_embed.height.push_back(ascend - descend);
+  spacer_embed.em_width.push_back(clamp_i32(width));
   spacer_embed.ascenders.push_back(ascend);
   spacer_embed.descenders.push_back(descend);
+  spacer_embed.rotation.push_back(0.0);
   spacer_embed.is_blank.push_back(false);
   spacer_embed.may_break.push_back(false);
   spacer_embed.may_stretch.push_back(false);
+  spacer_embed.space_adjust.push_back(0);
   spacer_embed.font.push_back(0);
   spacer_embed.fallbacks.push_back(dummy_font);
   spacer_embed.fallback_size.push_back(height);
@@ -279,6 +482,8 @@ bool HarfBuzzShaper::finish_string() {
     line_must_break.push_back(hard_break);
     size_t line_start_index = x_pos.size();
     line_left_extra = 0;
+    uint32_t last_cp = 0;
+    int32_t lead_collapse = 0;
 
     for (auto iter = line.begin(); iter != line.end(); ++iter) {
       for (size_t i = 0; i < iter->glyph_id.size(); ++i) {
@@ -295,6 +500,35 @@ bool HarfBuzzShaper::finish_string() {
             pen_x = 0;
           }
         }
+        // Collapse the leading blank of an opening bracket at line start
+        // (JLREQ): the empty half of the em advance hangs outside the line
+        // box and the whole line shifts towards the edge
+        if (first_char && !iter->is_blank[i] && ltr) {
+          int32_t cluster = iter->glyph_cluster[i];
+          uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+          if (char_is_line_end_prohibited(cp)) {
+            lead_collapse = iter->x_offset[i] + iter->x_bear[i];
+            if (lead_collapse > 0) {
+              pen_x -= lead_collapse;
+            } else {
+              lead_collapse = 0;
+            }
+          }
+        }
+        // Collapse the leading blank of an opening bracket following
+        // closing punctuation (JLREQ): the facing half-em blanks overlap,
+        // leaving a single half em of separation
+        if (!first_char && !iter->is_blank[i] && ltr && last_cp != 0 &&
+            char_is_trailing_collapsible(last_cp)) {
+          int32_t cluster = iter->glyph_cluster[i];
+          uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+          if (char_is_line_end_prohibited(cp)) {
+            int32_t lead = iter->x_offset[i] + iter->x_bear[i];
+            if (lead > 0) pen_x -= lead;
+          }
+        }
+        // Apply any kinsoku spacing adjustment to the gap before this glyph
+        pen_x += iter->space_adjust[i];
         if (iter->glyph_id[i] != EMPTY_CHAR) { // Avoid adding made up glyph info for empty text runs
           glyph_id.push_back(iter->glyph_id[i]);
           glyph_cluster.push_back(iter->glyph_cluster[i]);
@@ -304,6 +538,11 @@ bool HarfBuzzShaper::finish_string() {
           advance.push_back(iter->x_advance[i]);
           ascender.push_back(iter->ascenders[i]);
           descender.push_back(iter->descenders[i]);
+          rotation.push_back(iter->rotation[i]);
+          x_bear.push_back(iter->x_bear[i]);
+          y_bear.push_back(iter->y_bear[i]);
+          glyph_width.push_back(iter->width[i]);
+          em_width.push_back(iter->em_width[i]);
 
           string_id.push_back(iter->string_id[i]);
           line_id.push_back(line_width.size() - 1);
@@ -317,16 +556,16 @@ bool HarfBuzzShaper::finish_string() {
 
         // Only needed for first line
         if (line_width.size() == 1) {
-          top_bearing = std::max(top_bearing, iter->y_bear[i]);
+          top_bearing = std::max(top_bearing, iter->y_offset[i] + iter->y_bear[i]);
         }
         // Only needed for last line
         if (final_embeddings.empty()) {
-          bottom_bearing = std::min(bottom_bearing, iter->height[i] + iter->y_bear[i]);
+          bottom_bearing = std::min(bottom_bearing, iter->y_offset[i] + iter->height[i] + iter->y_bear[i]);
         }
 
         // If first character record left bearing
         if (first_char) {
-          line_left_bear.back() = iter->x_bear[i];
+          line_left_bear.back() = iter->x_offset[i] + iter->x_bear[i] - lead_collapse;
         }
 
         // Advance pen to next position
@@ -334,8 +573,10 @@ bool HarfBuzzShaper::finish_string() {
 
         // Continuously update this info
         if (!iter->is_blank[i]) {
-          line_right_bear.back() = iter->x_advance[i] - iter->x_bear[i] - iter->width[i];
+          line_right_bear.back() = iter->x_advance[i] - iter->x_offset[i] - iter->x_bear[i] - iter->width[i];
           line_width.back() = pen_x;
+          int32_t cluster = iter->glyph_cluster[i];
+          last_cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
         }
 
         // Set to false at the first non-blank glyph
@@ -360,6 +601,14 @@ bool HarfBuzzShaper::finish_string() {
     // If rtl indent goes to the right
     if (!ltr) {
       line_width.back() = pen_x + cur_line_indent;
+    }
+
+    // Collapse the trailing blank of fullwidth punctuation at line end
+    // (JLREQ): the empty half of the em advance hangs outside the line box,
+    // so alignment and justification use the ink edge
+    if (ltr && last_cp != 0 && char_is_trailing_collapsible(last_cp) && line_right_bear.back() > 0) {
+      line_width.back() -= line_right_bear.back();
+      line_right_bear.back() = 0;
     }
 
     // Reset pen to next line
@@ -425,6 +674,79 @@ bool HarfBuzzShaper::finish_string() {
   top_border += - bottom - cur_vjust * height;
   pen_y += - bottom - cur_vjust * height;
 
+  // For vertical text everything has been laid out in a transformed space
+  // where the main (vertical) axis is x and columns stack along -y. Rotate
+  // all positions and metrics into real space: ttb maps (x, y) -> (y, -x) so
+  // columns progress right-to-left, btt maps (x, y) -> (-y, x) so columns
+  // progress left-to-right
+  if (dir == 3 || dir == 4) {
+    bool ttb = dir == 3;
+    for (size_t i = 0; i < x_pos.size(); ++i) {
+      int32_t tx = x_pos[i];
+      int32_t ty = y_pos[i];
+      if (ttb) {
+        x_pos[i] = ty;
+        y_pos[i] = -tx;
+      } else {
+        x_pos[i] = -ty;
+        y_pos[i] = tx;
+        // The btt mapping mirrors the cross axis while the glyphs stay
+        // upright, so the origin of upright glyphs must be moved to mirror
+        // the em box rather than the ink box — this keeps each glyph's
+        // designed placement within its em box consistent between ttb and
+        // btt. The main axis correction accounts for the bearings flipping
+        // around the origin. Rotated runs need no correction: their +90
+        // rotation flips the reference edge the same way
+        if (rotation[i] == 0.0) {
+          x_pos[i] -= em_width[i];
+          y_pos[i] += 2 * x_bear[i] + glyph_width[i];
+        }
+      }
+    }
+    int32_t t_pen_x = pen_x;
+    int32_t t_pen_y = pen_y;
+    pen_x = ttb ? t_pen_y : -t_pen_y;
+    pen_y = ttb ? -t_pen_x : t_pen_x;
+    if (!ttb && !em_width.empty() && rotation.back() == 0.0) {
+      // Move the pen's cross-axis position like the origin of a hypothetical
+      // next glyph so it stays consistent with the corrected upright glyph
+      // positions. The main-axis coordinate is an advance position, not an
+      // origin, and maps point-wise. Rotated runs need no correction, as in
+      // the glyph loop above
+      pen_x -= em_width.back();
+    }
+
+    int32_t t_width = width;
+    int32_t t_height = height;
+    int32_t t_left_border = left_border;
+    int32_t t_top_border = top_border;
+    int32_t t_left_bearing = left_bearing;
+    int32_t t_right_bearing = right_bearing;
+    int32_t t_top_bearing = top_bearing;
+    int32_t t_bottom_bearing = bottom_bearing;
+
+    width = t_height;
+    height = t_width;
+    if (ttb) {
+      // real x = t y, so the real left edge is the t-space bottom edge and
+      // the real right edge is the t-space top edge; real y = -t x, so the
+      // real top edge is the t-space left edge
+      left_border = t_top_border - t_height;
+      top_border = -t_left_border;
+      left_bearing = t_bottom_bearing;
+      right_bearing = t_top_bearing;
+      top_bearing = t_left_bearing;
+      bottom_bearing = t_right_bearing;
+    } else {
+      left_border = -t_top_border;
+      top_border = t_left_border + t_width;
+      left_bearing = t_top_bearing;
+      right_bearing = t_bottom_bearing;
+      top_bearing = t_right_bearing;
+      bottom_bearing = t_left_bearing;
+    }
+  }
+
   // Propagate any font/shaping failure recorded while building this
   // paragraph instead of silently returning partial output
   return error_code == 0;
@@ -433,6 +755,11 @@ bool HarfBuzzShaper::finish_string() {
 void HarfBuzzShaper::reset() {
   full_string.clear();
   bidi_embedding.clear();
+  vert_class.clear();
+  vertical_allowed = false;
+  cur_mixed = 0;
+  kinsoku_mode = 0;
+  kinsoku_style = 0;
   emoji_flag.clear();
   glyph_id.clear();
   glyph_cluster.clear();
@@ -445,6 +772,11 @@ void HarfBuzzShaper::reset() {
   advance.clear();
   ascender.clear();
   descender.clear();
+  rotation.clear();
+  x_bear.clear();
+  y_bear.clear();
+  glyph_width.clear();
+  em_width.clear();
   line_left_bear.clear();
   line_right_bear.clear();
   line_width.clear();
@@ -492,8 +824,73 @@ void HarfBuzzShaper::reset() {
 }
 
 std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& shapes, int& direction) {
+  // Auto direction detection: strings containing required-vertical scripts
+  // (e.g. Mongolian) resolve to top-to-bottom; scripts that can go both ways
+  // (e.g. Japanese) stay horizontal unless the user asks for vertical
+  if (direction == 0 && vertical_allowed) {
+    for (size_t i = 0; i < full_string.size(); ++i) {
+      if (char_is_required_vertical(full_string[i])) {
+        direction = 3;
+        break;
+      }
+    }
+  }
+
+  bool vertical = direction == 3 || direction == 4;
+
   // Find bidi embeddings and determine the overall direction of the text
-  if (!full_string.empty()) {
+  if (vertical) {
+    // Vertical text is not passed through the bidi algorithm. All embeddings
+    // stay at level 0 and runs are instead itemized by whether their script
+    // is horizontal-only
+    bidi_embedding.assign(full_string.size(), 0);
+    vert_class.resize(full_string.size());
+    if (cur_mixed == 4) {
+      // Sideways: everything is shaped horizontally as a single run and
+      // rotated into the column, including scripts that would normally be
+      // upright (text-orientation: sideways)
+      std::fill(vert_class.begin(), vert_class.end(), 1);
+    } else {
+      for (size_t i = 0; i < full_string.size(); ++i) {
+        if (char_is_horizontal_only(full_string[i])) {
+          vert_class[i] = 1;
+        } else if (char_is_tr(full_string[i])) {
+          // UAX#50 Tr (brackets, quotes, dashes): upright via vert when the
+          // font provides it, rotated like R otherwise
+          vert_class[i] = 3;
+        } else {
+          vert_class[i] = 0;
+        }
+      }
+    }
+    if (cur_mixed == 2 || cur_mixed == 3) {
+      // Tate-chu-yoko: maximal runs of up to 4 characters are set
+      // horizontally, upright in the column. "tate" combines ASCII digit
+      // runs only, "combine" any horizontal-only run (text-combine-upright:
+      // all). Longer runs stay rotated
+      size_t n = full_string.size();
+      size_t i = 0;
+      while (i < n) {
+        bool combinable = cur_mixed == 3
+          ? vert_class[i] == 1
+          : (full_string[i] >= 0x30 && full_string[i] <= 0x39);
+        if (combinable) {
+          size_t j = i;
+          if (cur_mixed == 3) {
+            while (j < n && vert_class[j] == 1) ++j;
+          } else {
+            while (j < n && full_string[j] >= 0x30 && full_string[j] <= 0x39) ++j;
+          }
+          if (j - i <= 4) {
+            std::fill(vert_class.begin() + i, vert_class.begin() + j, 2);
+          }
+          i = j;
+        } else {
+          ++i;
+        }
+      }
+    }
+  } else if (!full_string.empty()) {
     // If we have more than one char we find bidi embeddings
     // We append the direction to the end in the cache so we can read it back
     BidiID key;
@@ -595,14 +992,22 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
   if (n_features == 0 && n_axes == 0) {
     // No features. This is a simple string and if we have already seen it it may be in the cache
     run_id.string_hash = vector_hash(full_string.begin() + text_run.run_start, full_string.begin() + text_run.run_end);
-    run_id.embed_hash = vector_hash(bidi_embedding.begin() + text_run.run_start, bidi_embedding.begin() + text_run.run_end);
+    run_id.embed_hash = vert_class.empty()
+      ? vector_hash(bidi_embedding.begin() + text_run.run_start, bidi_embedding.begin() + text_run.run_end)
+      : vector_hash(vert_class.begin() + text_run.run_start, vert_class.begin() + text_run.run_end);
     run_id.font.assign(text_run.font_info.file);
     run_id.index = text_run.font_info.index;
     run_id.size = text_run.size * text_run.res;
     run_id.font_size = text_run.size;
     run_id.tracking = text_run.tracking;
+    run_id.direction = dir;
+    run_id.mixed = cur_mixed;
     run_id.string.assign(full_string.begin() + text_run.run_start, full_string.begin() + text_run.run_end);
-    run_id.embedding.assign(bidi_embedding.begin() + text_run.run_start, bidi_embedding.begin() + text_run.run_end);
+    if (vert_class.empty()) {
+      run_id.embedding.assign(bidi_embedding.begin() + text_run.run_start, bidi_embedding.begin() + text_run.run_end);
+    } else {
+      run_id.embedding.assign(vert_class.begin() + text_run.run_start, vert_class.begin() + text_run.run_end);
+    }
     size_t run_start = text_run.run_start;
     size_t run_end = text_run.run_end;
     if (shape_cache.get(run_id, text_run)) {
@@ -718,7 +1123,8 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
     // Shape all embeddings separately
     bool terminal = glyph_must_hard_break(i - 1);
     if (terminal || i == text_run.run_end || bidi_embedding[i] != bidi_embedding[i - 1] ||
-        emoji_flag[i] != emoji_flag[i - 1]) {
+        emoji_flag[i] != emoji_flag[i - 1] ||
+        (!vert_class.empty() && vert_class[i] != vert_class[i - 1])) {
       bool success = shape_embedding(
         embedding_start,
         i,
@@ -758,11 +1164,16 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
 }
 
 
-EmbedInfo HarfBuzzShaper::shape_single_line(const char* string, FontSettings2& font_info, double size, double res) {
+EmbedInfo HarfBuzzShaper::shape_single_line(const char* string, FontSettings2& font_info, double size, double res,
+                                            int direction, int mixed, bool allow_vertical) {
   // Fast version when we know we don't need word wrap and alignment
   // Used by graphics devices
 
   reset();
+
+  dir = direction;
+  cur_mixed = mixed;
+  vertical_allowed = allow_vertical;
 
   int n_chars = 0;
   const uint32_t* utc_string = utf_converter.convert_to_ucs(string, n_chars);
@@ -771,8 +1182,7 @@ EmbedInfo HarfBuzzShaper::shape_single_line(const char* string, FontSettings2& f
 
   std::vector<ShapeInfo> shapes = {ShapeInfo(0, full_string.size(), font_info, 0, size, res, 0)};
   if (shapes.empty()) return EmbedInfo();
-  int direction = 0;
-  auto final_embeddings = combine_embeddings(shapes, direction);
+  auto final_embeddings = combine_embeddings(shapes, dir);
 
   if (final_embeddings.empty()) return EmbedInfo();
 
@@ -813,15 +1223,166 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
   hb_font_t *font = ts_hb_ft_font_create_referenced(face);
   FT_Done_Face(face);
 
+  // The cross-axis centerline of a vertical column is defined by the primary
+  // font of the run (the vertical equivalent of sharing one baseline), so
+  // that glyphs resolved through fallback fonts align with the rest of the
+  // column
+  double run_middle = 0.0;
+  if (!vert_class.empty()) {
+    hb_font_extents_t prim_extent;
+    if (hb_font_get_h_extents(font, &prim_extent)) {
+      double prim_scaling = fallback_scales[emoji == 1 ? 1 : 0];
+      if (prim_scaling < 0) prim_scaling = 1.0;
+      run_middle = (prim_extent.ascender + prim_extent.descender) * prim_scaling / 2.0;
+    }
+  }
+
+  // Determine the HarfBuzz direction to shape this run with, and whether the
+  // renderer should rotate the glyphs afterwards (mixed vertical text)
+  hb_direction_t run_dir;
+  double run_rotation = 0.0;
+  bool run_tate = !vert_class.empty() && vert_class[start] == 2;
+  // Tate-chu-yoko runs get the font's narrower digit forms when available:
+  // qwid (quarter width) for runs of 4 digits, twid (third width) for 3,
+  // and hwid (half width) otherwise, so the run fills the em at full size.
+  // Explicit user settings of hwid/twid/qwid take precedence
+  std::vector<hb_feature_t> tate_features;
+  bool all_digits = run_tate;
+  if (run_tate) {
+    for (unsigned int i = start; i < end; ++i) {
+      if (full_string[i] < 0x30 || full_string[i] > 0x39) {
+        all_digits = false;
+        break;
+      }
+    }
+  }
+  if (all_digits) {
+    tate_features = features;
+    bool has_narrow = false;
+    for (size_t i = 0; i < features.size(); ++i) {
+      if (features[i].tag == HB_TAG('h', 'w', 'i', 'd') ||
+          features[i].tag == HB_TAG('t', 'w', 'i', 'd') ||
+          features[i].tag == HB_TAG('q', 'w', 'i', 'd')) {
+        has_narrow = true;
+        break;
+      }
+    }
+    if (!has_narrow) {
+      hb_tag_t narrow = HB_TAG('h', 'w', 'i', 'd');
+      size_t n_digits = end - start;
+      hb_face_t* face = hb_font_get_face(font);
+      if (n_digits >= 4 && face_has_feature(face, HB_TAG('q', 'w', 'i', 'd'))) {
+        narrow = HB_TAG('q', 'w', 'i', 'd');
+      } else if (n_digits == 3 && face_has_feature(face, HB_TAG('t', 'w', 'i', 'd'))) {
+        narrow = HB_TAG('t', 'w', 'i', 'd');
+      }
+      hb_feature_t feat;
+      feat.tag = narrow;
+      feat.value = 1;
+      feat.start = 0;
+      feat.end = (unsigned int) -1;
+      tate_features.push_back(feat);
+    }
+  }
+  const std::vector<hb_feature_t>& active_features = all_digits ? tate_features : features;
+  if (run_tate) {
+    // Tate-chu-yoko digit run: shape horizontally, stay upright in the
+    // column. The horizontal-to-vertical remapping happens per glyph in
+    // fill_shape_info
+    run_dir = HB_DIRECTION_LTR;
+  } else if (vert_class.empty()) {
+    run_dir = dir % 2 == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL;
+  } else if (vert_class[start] == 0) {
+    run_dir = HB_DIRECTION_TTB;
+    // Required-vertical scripts (e.g. Mongolian) in a font without vertical
+    // metrics can't be shaped upright: HarfBuzz would synthesize 1em
+    // advances and centered origins, tearing the script apart. These fonts
+    // are designed for "shape horizontally, rotate the line" presentation
+    // The run may start with neutral characters (e.g. spaces), so scan the
+    // whole run for required-vertical script
+    bool req_vertical = false;
+    for (unsigned int i = start; i < end; ++i) {
+      if (char_is_required_vertical(full_string[i])) {
+        req_vertical = true;
+        break;
+      }
+    }
+    if (req_vertical && !face_has_vertical_metrics(hb_font_get_face(font))) {
+      run_dir = HB_DIRECTION_LTR;
+      run_rotation = this->dir == 4 ? 90.0 : -90.0;
+    }
+  } else if (vert_class[start] == 3) {
+    // UAX#50 Tr: use the typographic vertical glyph when the font provides
+    // vert/vrt2, otherwise fall back to rotating the code chart glyph
+    // 90 degrees like an R-class run
+    if (face_has_vert_subs(hb_font_get_face(font))) {
+      run_dir = HB_DIRECTION_TTB;
+    } else {
+      run_dir = HB_DIRECTION_LTR;
+      run_rotation = this->dir == 4 ? 90.0 : -90.0;
+    }
+  } else {
+    // Horizontal-only script inside vertical text. Set upright using
+    // vert/vrt2 substitutions if requested and the font supports it,
+    // otherwise shape horizontally and let the renderer rotate the run
+    // 90 degrees (clockwise for ttb)
+    bool upright = cur_mixed == 1 && face_has_vert_subs(hb_font_get_face(font));
+    if (upright) {
+      run_dir = HB_DIRECTION_TTB;
+    } else {
+      // The bidi algorithm is bypassed for vertical text, so detect the
+      // run's own direction from its first strong character to keep rotated
+      // RTL scripts (Arabic, Hebrew) in reading order
+      run_dir = HB_DIRECTION_LTR;
+      for (unsigned int i = start; i < end; ++i) {
+        uint32_t cp = full_string[i];
+        if (char_is_rtl_strong(cp)) {
+          run_dir = HB_DIRECTION_RTL;
+          break;
+        }
+        if ((cp >= 0x0041 && cp <= 0x007A) ||  // Basic Latin letters
+            (cp >= 0x00C0 && cp <= 0x02AF) ||  // Latin-1 supplement & extended
+            (cp >= 0x0370 && cp <= 0x052F)) {  // Greek, Cyrillic
+          break;
+        }
+      }
+      run_rotation = this->dir == 4 ? 90.0 : -90.0;
+    }
+  }
+
+  // Upright vertical runs get vertical kana forms when the font provides
+  // them. HarfBuzz enables vert/vrt2 automatically for vertical direction
+  // but not vkna. Explicit user setting takes precedence
+  std::vector<hb_feature_t> vert_features;
+  if (run_dir == HB_DIRECTION_TTB) {
+    bool has_vkna = false;
+    for (size_t i = 0; i < active_features.size(); ++i) {
+      if (active_features[i].tag == HB_TAG('v', 'k', 'n', 'a')) {
+        has_vkna = true;
+        break;
+      }
+    }
+    if (!has_vkna) {
+      vert_features = active_features;
+      hb_feature_t vkna;
+      vkna.tag = HB_TAG('v', 'k', 'n', 'a');
+      vkna.value = 1;
+      vkna.start = 0;
+      vkna.end = (unsigned int) -1;
+      vert_features.push_back(vkna);
+    }
+  }
+  const std::vector<hb_feature_t>& shape_features = vert_features.empty() ? active_features : vert_features;
+
   // Do a first run of shaping. Hopefully it's enough
   unsigned int n_glyphs = 0;
   hb_buffer_reset(buffer);
   hb_buffer_add_utf32(buffer, full_string.data(), full_string.size(), start, embedding_size);
   hb_buffer_guess_segment_properties(buffer);
-  hb_buffer_set_direction(buffer, dir % 2 == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL);
+  hb_buffer_set_direction(buffer, run_dir);
   hb_glyph_info_t *glyph_info = NULL;
 
-  hb_shape(font, buffer, features.data(), features.size());
+  hb_shape(font, buffer, shape_features.data(), shape_features.size());
 
   hb_glyph_position_t *glyph_pos = NULL;
   glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
@@ -849,7 +1410,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
 
   if (!needs_fallback) { // Short route - use existing shaping
     glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
-    fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font, start, shape_info, fallback_sizes, fallback_scales);
+    fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font, start, shape_info, fallback_sizes, fallback_scales, fallbacks, run_dir, run_rotation, run_middle, run_tate);
     fill_glyph_info(shape_info.embeddings.back());
     hb_font_destroy(font);
     shape_info.embeddings.back().fallbacks = fallbacks;
@@ -893,8 +1454,8 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
       hb_buffer_reset(buffer);
       hb_buffer_add_utf32(buffer, full_string.data(), full_string.size(), start + fallback_start, fallback_end - fallback_start);
       hb_buffer_guess_segment_properties(buffer);
-      hb_buffer_set_direction(buffer, dir % 2 == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL);
-      hb_shape(font, buffer, features.data(), features.size());
+      hb_buffer_set_direction(buffer, run_dir);
+      hb_shape(font, buffer, shape_features.data(), shape_features.size());
       glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
 
       if (n_glyphs > 0) {
@@ -936,8 +1497,8 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
           hb_buffer_reset(buffer);
           hb_buffer_add_utf32(buffer, full_string.data(), full_string.size(), start + fallback_start, fallback_end - fallback_start);
           hb_buffer_guess_segment_properties(buffer);
-          hb_buffer_set_direction(buffer, dir % 2 == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL);
-          hb_shape(font, buffer, features.data(), features.size());
+          hb_buffer_set_direction(buffer, run_dir);
+          hb_shape(font, buffer, shape_features.data(), shape_features.size());
           glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
 
           if (n_glyphs > 0) {
@@ -986,11 +1547,11 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
         hb_buffer_reset(buffer);
         hb_buffer_add_utf32(buffer, full_string.data(), full_string.size(), start + text_run_start, i - text_run_start);
         hb_buffer_guess_segment_properties(buffer);
-        hb_buffer_set_direction(buffer, dir % 2 == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL);
-        hb_shape(font, buffer, features.data(), features.size());
+        hb_buffer_set_direction(buffer, run_dir);
+        hb_shape(font, buffer, shape_features.data(), shape_features.size());
         glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
         glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
-        fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font, start + text_run_start, shape_info, fallback_sizes, fallback_scales);
+        fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font, start + text_run_start, shape_info, fallback_sizes, fallback_scales, fallbacks, run_dir, run_rotation, run_middle, run_tate);
         fill_glyph_info(shape_info.embeddings.back());
         hb_font_destroy(font);
 
@@ -1022,11 +1583,11 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
         hb_buffer_reset(buffer);
         hb_buffer_add_utf32(buffer, full_string.data(), full_string.size(), start + i, text_run_end - i);
         hb_buffer_guess_segment_properties(buffer);
-        hb_buffer_set_direction(buffer, dir % 2 == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL);
-        hb_shape(font, buffer, features.data(), features.size());
+        hb_buffer_set_direction(buffer, run_dir);
+        hb_shape(font, buffer, shape_features.data(), shape_features.size());
         glyph_info = hb_buffer_get_glyph_infos(buffer, &n_glyphs);
         glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
-        fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font, start + i, shape_info, fallback_sizes, fallback_scales);
+        fill_shape_info(glyph_info, glyph_pos, n_glyphs, font, current_font, start + i, shape_info, fallback_sizes, fallback_scales, fallbacks, run_dir, run_rotation, run_middle, run_tate);
         fill_glyph_info(shape_info.embeddings.back());
         hb_font_destroy(font);
 
@@ -1153,11 +1714,63 @@ void HarfBuzzShaper::fill_shape_info(hb_glyph_info_t* glyph_info,
                                      unsigned int cluster_offset,
                                      ShapeInfo& shape_info,
                                      std::vector<double>& fallback_sizes,
-                                     std::vector<double>& fallback_scales) {
+                                     std::vector<double>& fallback_scales,
+                                     std::vector<FontSettings2>& fallbacks,
+                                     hb_direction_t hb_dir, double rotation, double run_middle,
+                                     bool tate) {
   double scaling = fallback_scales[font_id];
   if (scaling < 0) scaling = 1.0;
 
   double tracking = shape_info.tracking * fallback_sizes[font_id] / 1000;
+
+  // Tate-chu-yoko: the run is shaped horizontally but laid out upright in
+  // the vertical column. The whole run occupies a main-axis extent equal to
+  // its horizontal width (charged to the first glyph so line breaking and
+  // the pen see the right total), and the glyphs march along the cross axis
+  // centered on the column centerline. Runs wider than the em box are
+  // scaled down to fit, registered as a scaled copy of the font so the
+  // renderer draws the digits smaller as well
+  std::vector<double> tate_adv;
+  double tate_total = 0.0;
+  double tate_scale = 1.0;
+  // Main-axis extent of the run: never less than one em, so a single
+  // (half-width) glyph gets a full em slot like its CJK neighbours instead
+  // of crowding them
+  double tate_slot = 0.0;
+  unsigned int out_font = font_id;
+  if (tate) {
+    tate_adv.reserve(n_glyphs);
+    for (unsigned int i = 0; i < n_glyphs; ++i) {
+      double a = glyph_pos[i].x_advance * scaling + tracking;
+      tate_adv.push_back(a);
+      tate_total += a;
+    }
+    // glyph_pos is in 26.6 fixed point, so the em box includes the *64
+    double em = fallback_sizes[font_id] * shape_info.res / 72.0 * 64.0 * scaling;
+    if (em > 0 && tate_total > em) {
+      tate_scale = em / tate_total;
+      tate_total = em;
+      for (double& a : tate_adv) a *= tate_scale;
+      out_font = fallbacks.size();
+      fallbacks.push_back(fallbacks[font_id]);
+      fallback_sizes.push_back(fallback_sizes[font_id] * tate_scale);
+      fallback_scales.push_back(fallback_scales[font_id]);
+    }
+    tate_slot = std::max(tate_total, em);
+  }
+  double tate_pos = run_middle - tate_total / 2.0;
+  // The btt mirror flips the cross axis, which would reverse the digit
+  // sequence — assign cross slots from the far end so they come out
+  // left-to-right after mirroring
+  bool tate_reverse = tate && dir == 4;
+  if (tate_reverse) tate_pos += tate_total;
+
+  // Vertically shaped runs are remapped into the horizontal layout space
+  // used by the rest of the shaper: the vertical advance becomes the x
+  // advance and the cross axis becomes y. Positions are rotated back into
+  // real space at the end of finish_string. All vertical runs are shaped
+  // top-to-bottom (see shape_embedding) so only that case is handled here
+  bool vertical = hb_dir == HB_DIRECTION_TTB || hb_dir == HB_DIRECTION_BTT;
 
 
 #if HB_VERSION_MAJOR < 2 && HB_VERSION_MINOR < 2
@@ -1193,22 +1806,83 @@ void HarfBuzzShaper::fill_shape_info(hb_glyph_info_t* glyph_info,
   for (unsigned int i = 0; i < n_glyphs; ++i) {
     embedding.glyph_id.push_back(glyph_info[i].codepoint);
     embedding.glyph_cluster.push_back(glyph_info[i].cluster);
-    embedding.x_offset.push_back(glyph_pos[i].x_offset * scaling);
-    embedding.y_offset.push_back(glyph_pos[i].y_offset * scaling);
-    embedding.x_advance.push_back(glyph_pos[i].x_advance * scaling + tracking);
-    embedding.y_advance.push_back(glyph_pos[i].y_advance * scaling);
-    embedding.full_width += embedding.x_advance.back();
+
+    double x_off = glyph_pos[i].x_offset * scaling;
+    double y_off = glyph_pos[i].y_offset * scaling;
+    double x_adv = glyph_pos[i].x_advance * scaling;
+    double y_adv = glyph_pos[i].y_advance * scaling;
 
     hb_font_get_glyph_extents(font, glyph_info[i].codepoint, &extent);
-    embedding.x_bear.push_back(extent.x_bearing * scaling);
-    embedding.y_bear.push_back(extent.y_bearing * scaling);
-    embedding.width.push_back(extent.width * scaling);
-    embedding.height.push_back(extent.height * scaling);
+    // y_bearing is the top of the ink box and height is negative (downward)
+    double x_b = extent.x_bearing * scaling;
+    double y_b = extent.y_bearing * scaling;
+    double w = extent.width * scaling;
+    double h = extent.height * scaling;
+
+    if (tate) {
+      // Upright in real space like TTB-shaped glyphs, so bearings transpose
+      // the same way. The em box is centered in the run's main-axis extent
+      // using the font's horizontal extents
+      double em_height = (ascend - descend) * scaling * tate_scale;
+      embedding.em_width.push_back(x_adv * tate_scale);
+      // All glyphs in the run share one main-axis position, but the pen has
+      // already advanced past the run's full extent after the first glyph —
+      // pull subsequent glyphs back by the same amount
+      embedding.x_offset.push_back((tate_slot - em_height) / 2.0 + ascend * scaling * tate_scale - y_off * tate_scale - (i == 0 ? 0.0 : tate_slot));
+      if (tate_reverse) tate_pos -= tate_adv[i];
+      embedding.y_offset.push_back(tate_pos + x_off * tate_scale);
+      embedding.x_advance.push_back(i == 0 ? tate_slot : 0.0);
+      embedding.y_advance.push_back(0.0);
+      embedding.x_bear.push_back(-y_b * tate_scale);
+      embedding.width.push_back(-h * tate_scale);
+      embedding.y_bear.push_back((x_b + w) * tate_scale);
+      embedding.height.push_back(-w * tate_scale);
+      if (!tate_reverse) tate_pos += tate_adv[i];
+    } else if (vertical) {
+      // Tracking goes on the main axis, i.e. the vertical advance (negative
+      // going down for ttb)
+      y_adv -= tracking;
+      // Center the glyph's advance box on the column centerline defined by
+      // the primary font's middle (run_middle is 0 for horizontal text).
+      // The VORG table has no x coordinate — the vertical origin's x is the
+      // center of the advance by definition — so h_adv/2 is the spec-
+      // sanctioned cross position. (The main axis is different: hb's
+      // y_offset already carries the VORG origin Y, so per-glyph vertical
+      // placement — e.g. lowercase fullwidth letters sitting optically
+      // centered — is honoured through x_offset = -y_off above.) Glyphs
+      // with vertical substitutions (e.g. corner punctuation) keep their
+      // designed placement inside the em box
+      double h_adv = hb_font_get_glyph_h_advance(font, glyph_info[i].codepoint) * scaling;
+      embedding.em_width.push_back(h_adv);
+      embedding.x_offset.push_back(-y_off);
+      embedding.y_offset.push_back(run_middle - h_adv / 2.0);
+      embedding.x_advance.push_back(-y_adv);
+      embedding.y_advance.push_back(x_adv);
+      embedding.x_bear.push_back(-y_b);
+      embedding.width.push_back(-h);
+      embedding.y_bear.push_back(x_b + w);
+      embedding.height.push_back(-w);
+    } else {
+      embedding.em_width.push_back(x_adv);
+      x_adv += tracking;
+      embedding.x_offset.push_back(x_off);
+      embedding.y_offset.push_back(y_off);
+      embedding.x_advance.push_back(x_adv);
+      embedding.y_advance.push_back(y_adv);
+      embedding.x_bear.push_back(x_b);
+      embedding.y_bear.push_back(y_b);
+      embedding.width.push_back(w);
+      embedding.height.push_back(h);
+    }
+    embedding.full_width += embedding.x_advance.back();
+
+    embedding.rotation.push_back(rotation);
+    embedding.space_adjust.push_back(0);
 
     embedding.ascenders.push_back(ascend * scaling);
     embedding.descenders.push_back(descend * scaling);
 
-    embedding.font.push_back(font_id);
+    embedding.font.push_back(tate ? out_font : font_id);
   }
 }
 
@@ -1308,7 +1982,92 @@ void HarfBuzzShaper::insert_hyphen(EmbedInfo& embedding, size_t where) {
   hb_font_destroy(font);
 }
 
-bool HarfBuzzShaper::has_valid_break(const EmbedInfo& embedding, int32_t width, size_t& break_pos, bool force) {
+// Classify the gap before glyph j of the embedding (see header)
+int HarfBuzzShaper::gap_adjust_class(const EmbedInfo& embedding, size_t j, int32_t& cap) {
+  cap = 0;
+  int32_t cl_prev = embedding.glyph_cluster[j - 1];
+  int32_t cl_cur = embedding.glyph_cluster[j];
+  uint32_t cp_prev = cl_prev < (int32_t) full_string.size() ? full_string[cl_prev] : 0;
+  uint32_t cp_cur = cl_cur < (int32_t) full_string.size() ? full_string[cl_cur] : 0;
+  if (char_is_inseparable_pair(cp_prev, cp_cur)) return 0;
+  // The punctuation blank on the gap side of the previous glyph adjusts by
+  // up to the full blank (half em), at the highest priority
+  if (char_is_trailing_collapsible(cp_prev)) {
+    int32_t trail = embedding.x_advance[j - 1] - embedding.x_offset[j - 1] -
+                    embedding.x_bear[j - 1] - embedding.width[j - 1];
+    if (trail > 0) {
+      cap = trail;
+      return 1;
+    }
+  }
+  // Inter-character gaps between solid CJK characters compress up to 1/4 em
+  // (JLREQ tolerance) and expand without a hard cap
+  uint8_t ca = char_lb_class(cp_prev);
+  uint8_t cb = char_lb_class(cp_cur);
+  bool cjk_a = ca == LB_ID || ca == LB_CJ;
+  bool cjk_b = cb == LB_ID || cb == LB_CJ;
+  if (cjk_a && cjk_b) {
+    int32_t em = std::min(embedding.em_width[j - 1], embedding.em_width[j]);
+    cap = em > 0 ? em / 4 : 0;
+    return 2;
+  }
+  return 0;
+}
+
+// Distribute `amount` of spacing over the gaps before glyphs lo+1..hi (see
+// header)
+int32_t HarfBuzzShaper::distribute_spacing(EmbedInfo& embedding, size_t lo, size_t hi, int32_t amount) {
+  if (amount == 0 || hi <= lo || hi >= embedding.glyph_id.size()) return amount;
+  // Punctuation blanks first, left to right
+  for (size_t j = lo + 1; j <= hi && amount != 0; ++j) {
+    int32_t cap;
+    if (gap_adjust_class(embedding, j, cap) != 1) continue;
+    int32_t take = std::min(cap, std::abs(amount));
+    int32_t adj = amount > 0 ? take : -take;
+    embedding.space_adjust[j] += adj;
+    amount -= adj;
+  }
+  if (amount == 0) return 0;
+  // Then inter-character gaps: compression greedily up to the 1/4 em caps,
+  // expansion spread evenly (no hard cap)
+  if (amount < 0) {
+    for (size_t j = lo + 1; j <= hi && amount != 0; ++j) {
+      int32_t cap;
+      if (gap_adjust_class(embedding, j, cap) != 2) continue;
+      int32_t take = std::min(cap, -amount);
+      embedding.space_adjust[j] -= take;
+      amount += take;
+    }
+    return amount;
+  }
+  size_t n_gaps = 0;
+  for (size_t j = lo + 1; j <= hi; ++j) {
+    int32_t cap;
+    if (gap_adjust_class(embedding, j, cap) == 2) ++n_gaps;
+  }
+  if (n_gaps == 0) return amount;
+  int32_t share = amount / (int32_t) n_gaps;
+  int32_t remainder = amount - share * (int32_t) n_gaps;
+  for (size_t j = lo + 1; j <= hi; ++j) {
+    int32_t cap;
+    if (gap_adjust_class(embedding, j, cap) != 2) continue;
+    embedding.space_adjust[j] += share + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) --remainder;
+  }
+  return 0;
+}
+
+// Total compression available in the gaps before glyphs lo+1..hi
+int32_t HarfBuzzShaper::spacing_capacity(const EmbedInfo& embedding, size_t lo, size_t hi) {
+  int32_t total = 0;
+  for (size_t j = lo + 1; j <= hi && j < embedding.glyph_id.size(); ++j) {
+    int32_t cap;
+    if (gap_adjust_class(embedding, j, cap) != 0) total += cap;
+  }
+  return total;
+}
+
+bool HarfBuzzShaper::has_valid_break(EmbedInfo& embedding, int32_t width, size_t& break_pos, bool force, bool desperate) {
   bool has_break = false;
   int32_t w = 0;
   if (embedding.embedding_level % 2 == 0) { // ltr
@@ -1321,10 +2080,148 @@ bool HarfBuzzShaper::has_valid_break(const EmbedInfo& embedding, int32_t width, 
       }
       w += embedding.x_advance[i];
       if (w > width) {
+        // Compression: the trailing blank of collapsible punctuation need
+        // not fit — if the glyph's ink fits it may end the line here, with
+        // the blank hanging off (it collapses at the line end anyway). Not
+        // in push-out style, where the glyph moves to the next line instead
+        if (kinsoku_mode != 2 && kinsoku_style != 1 && embedding.may_break[i]) {
+          int32_t cluster = embedding.glyph_cluster[i];
+          uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+          if (char_is_trailing_collapsible(cp)) {
+            int32_t trail = embedding.x_advance[i] - embedding.x_offset[i] - embedding.x_bear[i] - embedding.width[i];
+            if (trail > 0 && w - trail <= width) {
+              break_pos = i;
+              return true;
+            }
+          }
+        }
         if (force) {
+          if (!desperate && kinsoku_mode != 2) {
+            // Is the glyph at index k line-start prohibited under the
+            // active kinsoku mode? (loose mode exempts small kana, ー, and
+            // iteration marks)
+            auto prohibited_here = [&](size_t k) {
+              int32_t cluster = embedding.glyph_cluster[k];
+              uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+              if (!char_is_line_start_prohibited(cp)) return false;
+              return kinsoku_mode != 1 || !char_is_loose_prohibited(cp);
+            };
+            if (kinsoku_style == 2 && prohibited_here(i)) {
+              // Push-in (追い込み): pull the prohibited run onto the line by
+              // compressing its spacing (punctuation blanks first, then
+              // inter-character gaps), if the line can absorb the overflow
+              int32_t w_run = w;
+              for (size_t j = i; j < embedding.glyph_id.size(); ++j) {
+                if (j > i) w_run += embedding.x_advance[j];
+                if (embedding.may_break[j]) {
+                  int32_t need = w_run - width;
+                  if (need <= 0 || spacing_capacity(embedding, 0, j) >= need) {
+                    distribute_spacing(embedding, 0, j, -need);
+                    break_pos = j;
+                    return true;
+                  }
+                }
+                if (j + 1 >= embedding.glyph_id.size() || !prohibited_here(j + 1)) break;
+              }
+              // Fall through to hanging when the line cannot absorb it
+            }
+            if (kinsoku_style != 1) {
+              // Kinsoku shori: line-start-prohibited punctuation hangs past
+              // the line end (buried style) rather than starting the next
+              // line. The overhang is limited to about two em (twice the
+              // advance of the first hung glyph)
+              int32_t hang_limit = 0;
+              int32_t hung_w = 0;
+              size_t j = i;
+              while (j < embedding.glyph_id.size()) {
+                if (!prohibited_here(j)) break;
+                int32_t adv = embedding.x_advance[j];
+                if (hang_limit == 0) hang_limit = 2 * adv;
+                if (hung_w + adv > hang_limit) break;
+                hung_w += adv;
+                if (embedding.may_break[j]) {
+                  break_pos = j;
+                  return true;
+                }
+                ++j;
+              }
+            }
+          }
           // If forcing we need to consume at least one glyph
           break_pos = i == 0 ? 0 : i - 1;
+          if (!desperate && kinsoku_mode != 2) {
+            // Kinsoku shori: the break may not dangle opening punctuation
+            // or split inseparable/number-binding pairs (¥100, 50%, ‥…) —
+            // retreat to a permitted position
+            while (break_pos > 0 && forced_break_prohibited(full_string, embedding, break_pos, break_pos + 1)) {
+              --break_pos;
+            }
+            if (kinsoku_style == 1) {
+              // Push-out (追い出し): the prohibited run and the character
+              // before it move to the next line, so the next line never
+              // starts with a prohibited character
+              while (break_pos > 0) {
+                int32_t cluster = embedding.glyph_cluster[break_pos + 1];
+                uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+                if (!char_prohibited_at_line_start(cp, kinsoku_mode)) break;
+                --break_pos;
+                while (break_pos > 0 && forced_break_prohibited(full_string, embedding, break_pos, break_pos + 1)) {
+                  --break_pos;
+                }
+              }
+            }
+            // Even the first glyph may not be separable from the rest
+            if (break_pos == 0) {
+              bool blocked = forced_break_prohibited(full_string, embedding, 0, 1);
+              if (!blocked && kinsoku_style == 1 && embedding.glyph_id.size() > 1) {
+                int32_t cluster = embedding.glyph_cluster[1];
+                uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+                blocked = char_prohibited_at_line_start(cp, kinsoku_mode);
+              }
+              if (blocked) return false;
+            }
+            if (kinsoku_style == 1) {
+              // Spread the vacated slack over the kept line
+              int32_t kept = 0;
+              for (size_t k = 0; k <= break_pos; ++k) {
+                kept += embedding.x_advance[k];
+              }
+              distribute_spacing(embedding, 0, break_pos, width - kept);
+            }
+          }
           return true;
+        }
+        if (has_break && kinsoku_mode != 2) {
+          if (kinsoku_style == 1) {
+            // Push-out (追い出し): the remaining segment moves to the next
+            // line; spread the slack over this line's adjustable gaps
+            // (punctuation blanks first, then inter-character gaps). The
+            // expansion is limited to about two em, mirroring the hang limit
+            int32_t kept = 0;
+            for (size_t k = 0; k <= break_pos; ++k) {
+              kept += embedding.x_advance[k];
+            }
+            int32_t slack = width - kept;
+            if (slack > 0 && slack <= 2 * embedding.em_width[0]) {
+              distribute_spacing(embedding, 0, break_pos, slack);
+            }
+          } else if (kinsoku_style == 2) {
+            // Push-in (追い込み): pull the next run onto the line if the
+            // adjustable gaps can absorb the overflow
+            int32_t w_run = w;
+            for (size_t j = i; j < embedding.glyph_id.size(); ++j) {
+              if (j > i) w_run += embedding.x_advance[j];
+              if (embedding.may_break[j]) {
+                int32_t need = w_run - width;
+                if (need > 0 && spacing_capacity(embedding, 0, j) >= need) {
+                  distribute_spacing(embedding, 0, j, -need);
+                  break_pos = j;
+                  return true;
+                }
+                break; // Only the next break candidate is a pull-in target
+              }
+            }
+          }
         }
         return has_break;
       }
@@ -1343,10 +2240,156 @@ bool HarfBuzzShaper::has_valid_break(const EmbedInfo& embedding, int32_t width, 
       }
       w += embedding.x_advance[i - 1];
       if (w > width) {
+        // Compression (mirror of the ltr branch): the trailing blank of
+        // collapsible punctuation need not fit — if the glyph's ink fits
+        // it may end the line here with the blank hanging off. Not in
+        // push-out style, where the glyph moves to the next line instead
+        if (kinsoku_mode != 2 && kinsoku_style != 1 && embedding.may_break[i - 1]) {
+          int32_t cluster = embedding.glyph_cluster[i - 1];
+          uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+          if (char_is_trailing_collapsible(cp)) {
+            int32_t trail = embedding.x_advance[i - 1] - embedding.x_offset[i - 1] - embedding.x_bear[i - 1] - embedding.width[i - 1];
+            if (trail > 0 && w - trail <= width) {
+              break_pos = i - 1;
+              return true;
+            }
+          }
+        }
         if (force) {
+          if (!desperate && kinsoku_mode != 2) {
+            // Mirror of the ltr branch
+            auto prohibited_here = [&](size_t k) {
+              int32_t cluster = embedding.glyph_cluster[k];
+              uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+              if (!char_is_line_start_prohibited(cp)) return false;
+              return kinsoku_mode != 1 || !char_is_loose_prohibited(cp);
+            };
+            if (kinsoku_style == 2 && prohibited_here(i - 1)) {
+              // Push-in (追い込み): pull the prohibited run onto the line by
+              // compressing its spacing, if the line can absorb the
+              // overflow. Hanging extends towards lower indices in rtl, so
+              // the prohibited run is scanned downwards
+              int32_t w_run = w;
+              size_t j = i - 1;
+              while (true) {
+                if (embedding.may_break[j]) {
+                  int32_t need = w_run - width;
+                  if (need <= 0 || spacing_capacity(embedding, j, embedding.glyph_id.size() - 1) >= need) {
+                    distribute_spacing(embedding, j, embedding.glyph_id.size() - 1, -need);
+                    break_pos = j;
+                    return true;
+                  }
+                }
+                if (j == 0 || !prohibited_here(j - 1)) break;
+                --j;
+                w_run += embedding.x_advance[j];
+              }
+              // Fall through to hanging when the line cannot absorb it
+            }
+            if (kinsoku_style != 1) {
+              // Kinsoku shori (mirror of the ltr branch): line-start-prohibited
+              // punctuation hangs past the line end instead of starting the
+              // next line. The line's end is its left edge in rtl, so hanging
+              // extends towards lower indices. The overhang is limited to
+              // about two em (twice the advance of the first hung glyph)
+              int32_t hang_limit = 0;
+              int32_t hung_w = 0;
+              size_t j = i - 1;
+              while (true) {
+                if (!prohibited_here(j)) break;
+                int32_t adv = embedding.x_advance[j];
+                if (hang_limit == 0) hang_limit = 2 * adv;
+                if (hung_w + adv > hang_limit) break;
+                hung_w += adv;
+                if (embedding.may_break[j]) {
+                  break_pos = j;
+                  return true;
+                }
+                if (j == 0) break;
+                --j;
+              }
+            }
+          }
           // If forcing we need to consume at least one glyph
           break_pos = std::min(i, embedding.glyph_id.size() - 1);
+          if (!desperate && kinsoku_mode != 2) {
+            // The break may not dangle opening punctuation or split
+            // inseparable/number-binding pairs. The break sits between glyph
+            // break_pos (kept) and break_pos - 1 (next line), which in
+            // logical order is the pair (break_pos, break_pos - 1); the
+            // line's end is its left edge in rtl
+            while (break_pos + 1 < embedding.glyph_id.size() &&
+                   forced_break_prohibited(full_string, embedding, break_pos, break_pos - 1)) {
+              ++break_pos;
+            }
+            if (kinsoku_style == 1) {
+              // Push-out (追い出し): the prohibited run and the character
+              // before it move to the next line. The next line's start in
+              // logical order is glyph break_pos - 1
+              while (break_pos + 1 < embedding.glyph_id.size()) {
+                int32_t cluster = embedding.glyph_cluster[break_pos - 1];
+                uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+                if (!char_prohibited_at_line_start(cp, kinsoku_mode)) break;
+                ++break_pos;
+                while (break_pos + 1 < embedding.glyph_id.size() &&
+                       forced_break_prohibited(full_string, embedding, break_pos, break_pos - 1)) {
+                  ++break_pos;
+                }
+              }
+            }
+            // Even the last glyph may not be separable from the rest
+            if (break_pos + 1 >= embedding.glyph_id.size()) {
+              bool blocked = break_pos > 0 && forced_break_prohibited(full_string, embedding, break_pos, break_pos - 1);
+              if (!blocked && kinsoku_style == 1 && break_pos > 0) {
+                int32_t cluster = embedding.glyph_cluster[break_pos - 1];
+                uint32_t cp = cluster < (int32_t) full_string.size() ? full_string[cluster] : 0;
+                blocked = char_prohibited_at_line_start(cp, kinsoku_mode);
+              }
+              if (blocked) return false;
+            }
+            if (kinsoku_style == 1) {
+              // Spread the vacated slack over the kept line
+              int32_t kept = 0;
+              for (size_t k = break_pos; k < embedding.glyph_id.size(); ++k) {
+                kept += embedding.x_advance[k];
+              }
+              distribute_spacing(embedding, break_pos, embedding.glyph_id.size() - 1, width - kept);
+            }
+          }
           return true;
+        }
+        if (has_break && kinsoku_mode != 2) {
+          if (kinsoku_style == 1) {
+            // Push-out (mirror of the ltr branch): spread the slack over the
+            // kept glyphs' adjustable gaps
+            int32_t kept = 0;
+            for (size_t k = break_pos; k < embedding.glyph_id.size(); ++k) {
+              kept += embedding.x_advance[k];
+            }
+            int32_t slack = width - kept;
+            if (slack > 0 && slack <= 2 * embedding.em_width.back()) {
+              distribute_spacing(embedding, break_pos, embedding.glyph_id.size() - 1, slack);
+            }
+          } else if (kinsoku_style == 2) {
+            // Push-in (mirror of the ltr branch): pull the next run onto
+            // the line if the adjustable gaps can absorb the overflow
+            int32_t w_run = w;
+            size_t j = i - 1;
+            while (true) {
+              if (embedding.may_break[j]) {
+                int32_t need = w_run - width;
+                if (need > 0 && spacing_capacity(embedding, j, embedding.glyph_id.size() - 1) >= need) {
+                  distribute_spacing(embedding, j, embedding.glyph_id.size() - 1, -need);
+                  break_pos = j;
+                  return true;
+                }
+                break; // Only the next break candidate is a pull-in target
+              }
+              if (j == 0) break;
+              --j;
+              w_run += embedding.x_advance[j];
+            }
+          }
         }
         return has_break;
       }
@@ -1436,7 +2479,7 @@ std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::
         --iter;
         cum_width -= iter->full_width;
         // Search for a break in the embedding that satisfies our width constraint
-        if (has_valid_break(*iter, width - cum_width, break_at, force)) {
+        if (has_valid_break(*iter, width - cum_width, break_at, force, false)) {
           if (iter->embedding_level % 2 == 0) {
             from = 0;
             to = break_at + 1;
@@ -1451,14 +2494,49 @@ std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::
           line.splice(line.begin(), all_embeddings, all_embeddings.begin(), iter);
           line.emplace_back();
           iter->split(from, to, line.back());
+          // A break at the very end of the embedding leaves an empty shell
+          // behind. Drop it so it doesn't perturb the layout of what follows
+          // (spurious pen reset, phantom line metrics), but keep a paragraph
+          // termination alive
+          if (iter->glyph_id.empty()) {
+            if (iter->terminates_paragraph) hard_break = true;
+            all_embeddings.erase(iter);
+          }
           if (is_shy) { // Substitute soft hyphen with hyphen
             size_t at = line.back().embedding_level % 2 == 0 ? line.back().glyph_id.size() - 1 : 0;
             insert_hyphen(line.back(), at);
           }
           break;
         }
-        // We shouldn't hit the below condition since force == true should find a break immediately
-        if (iter == all_embeddings.begin() && force) break;
+        if (iter == all_embeddings.begin() && force) {
+          // No embedding on the line offers an acceptable break (kinsoku
+          // prohibitions). If earlier embeddings fit on their own, end the
+          // line before the original overflower; otherwise break the first
+          // embedding disregarding the prohibitions — something must be
+          // placed on the line
+          auto overflower = std::prev(orig_iter);
+          if (overflower != all_embeddings.begin()) {
+            line.splice(line.begin(), all_embeddings, all_embeddings.begin(), overflower);
+          } else if (has_valid_break(*iter, width - cum_width, break_at, true, true)) {
+            if (iter->embedding_level % 2 == 0) {
+              from = 0;
+              to = break_at + 1;
+            } else {
+              from = break_at;
+              to = iter->glyph_id.size();
+            }
+            line.splice(line.begin(), all_embeddings, all_embeddings.begin(), iter);
+            line.emplace_back();
+            iter->split(from, to, line.back());
+            // See above: drop an empty shell left by a break at the very
+            // end of the embedding
+            if (iter->glyph_id.empty()) {
+              if (iter->terminates_paragraph) hard_break = true;
+              all_embeddings.erase(iter);
+            }
+          }
+          break;
+        }
 
         if (iter == all_embeddings.begin()) {
           // We didn't find a break. Reset and set force = true

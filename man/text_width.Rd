@@ -15,6 +15,8 @@ text_width(
   size = 12,
   res = 72,
   include_bearing = TRUE,
+  direction = "auto",
+  mixed = c("rotate", "upright"),
   path = NULL,
   index = 0,
   bold = deprecated()
@@ -55,14 +57,42 @@ match the resolution used when rendering the glyphs.}
 \item{include_bearing}{Logical, should left and right bearing be included in
 the string width?}
 
+\item{direction}{The overall directional flow of the text. The default
+(\code{"auto"}) will guess the direction based on the content of the string,
+resolving to top-to-bottom if the string contains scripts that can only be
+typeset vertically (e.g. Mongolian) and to left-to-right or right-to-left
+otherwise. Use \code{"ltr"} (left-to-right), \code{"rtl"} (right-to-left), \code{"ttb"}
+(top-to-bottom), and \code{"btt"} (bottom-to-top) to turn off detection and set
+it manually. Scripts that can be typeset both horizontally and vertically
+(e.g. Japanese) are always set horizontally with \code{"auto"}.}
+
+\item{mixed}{How to treat runs of horizontal-only scripts (e.g. Latin) in
+vertical text: \code{"rotate"} shapes them horizontally and marks them for a 90
+degree rotation during rendering (see the \code{rotation} column in the output);
+\code{"upright"} sets them upright in the vertical line using the font's \code{vert}/
+\code{vrt2} substitutions, falling back to \code{"rotate"} behaviour if the font
+doesn't provide these; \code{"tate"} additionally sets ASCII digit runs of up
+to 4 digits horizontally on a single line (tate-chu-yoko), as is common
+for e.g. years and day numbers in Japanese typesetting. Tate runs use the
+font's \code{hwid}/\code{twid}/\code{qwid} narrow digit forms when available (unless the
+features are set explicitly), falling back to scaling down to fit the em
+box. \code{"combine"} generalises tate-chu-yoko to any horizontal-only run of
+up to 4 characters — Latin abbreviations, era names, etc. — equivalent to
+CSS \code{text-combine-upright: all} (narrow digit features are only used for
+all-digit runs). Finally, \code{"sideways"} shapes the entire string
+horizontally — CJK scripts included — and marks it for rotation,
+equivalent to CSS \code{text-orientation: sideways}. Ignored for horizontal
+text. Can be given per string.}
+
 \item{path, index}{path an index of a font file to circumvent lookup based on
 family and style}
 
 \item{bold}{logical indicating whether the font weight}
 }
 \value{
-A numeric vector giving the width of the strings in pixels. Use the
-provided \code{res} value to convert it into absolute values.
+A numeric vector giving the width of the strings in pixels, measured
+along the main text axis (i.e. the height of the string for vertical text).
+Use the provided \code{res} value to convert it into absolute values.
 }
 \description{
 This is a very simple alternative to \code{\link[systemfonts:shape_string]{systemfonts::shape_string()}} that
