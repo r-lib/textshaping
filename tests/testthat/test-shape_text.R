@@ -45,7 +45,10 @@ test_that("shape_text wraps at spaces, hyphens, and soft hyphens with max_width"
   expect_gt(wrapped$metrics$height, unwrapped$metrics$height)
 
   hyphen_wrapped <- shape_text("super-cali-fragilistic", max_width = 0.5)
-  expect_equal(hyphen_wrapped$shape$glyph, seq_len(nchar("super-cali-fragilistic")))
+  expect_equal(
+    hyphen_wrapped$shape$glyph,
+    seq_len(nchar("super-cali-fragilistic"))
+  )
   expect_gt(length(unique(hyphen_wrapped$shape$y_offset)), 1L)
 
   shy_text <- "super\u00adcali\u00adfragilistic"
@@ -81,7 +84,10 @@ test_that("shape_text handles multi-run strings and edge-case inputs", {
 })
 
 test_that("shape_text handles RTL text with line breaks and wrapping", {
-  rtl_single <- shape_text("\u05e9\u05dc\u05d5\u05dd \u05e2\u05d5\u05dc\u05dd", direction = "rtl")
+  rtl_single <- shape_text(
+    "\u05e9\u05dc\u05d5\u05dd \u05e2\u05d5\u05dc\u05dd",
+    direction = "rtl"
+  )
   rtl_nl <- shape_text(
     "\u05e9\u05dc\u05d5\u05dd \u05e2\u05d5\u05dc\u05dd\n\u05e9\u05d5\u05e8\u05d4 \u05e9\u05e0\u05d9\u05d4",
     direction = "rtl"
@@ -90,7 +96,10 @@ test_that("shape_text handles RTL text with line breaks and wrapping", {
   expect_length(unique(rtl_nl$shape$y_offset), 2L)
   expect_gt(rtl_nl$metrics$height, rtl_single$metrics$height)
 
-  rtl_trail_nl <- shape_text("\u05e9\u05dc\u05d5\u05dd \u05e2\u05d5\u05dc\u05dd\n", direction = "rtl")
+  rtl_trail_nl <- shape_text(
+    "\u05e9\u05dc\u05d5\u05dd \u05e2\u05d5\u05dc\u05dd\n",
+    direction = "rtl"
+  )
   expect_shape(rtl_trail_nl$shape, nrow = 9L)
   expect_gt(rtl_trail_nl$metrics$height, rtl_single$metrics$height)
 
@@ -104,17 +113,25 @@ test_that("shape_text handles RTL text with line breaks and wrapping", {
 
 test_that("text-presentation-default emoji prefer text fallback fonts", {
   arrow <- "↙"
+  # Match on family name, not file name: Windows' emoji font file
+  # (seguiemj.ttf) doesn't contain "emoji" but its family does
+  font_family <- function(path, index) {
+    systemfonts::font_info(path = path, index = index)$family
+  }
   # Only meaningful on systems whose regular fallback chain covers the
   # arrow with a non-emoji font
   fb <- systemfonts::font_fallback(arrow, family = "sans")
-  skip_if(grepl("emoji", basename(fb$path), ignore.case = TRUE))
+  skip_if(grepl("emoji", font_family(fb$path, fb$index), ignore.case = TRUE))
 
   s <- shape_text(paste0(arrow, " text"), family = "sans")
-  arrow_font <- basename(s$shape$font_path[s$shape$glyph == 1])
+  arrow_font <- font_family(s$shape$font_path[1], s$shape$font_index[1])
   expect_false(grepl("emoji", arrow_font, ignore.case = TRUE))
 
   # An explicit emoji variation selector must still pick the emoji font
   s_vs16 <- shape_text(paste0(arrow, "️ text"), family = "sans")
-  arrow_font_vs16 <- basename(s_vs16$shape$font_path[s_vs16$shape$glyph == 1])
+  arrow_font_vs16 <- font_family(
+    s_vs16$shape$font_path[1],
+    s_vs16$shape$font_index[1]
+  )
   expect_true(grepl("emoji", arrow_font_vs16, ignore.case = TRUE))
 })
