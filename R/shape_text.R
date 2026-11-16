@@ -37,7 +37,9 @@
 #' resolving to top-to-bottom if the string contains scripts that can only be
 #' typeset vertically (e.g. Mongolian) and to left-to-right or right-to-left
 #' otherwise. Use `"ltr"` (left-to-right), `"rtl"` (right-to-left), `"ttb"`
-#' (top-to-bottom), and `"btt"` (bottom-to-top) to turn off detection and set
+#' (top-to-bottom, lines stacking right-to-left as in Japanese), and
+#' `"ttb-ltr"` (top-to-bottom, lines stacking left-to-right as in Mongolian)
+#' to turn off detection and set
 #' it manually. Scripts that can be typeset both horizontally and vertically
 #' (e.g. Japanese) are always set horizontally with `"auto"`.
 #' @param mixed How to treat runs of horizontal-only scripts (e.g. Latin) in
@@ -112,11 +114,11 @@
 #'   \item{pen_x}{The horizontal position of the next glyph after the string}
 #'   \item{pen_y}{The vertical position of the next glyph after the string}
 #'   \item{ltr}{The global direction of the string. If `TRUE` then it is left-to-right, otherwise it is right-to-left. Vertical text is not right-to-left so `ltr` is always `TRUE` for it; consult `direction` for the resolved direction}
-#'   \item{direction}{The resolved global direction of the string (`"ltr"`, `"rtl"`, `"ttb"`, or `"btt"`)}
+#'   \item{direction}{The resolved global direction of the string (`"ltr"`, `"rtl"`, `"ttb"`, or `"ttb-ltr"`)}
 #' }
 #'
-#' For vertical text (`"ttb"`/`"btt"`) glyphs flow along the y axis and lines
-#' stack as columns (right-to-left for `"ttb"`, left-to-right for `"btt"`).
+#' For vertical text (`"ttb"`/`"ttb-ltr"`) glyphs flow along the y axis and lines
+#' stack as columns (right-to-left for `"ttb"`, left-to-right for `"ttb-ltr"`).
 #' Upright runs automatically use the font's `vert`/`vrt2` and `vkna`
 #' substitutions when available unless these features are set explicitly.
 #' `max_width` constrains the height of a column, and `hjust`/`vjust` justify
@@ -286,9 +288,9 @@ shape_text <- function(
   space_before <- rep_len(space_before, n_strings)[ido]
   space_after <- rep_len(space_after, n_strings)[ido]
   direction <- if (length(direction) != 0) {
-    match.arg(direction, c('auto', 'ltr', 'rtl', 'ttb', 'btt'), TRUE)
+    match.arg(direction, c('auto', 'ltr', 'rtl', 'ttb', 'ttb-ltr'), TRUE)
   }
-  direction <- match(direction, c('auto', 'ltr', 'rtl', 'ttb', 'btt')) - 1L
+  direction <- match(direction, c('auto', 'ltr', 'rtl', 'ttb', 'ttb-ltr')) - 1L
   direction <- rep_len(direction, n_strings)[ido]
   mixed <- if (missing(mixed)) {
     "rotate"
@@ -488,9 +490,9 @@ text_width <- function(
   res <- rep_len(res, n_strings)
   include_bearing <- rep_len(include_bearing, n_strings)
   direction <- if (length(direction) != 0) {
-    match.arg(direction, c('auto', 'ltr', 'rtl', 'ttb', 'btt'), TRUE)
+    match.arg(direction, c('auto', 'ltr', 'rtl', 'ttb', 'ttb-ltr'), TRUE)
   }
-  direction <- match(direction, c('auto', 'ltr', 'rtl', 'ttb', 'btt')) - 1L
+  direction <- match(direction, c('auto', 'ltr', 'rtl', 'ttb', 'ttb-ltr')) - 1L
   direction <- rep_len(direction, n_strings)
   mixed <- if (missing(mixed)) {
     "rotate"

@@ -2,8 +2,8 @@
 
 * Vertical text shaping is now supported through the `direction` argument of
   `shape_text()` and `text_width()`, which now also accepts `"ttb"` and
-  `"btt"` (with `"auto"` resolving required-vertical scripts like Mongolian
-  to top-to-bottom). The new `mixed` argument controls how horizontal-only
+  `"ttb-ltr"` (columns progressing left-to-right, as in Mongolian; `"auto"`
+  resolves required-vertical scripts like Mongolian and Phags-pa to it). The new `mixed` argument controls how horizontal-only
   runs (e.g. Latin) are set in vertical text: `"rotate"` shapes them
   horizontally and marks them for a 90 degree rotation (new `rotation` column
   in the `shape` output), `"upright"` uses the font's `vert`/`vrt2`

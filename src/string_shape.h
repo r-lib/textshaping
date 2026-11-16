@@ -45,7 +45,7 @@ struct ShapeID {
   double size;
   double font_size;
   double tracking;
-  // Resolved text direction (0/1/2 horizontal, 3 = ttb, 4 = btt) and
+  // Resolved text direction (0/1/2 horizontal, 3 = ttb, 4 = ttb-ltr) and
   // mixed-script mode (0 = rotate, 1 = upright; only relevant when vertical)
   int direction;
   int mixed;
@@ -96,8 +96,8 @@ struct EmbedInfo {
   std::vector<int32_t> y_bear;
   std::vector<int32_t> width;
   std::vector<int32_t> height;
-  // Horizontal advance of the glyph (em box width), used by the btt mirror
-  // to keep each glyph's designed placement within its em box
+  // Horizontal advance of the glyph (em box width), used by the ttb-ltr
+  // mirror to keep each glyph's designed placement within its em box
   std::vector<int32_t> em_width;
   std::vector<int32_t> ascenders;
   std::vector<int32_t> descenders;
@@ -406,11 +406,8 @@ public:
   std::vector<int32_t> ascender;
   std::vector<int32_t> descender;
   std::vector<double> rotation;
-  // Per-glyph transformed-space bearings, only needed for the btt mirror in
-  // finish_string where glyph origins are corrected for the handedness flip
-  std::vector<int32_t> x_bear;
-  std::vector<int32_t> y_bear;
-  std::vector<int32_t> glyph_width;
+  // Per-glyph em box width, only needed for the ttb-ltr mirror in
+  // finish_string where glyph origins are corrected for the cross-axis flip
   std::vector<int32_t> em_width;
   std::vector<bool> line_must_break;
   int32_t width;
@@ -440,7 +437,8 @@ public:
   bool finish_string();
 
   void shape_text_run(ShapeInfo &text_run, bool ltr);
-  // direction: 0 = auto, 1 = ltr, 2 = rtl, 3 = ttb, 4 = btt
+  // direction: 0 = auto, 1 = ltr, 2 = rtl, 3 = ttb, 4 = ttb-ltr (top-to-bottom
+  // with columns progressing left-to-right, e.g. Mongolian)
   // mixed: 0 = rotate, 1 = upright (only used for vertical directions)
   // allow_vertical: whether auto-detection may resolve to a vertical
   // direction. Always false for the graphics-device C API, which must stay

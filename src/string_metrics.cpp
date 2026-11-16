@@ -300,7 +300,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
         // so consumers switching on ltr don't treat it as right-to-left
         ltr.push_back(shaper.dir != 2);
         directions.push_back(
-          shaper.dir == 2 ? "rtl" : (shaper.dir == 3 ? "ttb" : (shaper.dir == 4 ? "btt" : "ltr"))
+          shaper.dir == 2 ? "rtl" : (shaper.dir == 3 ? "ttb" : (shaper.dir == 4 ? "ttb-ltr" : "ltr"))
         );
       }
     }

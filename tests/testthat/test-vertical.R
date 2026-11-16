@@ -25,20 +25,33 @@ test_that("ttb shaping stacks glyphs downward", {
   expect_true(all(shape$shape$advance > 0))
 })
 
-test_that("btt shaping stacks glyphs upward", {
+test_that("ttb-ltr shaping stacks glyphs downward, columns left-to-right", {
   skip_if_not(cjk_available())
-  shape <- shape_text("日本語", family = cjk_family, direction = "btt")
+  shape <- shape_text("日本語", family = cjk_family, direction = "ttb-ltr")
 
-  expect_equal(shape$metrics$direction, "btt")
+  expect_equal(shape$metrics$direction, "ttb-ltr")
   expect_true(shape$metrics$height > 0)
+  # Glyphs march down the y axis as in ttb
   y <- shape$shape$y_offset
-  expect_true(all(diff(y) > 0))
+  expect_true(all(diff(y) < 0))
+
+  # Columns progress left-to-right
+  wrapped <- shape_text(
+    "あいうえおかきくけこさしすせそ",
+    family = cjk_family,
+    direction = "ttb-ltr",
+    max_width = 0.5
+  )
+  x <- wrapped$shape$x_offset
+  # First column is the leftmost one
+  expect_true(x[1] < x[4])
+  expect_true(x[4] < x[13])
 })
 
-test_that("auto resolves required-vertical scripts to ttb but keeps both-ways scripts horizontal", {
+test_that("auto resolves required-vertical scripts to ttb-ltr but keeps both-ways scripts horizontal", {
   # Mongolian (U+1820) is required-vertical
   mongol <- shape_text("\u1820\u1822")
-  expect_equal(mongol$metrics$direction, "ttb")
+  expect_equal(mongol$metrics$direction, "ttb-ltr")
 
   skip_if_not(cjk_available())
   japanese <- shape_text("日本語", family = cjk_family)
@@ -126,11 +139,11 @@ test_that("rotated RTL runs keep reading order in vertical text", {
   # Logical order is alef, bet, gimel: y_offset should increase (go up)
   expect_true(all(diff(hebrew$y_offset) > 0))
 
-  # btt mirrors this: first logical letter sits at the top
+  # ttb-ltr rotates the other way: the first logical letter sits at the top
   shape_btt <- shape_text(
     "日本\u05D0\u05D1\u05D2語",
     family = cjk_family,
-    direction = "btt"
+    direction = "ttb-ltr"
   )
   hebrew_btt <- shape_btt$shape[shape_btt$shape$glyph %in% 3:5, ]
   hebrew_btt <- hebrew_btt[order(hebrew_btt$glyph), ]
@@ -138,10 +151,10 @@ test_that("rotated RTL runs keep reading order in vertical text", {
   expect_true(all(diff(hebrew_btt$y_offset) < 0))
 })
 
-test_that("btt pen position is consistent for strings ending in rotated runs", {
+test_that("ttb-ltr pen position is consistent for strings ending in rotated runs", {
   skip_if_not(cjk_available())
-  up <- shape_text("日本語", family = cjk_family, direction = "btt")
-  rot <- shape_text("日本語ABC", family = cjk_family, direction = "btt")
+  up <- shape_text("日本語", family = cjk_family, direction = "ttb-ltr")
+  rot <- shape_text("日本語ABC", family = cjk_family, direction = "ttb-ltr")
   last_rot <- rot$shape[nrow(rot$shape), ]
   # When the string ends in a rotated run the pen's cross-axis position (x)
   # should stay on the run's reference edge (regression: it used to be
@@ -231,12 +244,12 @@ test_that("mixed = tate sets short digit runs horizontally (tate-chu-yoko)", {
   expect_true(all(digits$rotation == -90))
 })
 
-test_that("tate digit order survives the btt mirror", {
+test_that("tate digit order survives the ttb-ltr mirror", {
   skip_if_not(cjk_available())
   shape <- shape_text(
     "平成24年",
     family = cjk_family,
-    direction = "btt",
+    direction = "ttb-ltr",
     mixed = "tate"
   )
   digits <- shape$shape[shape$shape$glyph %in% 3:4, ]
@@ -358,15 +371,17 @@ test_that("mixed = sideways rotates everything, CJK included", {
   )
   expect_true(all(shape$shape$rotation == -90))
   expect_true(all(diff(shape$shape$y_offset) < 0))
-  # btt mirrors the rotation
+  # ttb-ltr mirrors the rotation, so sideways runs read bottom-to-top
+  # (glyph holds cluster + 1, i.e. logical order)
   btt <- shape_text(
     "日本語",
     family = cjk_family,
-    direction = "btt",
+    direction = "ttb-ltr",
     mixed = "sideways"
   )
   expect_true(all(btt$shape$rotation == 90))
-  expect_true(all(diff(btt$shape$y_offset) > 0))
+  btt <- btt$shape[order(btt$shape$glyph), ]
+  expect_true(all(diff(btt$y_offset) > 0))
   # The string shapes as one horizontal run: width along the column equals
   # the horizontal string width
   expect_equal(

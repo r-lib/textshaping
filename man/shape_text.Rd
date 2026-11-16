@@ -97,7 +97,9 @@ measured in points}
 resolving to top-to-bottom if the string contains scripts that can only be
 typeset vertically (e.g. Mongolian) and to left-to-right or right-to-left
 otherwise. Use \code{"ltr"} (left-to-right), \code{"rtl"} (right-to-left), \code{"ttb"}
-(top-to-bottom), and \code{"btt"} (bottom-to-top) to turn off detection and set
+(top-to-bottom, lines stacking right-to-left as in Japanese), and
+\code{"ttb-ltr"} (top-to-bottom, lines stacking left-to-right as in Mongolian)
+to turn off detection and set
 it manually. Scripts that can be typeset both horizontally and vertically
 (e.g. Japanese) are always set horizontally with \code{"auto"}.}
 
@@ -178,11 +180,11 @@ about the full strings.
 \item{pen_x}{The horizontal position of the next glyph after the string}
 \item{pen_y}{The vertical position of the next glyph after the string}
 \item{ltr}{The global direction of the string. If \code{TRUE} then it is left-to-right, otherwise it is right-to-left. Vertical text is not right-to-left so \code{ltr} is always \code{TRUE} for it; consult \code{direction} for the resolved direction}
-\item{direction}{The resolved global direction of the string (\code{"ltr"}, \code{"rtl"}, \code{"ttb"}, or \code{"btt"})}
+\item{direction}{The resolved global direction of the string (\code{"ltr"}, \code{"rtl"}, \code{"ttb"}, or \code{"ttb-ltr"})}
 }
 
-For vertical text (\code{"ttb"}/\code{"btt"}) glyphs flow along the y axis and lines
-stack as columns (right-to-left for \code{"ttb"}, left-to-right for \code{"btt"}).
+For vertical text (\code{"ttb"}/\code{"ttb-ltr"}) glyphs flow along the y axis and lines
+stack as columns (right-to-left for \code{"ttb"}, left-to-right for \code{"ttb-ltr"}).
 Upright runs automatically use the font's \code{vert}/\code{vrt2} and \code{vkna}
 substitutions when available unless these features are set explicitly.
 \code{max_width} constrains the height of a column, and \code{hjust}/\code{vjust} justify

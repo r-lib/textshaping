@@ -17,7 +17,8 @@
 #include <algorithm>
 
 // Does the codepoint belong to a script that can only be typeset vertically
-// (UAX#50). Such scripts make direction = "auto" resolve to top-to-bottom
+// (UAX#50). All such scripts are set top-to-bottom with columns progressing
+// left-to-right, so direction = "auto" resolves to ttb-ltr for them
 static inline bool char_is_required_vertical(uint32_t cp) {
   return (cp >= 0x1800 && cp <= 0x18AF) ||  // Mongolian (incl. Manchu, Sibe, etc.)
          (cp >= 0xA840 && cp <= 0xA87F);    // Phags-pa
@@ -539,9 +540,6 @@ bool HarfBuzzShaper::finish_string() {
           ascender.push_back(iter->ascenders[i]);
           descender.push_back(iter->descenders[i]);
           rotation.push_back(iter->rotation[i]);
-          x_bear.push_back(iter->x_bear[i]);
-          y_bear.push_back(iter->y_bear[i]);
-          glyph_width.push_back(iter->width[i]);
           em_width.push_back(iter->em_width[i]);
 
           string_id.push_back(iter->string_id[i]);
@@ -677,8 +675,9 @@ bool HarfBuzzShaper::finish_string() {
   // For vertical text everything has been laid out in a transformed space
   // where the main (vertical) axis is x and columns stack along -y. Rotate
   // all positions and metrics into real space: ttb maps (x, y) -> (y, -x) so
-  // columns progress right-to-left, btt maps (x, y) -> (-y, x) so columns
-  // progress left-to-right
+  // columns progress right-to-left (as in Japanese), ttb-ltr maps
+  // (x, y) -> (-y, -x), flipping only the cross axis so columns progress
+  // left-to-right (as in Mongolian) while glyphs still flow top-to-bottom
   if (dir == 3 || dir == 4) {
     bool ttb = dir == 3;
     for (size_t i = 0; i < x_pos.size(); ++i) {
@@ -689,24 +688,22 @@ bool HarfBuzzShaper::finish_string() {
         y_pos[i] = -tx;
       } else {
         x_pos[i] = -ty;
-        y_pos[i] = tx;
-        // The btt mapping mirrors the cross axis while the glyphs stay
+        y_pos[i] = -tx;
+        // The ttb-ltr mapping mirrors the cross axis while the glyphs stay
         // upright, so the origin of upright glyphs must be moved to mirror
         // the em box rather than the ink box — this keeps each glyph's
         // designed placement within its em box consistent between ttb and
-        // btt. The main axis correction accounts for the bearings flipping
-        // around the origin. Rotated runs need no correction: their +90
-        // rotation flips the reference edge the same way
+        // ttb-ltr. Rotated runs need no correction: their +90 rotation
+        // flips the reference edge the same way
         if (rotation[i] == 0.0) {
           x_pos[i] -= em_width[i];
-          y_pos[i] += 2 * x_bear[i] + glyph_width[i];
         }
       }
     }
     int32_t t_pen_x = pen_x;
     int32_t t_pen_y = pen_y;
     pen_x = ttb ? t_pen_y : -t_pen_y;
-    pen_y = ttb ? -t_pen_x : t_pen_x;
+    pen_y = -t_pen_x;
     if (!ttb && !em_width.empty() && rotation.back() == 0.0) {
       // Move the pen's cross-axis position like the origin of a hypothetical
       // next glyph so it stays consistent with the corrected upright glyph
@@ -738,12 +735,15 @@ bool HarfBuzzShaper::finish_string() {
       top_bearing = t_left_bearing;
       bottom_bearing = t_right_bearing;
     } else {
+      // real x = -t y, so the real left edge is the t-space top edge as for
+      // ttb-ltr's cross-axis mirror; real y = -t x as in ttb, so the real
+      // top edge is the t-space left edge
       left_border = -t_top_border;
-      top_border = t_left_border + t_width;
+      top_border = -t_left_border;
       left_bearing = t_top_bearing;
       right_bearing = t_bottom_bearing;
-      top_bearing = t_right_bearing;
-      bottom_bearing = t_left_bearing;
+      top_bearing = t_left_bearing;
+      bottom_bearing = t_right_bearing;
     }
   }
 
@@ -773,9 +773,6 @@ void HarfBuzzShaper::reset() {
   ascender.clear();
   descender.clear();
   rotation.clear();
-  x_bear.clear();
-  y_bear.clear();
-  glyph_width.clear();
   em_width.clear();
   line_left_bear.clear();
   line_right_bear.clear();
@@ -825,12 +822,14 @@ void HarfBuzzShaper::reset() {
 
 std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& shapes, int& direction) {
   // Auto direction detection: strings containing required-vertical scripts
-  // (e.g. Mongolian) resolve to top-to-bottom; scripts that can go both ways
-  // (e.g. Japanese) stay horizontal unless the user asks for vertical
+  // (e.g. Mongolian) resolve to top-to-bottom with columns progressing
+  // left-to-right (ttb-ltr) — the only column order these scripts use;
+  // scripts that can go both ways (e.g. Japanese) stay horizontal unless
+  // the user asks for vertical
   if (direction == 0 && vertical_allowed) {
     for (size_t i = 0; i < full_string.size(); ++i) {
       if (char_is_required_vertical(full_string[i])) {
-        direction = 3;
+        direction = 4;
         break;
       }
     }
@@ -1350,6 +1349,14 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
     }
   }
 
+  if (run_rotation != 0.0 && this->dir == 4) {
+    // ttb-ltr (e.g. Mongolian) rotates sideways runs counter-clockwise, so
+    // they read bottom-to-top — opposite to the upright main axis. Flip the
+    // shaping direction to reverse the run's visual order along the
+    // transformed-space main axis
+    run_dir = run_dir == HB_DIRECTION_LTR ? HB_DIRECTION_RTL : HB_DIRECTION_LTR;
+  }
+
   // Upright vertical runs get vertical kana forms when the font provides
   // them. HarfBuzz enables vert/vrt2 automatically for vertical direction
   // but not vkna. Explicit user setting takes precedence
@@ -1759,7 +1766,7 @@ void HarfBuzzShaper::fill_shape_info(hb_glyph_info_t* glyph_info,
     tate_slot = std::max(tate_total, em);
   }
   double tate_pos = run_middle - tate_total / 2.0;
-  // The btt mirror flips the cross axis, which would reverse the digit
+  // The ttb-ltr mapping flips the cross axis, which would reverse the digit
   // sequence — assign cross slots from the far end so they come out
   // left-to-right after mirroring
   bool tate_reverse = tate && dir == 4;

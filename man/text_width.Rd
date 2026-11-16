@@ -62,7 +62,9 @@ the string width?}
 resolving to top-to-bottom if the string contains scripts that can only be
 typeset vertically (e.g. Mongolian) and to left-to-right or right-to-left
 otherwise. Use \code{"ltr"} (left-to-right), \code{"rtl"} (right-to-left), \code{"ttb"}
-(top-to-bottom), and \code{"btt"} (bottom-to-top) to turn off detection and set
+(top-to-bottom, lines stacking right-to-left as in Japanese), and
+\code{"ttb-ltr"} (top-to-bottom, lines stacking left-to-right as in Mongolian)
+to turn off detection and set
 it manually. Scripts that can be typeset both horizontally and vertically
 (e.g. Japanese) are always set horizontally with \code{"auto"}.}
 
