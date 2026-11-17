@@ -165,6 +165,18 @@ test_that("ttb-ltr pen position is consistent for strings ending in rotated runs
   expect_true(abs(up$metrics$pen_x - up$shape$x_offset[nrow(up$shape)]) < 2)
 })
 
+test_that("required-vertical script reads top-to-bottom in ttb-ltr", {
+  # Mongolian is UAX#50 R but is rotated counter-clockwise (unlike CJK's
+  # sideways runs) and keeps reading top-to-bottom — it emulates the
+  # script's own vertical presentation, so the sideways-run flip must not
+  # apply to it
+  mongol <- shape_text("ᠮᠣᠩᠭᠣᠯ")
+  expect_equal(mongol$metrics$direction, "ttb-ltr")
+  expect_true(all(mongol$shape$rotation == 90))
+  m <- mongol$shape[order(mongol$shape$glyph), ]
+  expect_true(all(diff(m$y_offset) < 0))
+})
+
 test_that("mixed can be given per string", {
   skip_if_not(cjk_available())
   shape <- shape_text(

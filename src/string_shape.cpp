@@ -1240,6 +1240,20 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
   // renderer should rotate the glyphs afterwards (mixed vertical text)
   hb_direction_t run_dir;
   double run_rotation = 0.0;
+  // True when the run contains required-vertical script (e.g. Mongolian).
+  // Such runs emulate the script's own vertical presentation — they read
+  // top-to-bottom in both vertical directions and are exempt from the
+  // sideways-run flip below. The run may start with neutral characters
+  // (e.g. spaces), so scan the whole run
+  bool req_vertical_script = false;
+  if (!vert_class.empty()) {
+    for (unsigned int i = start; i < end; ++i) {
+      if (char_is_required_vertical(full_string[i])) {
+        req_vertical_script = true;
+        break;
+      }
+    }
+  }
   bool run_tate = !vert_class.empty() && vert_class[start] == 2;
   // Tate-chu-yoko runs get the font's narrower digit forms when available:
   // qwid (quarter width) for runs of 4 digits, twid (third width) for 3,
@@ -1297,18 +1311,9 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
     // metrics can't be shaped upright: HarfBuzz would synthesize 1em
     // advances and centered origins, tearing the script apart. These fonts
     // are designed for "shape horizontally, rotate the line" presentation
-    // The run may start with neutral characters (e.g. spaces), so scan the
-    // whole run for required-vertical script
-    bool req_vertical = false;
-    for (unsigned int i = start; i < end; ++i) {
-      if (char_is_required_vertical(full_string[i])) {
-        req_vertical = true;
-        break;
-      }
-    }
-    if (req_vertical && !face_has_vertical_metrics(hb_font_get_face(font))) {
+    if (req_vertical_script && !face_has_vertical_metrics(hb_font_get_face(font))) {
       run_dir = HB_DIRECTION_LTR;
-      run_rotation = this->dir == 4 ? 90.0 : -90.0;
+      run_rotation = -90.0;
     }
   } else if (vert_class[start] == 3) {
     // UAX#50 Tr: use the typographic vertical glyph when the font provides
@@ -1349,7 +1354,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
     }
   }
 
-  if (run_rotation != 0.0 && this->dir == 4) {
+  if (run_rotation != 0.0 && !req_vertical_script && this->dir == 4) {
     // ttb-ltr (e.g. Mongolian) rotates sideways runs counter-clockwise, so
     // they read bottom-to-top — opposite to the upright main axis. Flip the
     // shaping direction to reverse the run's visual order along the
