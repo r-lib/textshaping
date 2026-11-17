@@ -59,97 +59,55 @@
 
     <div class="section level2">
 <h2 class="page-header" data-toc-text="development version" id="textshaping-development-version">textshaping (development version)<a class="anchor" aria-label="anchor" href="#textshaping-development-version"></a></h2>
-<ul><li><p>Vertical text shaping is now supported through the <code>direction</code> argument of <code><a href="../reference/shape_text.html">shape_text()</a></code> and <code><a href="../reference/text_width.html">text_width()</a></code>, which now also accepts <code>"ttb"</code> and <code>"btt"</code>. With <code>direction = "auto"</code> strings containing required-vertical scripts (e.g. Mongolian) resolve to top-to-bottom, while scripts that can go both ways (e.g. Japanese) stay horizontal unless vertical is explicitly requested. Runs of horizontal-only scripts (e.g. Latin) inside vertical text are handled according to the new <code>mixed</code> argument: <code>"rotate"</code> shapes them horizontally and marks them for a 90 degree rotation during rendering (see the new <code>rotation</code> column in the <code>shape</code> output), while <code>"upright"</code> sets them upright using the font’s <code>vert</code>/<code>vrt2</code> substitutions when available. The <code>metrics</code> output gains a <code>direction</code> column with the resolved direction. The device-facing C API (<code>ts_string_width</code>, <code>ts_string_shape</code>, etc.) is unchanged and always shapes horizontally. Upright vertical runs automatically use the font’s <code>vkna</code> (vertical kana) substitutions when available.</p></li>
-<li><p>Kinsoku shori support, in both ltr and rtl embedding levels: line-end punctuation whose ink fits compresses onto the line with its trailing blank hanging off; when wrapping is still forced, line-start-prohibited punctuation (closing brackets, 、。！？ー etc.) hangs past the line end (limited to about two em) and opening brackets are pulled down to the next line. The prohibition tables are driven by the UAX#14 line-break classes (src/line_break_classes.inc, generated from the UCD by data-raw/gen-linebreak-tables.R) and cover inseparable and number-binding sequences (¥100, 50%, ‥…), which are now kept together even under forced breaks. The strictness is configurable with the new <code>kinsoku</code> argument of <code><a href="../reference/shape_text.html">shape_text()</a></code>: <code>"strict"</code> (default), <code>"loose"</code> (like CSS <code>line-break: loose</code>, permitting lines to start with small kana, ー, and iteration marks), or <code>"none"</code> (kinsoku processing disabled)</p></li>
-<li><p>The new <code>kinsoku_style</code> argument of <code><a href="../reference/shape_text.html">shape_text()</a></code> selects how line-break prohibition violations are resolved: <code>"hang"</code> (ぶら下げ, the default) lets offending punctuation hang past the line end, <code>"push-out"</code> (追い出し) moves it to the next line and expands the vacated line’s spacing (punctuation blanks first, then inter-character gaps), and <code>"push-in"</code> (追い込み) pulls it onto the current line by compressing its spacing (up to the full punctuation blank, then 1/4 em per inter-character gap per JLREQ tolerance), falling back to hanging when the line cannot absorb the overflow</p></li>
-<li><p>The trailing blank of fullwidth punctuation (。、！」etc.) now collapses at line end per JLREQ line-end spacing rules: the empty half of the em advance hangs outside the line box, so the reported line width and any alignment/justification use the ink edge. The same applies to the leading blank of opening brackets (「『（etc.) at line start, and to an opening bracket following closing punctuation (。「etc.), where the facing half-em blanks overlap into a single half em of separation</p></li>
-<li><p>VORG vertical origins are honoured for main-axis glyph placement in vertical text (via HarfBuzz’s vertical offsets), so e.g. fullwidth Latin letters sit at their designed optical position in the column</p></li>
-<li><p>UAX#50 vertical orientation classes are now table-driven from the UCD data file (src/vert_orientation.inc). Tr-class characters (brackets, quotes, dashes) use the font’s <code>vert</code>/<code>vrt2</code> typographic vertical glyphs when available and fall back to 90 degree rotation per the spec, instead of being placed upright untransformed</p></li>
-<li><p><code>mixed = "combine"</code> generalises tate-chu-yoko to arbitrary horizontal-only runs of up to 4 characters (e.g. Latin abbreviations), equivalent to CSS <code>text-combine-upright: all</code>. Narrow digit forms (<code>hwid</code>/<code>twid</code>/<code>qwid</code>) are only injected for all-digit runs</p></li>
-<li><p><code>mixed = "sideways"</code> shapes the entire string horizontally and marks it for rotation into the vertical column (equivalent to CSS <code>text-orientation: sideways</code>), preserving horizontal kerning and ligatures across the whole string</p></li>
-<li><p><code>mixed = "tate"</code> adds tate-chu-yoko support to vertical shaping: ASCII digit runs of up to 4 digits (e.g. years and day numbers) are set horizontally on a single line within the vertical column instead of being rotated or set upright digit-by-digit. The font’s <code>hwid</code>/<code>twid</code>/<code>qwid</code> narrow digit forms are used automatically when available so runs fill the em box at full size, with scaling down as a fallback. Combined runs always occupy a full em slot on the main axis, even a single (half-width) digit</p></li>
-<li><p>The bearings reported in the <code>metrics</code> output of <code><a href="../reference/shape_text.html">shape_text()</a></code> now account for glyph offsets, affecting strings with positioned glyphs (e.g. some combining accents and math layout)</p></li>
-<li><p>Variation coordinates attached to registered fonts (via the <code>variation</code> argument of <code><a href="https://systemfonts.r-lib.org/reference/register_font.html" class="external-link">systemfonts::register_font()</a></code>) are now honoured during shaping. Explicit <code>variation</code> settings take precedence over the registered coordinates, which in turn take precedence over the conventional <code>italic</code>/<code>weight</code>/<code>width</code> settings</p></li>
-<li><p>Text-presentation-default emoji codepoints (e.g. U+2199) without an emoji variation selector that are not covered by the primary font are now shaped using the regular font fallback chain, with the emoji font only used as a last resort. This prevents text characters such as arrows from being replaced by color emoji (requires systemfonts &gt;= 1.3.3, r-lib/ragg#217)</p></li>
-<li><p>configure now link-tests <code>hb_ft_font_create_referenced()</code> and falls back to the older two-argument <code>hb_ft_font_create()</code> when the symbol is missing from libharfbuzz, fixing load-time “undefined symbol” failures on systems whose harfbuzz headers and library don’t match (<a href="https://github.com/r-lib/textshaping/issues/79" class="external-link">#79</a>)</p></li>
-<li><p>Add LaTeX and Typst math shaping (at least a large subset of it)</p></li>
-<li><p>Font variations (variable font axis coordinates) now travel through shaping. <code><a href="../reference/shape_text.html">shape_text()</a></code> and <code><a href="../reference/text_width.html">text_width()</a></code> gain a <code>variation</code> argument accepting <code><a href="https://systemfonts.r-lib.org/reference/font_variation.html" class="external-link">systemfonts::font_variation()</a></code> objects. The C API has been extended with <code>textshaping::ver2::string_width()</code> and <code>textshaping::ver2::string_shape()</code> that take <code>FontSettings2</code>; the existing <code>FontSettings</code>-based entry points remain available unchanged during the transition.</p></li>
+<ul><li>Vertical text shaping is now supported through the <code>direction</code> argument of <code><a href="../reference/shape_text.html">shape_text()</a></code> and <code><a href="../reference/text_width.html">text_width()</a></code>, which now also accepts <code>"ttb"</code> and <code>"ttb-ltr"</code> (columns progressing left-to-right, as in Mongolian; <code>"auto"</code> resolves required-vertical scripts like Mongolian and Phags-pa to it). The new <code>mixed</code> argument controls how horizontal-only runs (e.g. Latin) are set in vertical text: <code>"rotate"</code> shapes them horizontally and marks them for a 90 degree rotation (new <code>rotation</code> column in the <code>shape</code> output), <code>"upright"</code> uses the font’s <code>vert</code>/<code>vrt2</code> substitutions, <code>"tate"</code> sets short digit runs horizontally within the column (tate-chu-yoko), <code>"combine"</code> extends this to arbitrary runs of up to 4 characters (like CSS <code>text-combine-upright: all</code>), and <code>"sideways"</code> shapes the whole string horizontally for rotation into the column (like CSS <code>text-orientation: sideways</code>). Vertical glyph placement follows the font’s VORG origins and UAX#50 orientation classes, with Tr-class characters (brackets, quotes, dashes) using <code>vert</code>/<code>vrt2</code> glyphs when available. The <code>metrics</code> output gains a <code>direction</code> column</li>
+<li>Kinsoku shori (Japanese line-break prohibition) support, driven by UAX#14 line-break classes and covering inseparable and number-binding sequences (¥100, 50%, ‥…). The new <code>kinsoku</code> argument of <code><a href="../reference/shape_text.html">shape_text()</a></code> selects <code>"strict"</code> (default), <code>"loose"</code> (like CSS <code>line-break: loose</code>), or <code>"none"</code>
+</li>
+<li>The new <code>kinsoku_style</code> argument of <code><a href="../reference/shape_text.html">shape_text()</a></code> selects how line-break prohibition violations are resolved: <code>"hang"</code> (ぶら下げ, default), <code>"push-out"</code> (追い出し), or <code>"push-in"</code> (追い込み)</li>
+<li>The trailing blank of fullwidth punctuation (。、！」etc.) now hangs outside the line box at line end per JLREQ line-end spacing rules, as does the leading blank of opening brackets at line start, so reported line widths and alignment use the ink edge</li>
+<li>The bearings reported in the <code>metrics</code> output of <code><a href="../reference/shape_text.html">shape_text()</a></code> now account for glyph offsets (e.g. combining accents, math layout)</li>
+<li>Variation coordinates attached to registered fonts (via <code><a href="https://systemfonts.r-lib.org/reference/register_font.html" class="external-link">systemfonts::register_font()</a></code>) are now honoured during shaping</li>
+<li>Text-presentation-default emoji codepoints without an emoji variation selector now use the regular font fallback chain, with the emoji font only as a last resort</li>
+<li>Fixed load-time “undefined symbol” failures on systems whose harfbuzz headers and library don’t match (<a href="https://github.com/r-lib/textshaping/issues/79" class="external-link">#79</a>)</li>
+<li>Added LaTeX and Typst math shaping</li>
+<li>
+<code><a href="../reference/shape_text.html">shape_text()</a></code> and <code><a href="../reference/text_width.html">text_width()</a></code> gain a <code>variation</code> argument accepting <code><a href="https://systemfonts.r-lib.org/reference/font_variation.html" class="external-link">systemfonts::font_variation()</a></code> objects for setting variable font axes</li>
 </ul><div class="section level3">
 <h3 id="crash-and-memory-safety-fixes-development-version">Crash and memory-safety fixes<a class="anchor" aria-label="anchor" href="#crash-and-memory-safety-fixes-development-version"></a></h3>
-<ul><li>Fixed a crash (and a potential infinite loop) when a forced line break was needed on a line too narrow for a single glyph, both left-to-right and right-to-left</li>
+<ul><li>Fixed a crash (and potential infinite loop) when a forced line break was needed on a line too narrow for a single glyph, in both ltr and rtl</li>
 <li>Fixed a crash when shaping an empty string with justified alignment</li>
 <li>Fixed a crash when calculating the width of an empty string with <code>include_bearing = FALSE</code>
 </li>
-<li>Fixed a crash (integer division by zero) with distributed alignment on lines containing a single glyph</li>
-<li>Fixed a heap corruption when text contained more bidi embedding levels than the embedding stack had room for; the stack now grows on demand</li>
+<li>Fixed a crash with distributed alignment on lines containing a single glyph</li>
+<li>Fixed heap corruption with more bidi embedding levels than the stack had room for; the stack now grows on demand</li>
 <li>Fixed use-after-free and double-free bugs in font loading on systems where the FreeType versions of systemfonts and textshaping differ</li>
-<li>Fixed an out-of-bounds read when converting truncated or invalid UTF-8 input to codepoints</li>
-<li>Fixed a format-string vulnerability where user-provided math input was passed as the format string of an error message</li>
-<li>Fixed FreeType face leaks in <code><a href="../reference/get_font_features.html">get_font_features()</a></code> and in math layout, and made font and library handles exception-safe so they can’t leak on error paths</li>
-<li>Fixed a leak of the global shaper after package unload/reload; C-callable entry points now lazily recreate it instead of risking a use-after-free</li>
+<li>Fixed an out-of-bounds read on truncated or invalid UTF-8 input</li>
+<li>Fixed FreeType face leaks in <code><a href="../reference/get_font_features.html">get_font_features()</a></code> and in math layout, and made font and library handles exception-safe</li>
+<li>Fixed a leak of the global shaper after package unload/reload</li>
 <li>Fixed a leak of the HarfBuzz font when hyphen substitution failed</li>
-<li>Handle-owning C++ classes can no longer be copied (which would have led to double frees)</li>
-<li>Guarded against undefined behaviour when converting non-finite or out-of-range doubles (widths, indents, sizes, etc.) to integers</li>
+<li>Handle-owning C++ classes can no longer be copied (preventing double frees)</li>
+<li>Guarded against undefined behaviour when converting non-finite or out-of-range doubles to integers</li>
 <li>Fixed potential out-of-bounds reads on fonts without a family name and on bitmap fonts reporting a zero strike height</li>
 </ul></div>
 <div class="section level3">
 <h3 id="shaping-correctness-fixes-development-version">Shaping correctness fixes<a class="anchor" aria-label="anchor" href="#shaping-correctness-fixes-development-version"></a></h3>
-<ul><li>The shape cache now stores glyph clusters relative to the run start, so cached shaping is correct when the same run appears at different positions in a paragraph; previously, stale paragraph positions could leak into subsequent shaping and lead to out-of-bounds reads</li>
-<li>Cache keys for shaping, bidi, and math layout now compare the actual string content rather than only a hash, so a hash collision can no longer silently return another string’s result</li>
-<li>Fixed emoji handling in left-to-right text: emoji detection no longer relies on negating the embedding level (a no-op for level 0) and now uses the correct paragraph offset</li>
-<li>Fixed an error (“Can’t combine embeddings past termination point”) when an rtl embedding ended a paragraph; rtl runs are now merged in reverse order rather than reversing first</li>
-<li>Fixed fallback sizing tables getting out of sync with the fallback font list when an existing font was retried, leading to wrong scaling, tracking, and sizes</li>
-<li>Fixed shaping failures leaving half-built embeddings behind that could be indexed out of bounds downstream</li>
+<ul><li>Fixed stale paragraph positions leaking from the shape cache into subsequent shaping when the same run appears at different positions in a paragraph</li>
+<li>Cache keys for shaping, bidi, and math layout now compare actual string content, so a hash collision can no longer return another string’s result</li>
+<li>Fixed emoji detection in left-to-right text</li>
+<li>Fixed an error (“Can’t combine embeddings past termination point”) when an rtl embedding ended a paragraph</li>
+<li>Fixed fallback sizing tables getting out of sync with the fallback font list, leading to wrong scaling, tracking, and sizes</li>
+<li>Fixed shaping failures leaving half-built embeddings behind</li>
 <li>Single-character strings now resolve their direction through the bidi algorithm, so <code>ltr</code> is reported correctly</li>
 <li>Fixed hyphen kerning being computed against a Unicode codepoint rather than a glyph id</li>
-<li>Fixed the line-break glyph advance being subtracted from the wrong end in right-to-left embeddings</li>
+<li>Fixed the line-break glyph advance being subtracted from the wrong end in rtl embeddings</li>
 <li>Fixed the glyph-per-line count in justified alignment being off by one</li>
 <li>Fixed the “largest strike” selection for bitmap fonts never being updated</li>
-<li>Feature tags shorter or longer than 4 characters are now padded or rejected instead of being read out of bounds, and mismatched tag/setting lengths are caught early</li>
+<li>Feature tags not exactly 4 characters long are now padded or rejected instead of being read out of bounds</li>
 <li>The exported C API <code>ts_string_shape2()</code> now fills the <code>cluster</code> output and clears all outputs on error</li>
 <li>Fixed reading <code>include_bearing</code> from the wrong element and treating <code>NA</code> as <code>TRUE</code> in <code><a href="../reference/text_width.html">text_width()</a></code>
 </li>
 <li>Fixed a potential crash when the last line of a paragraph ended in a hard line break</li>
-<li>Font and shaping failures during a paragraph are now reported as errors when finalising shaping instead of silently dropping the failed text</li>
-<li>The bidi algorithm now falls back to neutral embeddings if analysis fails, rather than returning uninitialised embedding levels</li>
-</ul></div>
-<div class="section level3">
-<h3 id="math-latextypst-fixes-development-version">Math (LaTeX/Typst) fixes<a class="anchor" aria-label="anchor" href="#math-latextypst-fixes-development-version"></a></h3>
-<ul><li>Fixed two infinite loops in the Typst parser (<code>{...}</code> groups with unexpected tokens and <code>mat(augment: #(...))</code> with non-identifier entries)</li>
-<li>Deeply nested math input now raises a parse error instead of crashing R with a stack overflow (both parsers are depth-limited)</li>
-<li>Typst backslash sequences now work: escaped delimiters (<code>\(</code>, <code>\,</code>, …), and <code>\</code> line breaks, which were previously dead code</li>
-<li>The Typst parser now reports unexpected trailing content instead of silently dropping it (e.g. after <code>,</code>, <code>:</code>, <code>;</code>, or non-ASCII input)</li>
-<li>Typst primes (<code>f'(x)</code>), parenthesised comma lists (<code>f(x, y)</code>), subscripts on identifiers (<code>x_1</code>), and multi-letter identifiers (<code>xy</code>) now parse correctly</li>
-<li>
-<code>root(n, x)</code> no longer swaps the index and radicand</li>
-<li>Ragged and empty cells in Typst <code>mat()</code>/<code>cases()</code> no longer shift or lose columns, and <code>cases()</code> keeps its condition column</li>
-<li>Typst <code>row-gap:</code>/<code>column-gap:</code> matrix parameters now work (‘-’ was being rewritten to a minus sign before the parameter name was checked)</li>
-<li>
-<code>mat(augment:)</code> now accepts negative values and arrays of positions</li>
-<li>
-<code>lr(|x|)</code> no longer swallows the closing delimiter into the content</li>
-<li>
-<code>attach(x, t:, b:)</code> now renders instead of producing nothing</li>
-<li>Parentheses used for grouping in Typst scripts (<code>x^(a+b)</code>) are stripped as Typst does</li>
-<li>LaTeX <code>\displaystyle</code> (and friends) now stop at <code>\right</code>, <code>&amp;</code>, <code>\\</code>, and <code>\end</code> instead of swallowing the rest of the group</li>
-<li>LaTeX <code>\text{}</code> and <code>\operatorname{}</code> now preserve spaces and backslashes by copying the raw input</li>
-<li>LaTeX non-ASCII input is now rendered instead of silently dropped</li>
-<li>LaTeX <code>f'^2</code> now puts the prime and the <code>2</code> in the same superscript in the right order</li>
-<li>Fixed <code>get_math_glyph_variants()</code> and <code>get_math_glyph_assembly()</code> always returning empty results</li>
-<li>Glyph assemblies from MATH tables are now capped in size, centred around the middle piece, and no longer risk undefined behaviour on infinite or huge target sizes</li>
-<li>
-<code>\rule</code> no longer accepts infinite or NaN dimensions</li>
-<li>Text in <code>\text{}</code>, strings, and operator names is now decoded as UTF-8 instead of byte by byte</li>
-<li>Em-based spacing and matrix gaps in math layout now scale with the device resolution, matching the glyph metrics</li>
-<li>Typst <code>phi</code>/<code>epsilon</code> and their <code>.alt</code> variants now follow Typst’s conventions rather than LaTeX’s, and a duplicate <code>diamond.stroked</code> symbol table key was removed</li>
-<li>Font variations and MATH table queries now handle the <code>res</code> argument and guard against invalid font sizes</li>
-<li>The LaTeX/Typst syntax detector no longer misclassifies LaTeX thin spaces (<code>\,</code>, <code>\;</code>, <code>\!</code>, <code>\:</code>) as Typst escapes when LaTeX commands are present</li>
-</ul></div>
-<div class="section level3">
-<h3 id="build-fixes-development-version">Build fixes<a class="anchor" aria-label="anchor" href="#build-fixes-development-version"></a></h3>
-<ul><li>Fixed the <code>NO_HARFBUZZ_FRIBIDI</code> fallback build (stub signature mismatches and an undeclared constant)</li>
-<li>Removed the <code>all: clean</code> rule from <code>Makevars.in</code> that forced full rebuilds on every compile and was racy under parallel make</li>
-<li>Windows build now defines <code>NDEBUG</code> and <code>FRIBIDI_LIB_STATIC</code> consistently with the Unix build</li>
+<li>Font and shaping failures during a paragraph are now reported as errors instead of silently dropping the failed text</li>
+<li>The bidi algorithm now falls back to neutral embeddings if analysis fails</li>
 </ul></div>
 </div>
     <div class="section level2">

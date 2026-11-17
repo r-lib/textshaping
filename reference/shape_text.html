@@ -201,7 +201,9 @@ measured in points</p></dd>
 resolving to top-to-bottom if the string contains scripts that can only be
 typeset vertically (e.g. Mongolian) and to left-to-right or right-to-left
 otherwise. Use <code>"ltr"</code> (left-to-right), <code>"rtl"</code> (right-to-left), <code>"ttb"</code>
-(top-to-bottom), and <code>"btt"</code> (bottom-to-top) to turn off detection and set
+(top-to-bottom, lines stacking right-to-left as in Japanese), and
+<code>"ttb-ltr"</code> (top-to-bottom, lines stacking left-to-right as in Mongolian)
+to turn off detection and set
 it manually. Scripts that can be typeset both horizontally and vertically
 (e.g. Japanese) are always set horizontally with <code>"auto"</code>.</p></dd>
 
@@ -339,11 +341,11 @@ about the full strings.</p>
 <dd><p>The global direction of the string. If <code>TRUE</code> then it is left-to-right, otherwise it is right-to-left. Vertical text is not right-to-left so <code>ltr</code> is always <code>TRUE</code> for it; consult <code>direction</code> for the resolved direction</p></dd>
 
 <dt>direction</dt>
-<dd><p>The resolved global direction of the string (<code>"ltr"</code>, <code>"rtl"</code>, <code>"ttb"</code>, or <code>"btt"</code>)</p></dd>
+<dd><p>The resolved global direction of the string (<code>"ltr"</code>, <code>"rtl"</code>, <code>"ttb"</code>, or <code>"ttb-ltr"</code>)</p></dd>
 
 
-</dl><p>For vertical text (<code>"ttb"</code>/<code>"btt"</code>) glyphs flow along the y axis and lines
-stack as columns (right-to-left for <code>"ttb"</code>, left-to-right for <code>"btt"</code>).
+</dl><p>For vertical text (<code>"ttb"</code>/<code>"ttb-ltr"</code>) glyphs flow along the y axis and lines
+stack as columns (right-to-left for <code>"ttb"</code>, left-to-right for <code>"ttb-ltr"</code>).
 Upright runs automatically use the font's <code>vert</code>/<code>vrt2</code> and <code>vkna</code>
 substitutions when available unless these features are set explicitly.
 <code>max_width</code> constrains the height of a column, and <code>hjust</code>/<code>vjust</code> justify
