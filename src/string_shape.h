@@ -263,9 +263,11 @@ struct ShapeInfo {
   double res;
   double tracking;
   std::vector<EmbedInfo> embeddings;
+  // Mixed-run mode of this string (0=rotate, 1=upright, 2=tate, 3=combine, 4=sideways)
+  int mixed;
 
-  inline ShapeInfo() : run_start(0), run_end(0), font_info(), index(0), size(0), res(0), tracking(0), embeddings({}) {}
-  inline ShapeInfo(size_t _run_start, size_t _run_end, FontSettings2& _font_info, unsigned int _index, double _size, double _res, double _tracking) :
+  inline ShapeInfo() : run_start(0), run_end(0), font_info(), index(0), size(0), res(0), tracking(0), embeddings({}), mixed(0) {}
+  inline ShapeInfo(size_t _run_start, size_t _run_end, FontSettings2& _font_info, unsigned int _index, double _size, double _res, double _tracking, int _mixed) :
     run_start(_run_start),
     run_end(_run_end),
     font_info(_font_info),
@@ -273,7 +275,8 @@ struct ShapeInfo {
     size(_size),
     res(_res),
     tracking(_tracking),
-    embeddings({}) {}
+    embeddings({}),
+    mixed(_mixed) {}
 
   void add_index(unsigned int ind) {
     index = ind;
@@ -432,7 +435,7 @@ public:
                     int kinsoku, int kinsoku_style, std::vector<int>& wrap);
   bool add_string(const char* string, FontSettings2& font_info,
                   double size, double tracking, bool spacer,
-                  std::vector<int>& wrap);
+                  std::vector<int>& wrap, int mixed);
   bool add_spacer(FontSettings2& font_info, double height, double width, uint32_t filler = SPACER_CHAR);
   bool finish_string();
 

@@ -245,7 +245,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
       int this_id = id[i];
       wraps.assign(wrap[i].begin(), wrap[i].end());
       if (cur_id == this_id) {
-        success = shaper.add_string(this_string, fonts[i], size[i], tracking[i], cpp11::is_na(string[i]), wraps);
+        success = shaper.add_string(this_string, fonts[i], size[i], tracking[i], cpp11::is_na(string[i]), wraps, mixed[i]);
 
         if (!success) {
           cpp11::stop("Failed to shape string (%s) with font file (%s) with freetype error %i", this_string, Rf_translateCharUTF8(path[i]), shaper.error_code);

@@ -527,6 +527,37 @@ test_that("mixed = combine combines arbitrary short runs", {
   expect_true(all(abcde$rotation == -90))
 })
 
+test_that("mixed = combine ignores spaces when capping cluster length", {
+  skip_if_not(cjk_available())
+  shape <- shape_text(
+    "で組むと ABC のように文字を重ねて一文字分に収めます",
+    family = cjk_family,
+    direction = "ttb",
+    mixed = "combine"
+  )
+
+  # " ABC " counts 3 non-space characters, so it combines upright in one
+  # cluster (flanking spaces included) rather than exceeding the
+  # 4-character cap and rotating
+  abc <- shape$shape[shape$shape$glyph %in% 5:9, ]
+  abc <- abc[order(abc$glyph), ]
+  expect_true(all(abc$rotation == 0))
+  expect_equal(abc$y_offset[1], abc$y_offset[2], tolerance = 0.1)
+  expect_equal(abc$y_offset[1], abc$y_offset[5], tolerance = 0.1)
+  expect_true(all(diff(abc$x_offset) > 0))
+  expect_equal(sum(abc$advance), 12, tolerance = 1e-6)
+
+  # A run with more than 4 non-space characters does not combine at all:
+  # it rotates as a whole instead of splitting word by word
+  fallback <- shape_text(
+    "we need 10 cats",
+    family = cjk_family,
+    direction = "ttb",
+    mixed = "combine"
+  )
+  expect_true(all(fallback$shape$rotation == -90))
+})
+
 test_that("UAX#50 Tr characters use vert glyphs or rotate as fallback", {
   skip_if_not(cjk_available())
   # Hiragino provides vert alternates for brackets and dashes: upright

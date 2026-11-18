@@ -337,12 +337,15 @@ bool HarfBuzzShaper::shape_string(const char* string, FontSettings2& font_info,
   // graphics-device C API never reaches this function
   vertical_allowed = true;
 
-  return add_string(string, font_info, size, tracking, spacer, wrap);
+  return add_string(string, font_info, size, tracking, spacer, wrap, mixed);
 }
 
 bool HarfBuzzShaper::add_string(const char* string, FontSettings2& font_info,
                                 double size, double tracking, bool spacer,
-                                std::vector<int>& wrap) {
+                                std::vector<int>& wrap, int mixed) {
+  // The mixed-run mode is per-string so that spans within one block can use
+  // different treatments of horizontal-only scripts
+  cur_mixed = mixed;
   if (spacer) {
     return add_spacer(font_info, size, tracking);
   }
@@ -377,7 +380,7 @@ bool HarfBuzzShaper::add_string(const char* string, FontSettings2& font_info,
   }
 
   // Add run info to list
-  shape_infos.emplace_back(run_start, run_end, font_info, index, size, cur_res, tracking);
+  shape_infos.emplace_back(run_start, run_end, font_info, index, size, cur_res, tracking, mixed);
 
   return true;
 }
@@ -844,13 +847,20 @@ std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& 
     // is horizontal-only
     bidi_embedding.assign(full_string.size(), 0);
     vert_class.resize(full_string.size());
-    if (cur_mixed == 4) {
-      // Sideways: everything is shaped horizontally as a single run and
-      // rotated into the column, including scripts that would normally be
-      // upright (text-orientation: sideways)
-      std::fill(vert_class.begin(), vert_class.end(), 1);
-    } else {
-      for (size_t i = 0; i < full_string.size(); ++i) {
+    // Classification is per string (ShapeInfo) so that spans within one
+    // block can use different mixed modes
+    for (auto iter = shapes.begin(); iter != shapes.end(); ++iter) {
+      size_t seg_start = iter->run_start;
+      size_t seg_end = iter->run_end;
+      int seg_mixed = iter->mixed;
+      if (seg_mixed == 4) {
+        // Sideways: everything is shaped horizontally as a single run and
+        // rotated into the column, including scripts that would normally be
+        // upright (text-orientation: sideways)
+        std::fill(vert_class.begin() + seg_start, vert_class.begin() + seg_end, 1);
+        continue;
+      }
+      for (size_t i = seg_start; i < seg_end; ++i) {
         if (char_is_horizontal_only(full_string[i])) {
           vert_class[i] = 1;
         } else if (char_is_tr(full_string[i])) {
@@ -861,31 +871,41 @@ std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& 
           vert_class[i] = 0;
         }
       }
-    }
-    if (cur_mixed == 2 || cur_mixed == 3) {
-      // Tate-chu-yoko: maximal runs of up to 4 characters are set
-      // horizontally, upright in the column. "tate" combines ASCII digit
-      // runs only, "combine" any horizontal-only run (text-combine-upright:
-      // all). Longer runs stay rotated
-      size_t n = full_string.size();
-      size_t i = 0;
-      while (i < n) {
-        bool combinable = cur_mixed == 3
-          ? vert_class[i] == 1
-          : (full_string[i] >= 0x30 && full_string[i] <= 0x39);
-        if (combinable) {
-          size_t j = i;
-          if (cur_mixed == 3) {
-            while (j < n && vert_class[j] == 1) ++j;
+      if (seg_mixed == 2 || seg_mixed == 3) {
+        // Tate-chu-yoko: maximal runs of up to 4 characters are set
+        // horizontally, upright in the column. "tate" combines ASCII digit
+        // runs only, "combine" any horizontal-only run (text-combine-upright:
+        // all). Longer runs stay rotated
+        size_t i = seg_start;
+        while (i < seg_end) {
+          bool combinable = seg_mixed == 3
+            ? vert_class[i] == 1
+            : (full_string[i] >= 0x30 && full_string[i] <= 0x39);
+          if (combinable) {
+            size_t j = i;
+            if (seg_mixed == 3) {
+              // "combine" treats a maximal horizontal-only run as one
+              // cluster candidate. Spaces don't count against the
+              // 4-character cap so e.g. " ABC " combines, while a long
+              // run like "we need 10 cats" stays rotated as a whole
+              size_t n_nonspace = 0;
+              while (j < seg_end && vert_class[j] == 1) {
+                if (full_string[j] != 0x20) ++n_nonspace;
+                ++j;
+              }
+              if (n_nonspace > 0 && n_nonspace <= 4) {
+                std::fill(vert_class.begin() + i, vert_class.begin() + j, 2);
+              }
+            } else {
+              while (j < seg_end && full_string[j] >= 0x30 && full_string[j] <= 0x39) ++j;
+              if (j - i <= 4) {
+                std::fill(vert_class.begin() + i, vert_class.begin() + j, 2);
+              }
+            }
+            i = j;
           } else {
-            while (j < n && full_string[j] >= 0x30 && full_string[j] <= 0x39) ++j;
+            ++i;
           }
-          if (j - i <= 4) {
-            std::fill(vert_class.begin() + i, vert_class.begin() + j, 2);
-          }
-          i = j;
-        } else {
-          ++i;
         }
       }
     }
@@ -1000,7 +1020,7 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
     run_id.font_size = text_run.size;
     run_id.tracking = text_run.tracking;
     run_id.direction = dir;
-    run_id.mixed = cur_mixed;
+    run_id.mixed = text_run.mixed;
     run_id.string.assign(full_string.begin() + text_run.run_start, full_string.begin() + text_run.run_end);
     if (vert_class.empty()) {
       run_id.embedding.assign(bidi_embedding.begin() + text_run.run_start, bidi_embedding.begin() + text_run.run_end);
@@ -1179,7 +1199,7 @@ EmbedInfo HarfBuzzShaper::shape_single_line(const char* string, FontSettings2& f
 
   full_string = {utc_string, utc_string + n_chars};
 
-  std::vector<ShapeInfo> shapes = {ShapeInfo(0, full_string.size(), font_info, 0, size, res, 0)};
+  std::vector<ShapeInfo> shapes = {ShapeInfo(0, full_string.size(), font_info, 0, size, res, 0, mixed)};
   if (shapes.empty()) return EmbedInfo();
   auto final_embeddings = combine_embeddings(shapes, dir);
 
@@ -1330,7 +1350,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
     // vert/vrt2 substitutions if requested and the font supports it,
     // otherwise shape horizontally and let the renderer rotate the run
     // 90 degrees (clockwise for ttb)
-    bool upright = cur_mixed == 1 && face_has_vert_subs(hb_font_get_face(font));
+    bool upright = shape_info.mixed == 1 && face_has_vert_subs(hb_font_get_face(font));
     if (upright) {
       run_dir = HB_DIRECTION_TTB;
     } else {
