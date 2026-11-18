@@ -696,10 +696,27 @@ bool HarfBuzzShaper::finish_string() {
         // upright, so the origin of upright glyphs must be moved to mirror
         // the em box rather than the ink box — this keeps each glyph's
         // designed placement within its em box consistent between ttb and
-        // ttb-ltr. Rotated runs need no correction: their +90 rotation
-        // flips the reference edge the same way
+        // ttb-ltr.
         if (rotation[i] == 0.0) {
-          x_pos[i] -= em_width[i];
+          // Spacer glyphs (inline padding) have no ink and their em_width
+          // is the padding width rather than the column em. When adjacent
+          // to a rotated run they follow the run's placement (no cross-
+          // axis correction) so decorations can group them into a single
+          // span
+          bool spacer = glyph_id[i] == SPACER_CHAR || glyph_id[i] == EMPTY_CHAR;
+          bool near_rotated = spacer && (
+            (i > 0 && rotation[i - 1] != 0.0) ||
+            (i + 1 < rotation.size() && rotation[i + 1] != 0.0)
+          );
+          if (!near_rotated) {
+            x_pos[i] -= em_width[i];
+          }
+        } else {
+          // Rotated runs (+90) draw their ink upward from the origin,
+          // against the downward main-axis flow, so the origin must sit at
+          // the bottom of the glyph's advance slot. Without this the whole
+          // run sits one glyph too high, spilling into the preceding content
+          y_pos[i] -= em_width[i];
         }
       }
     }
@@ -909,6 +926,28 @@ std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& 
         }
       }
     }
+    if (direction == 4) {
+      // Boundary spaces of sideways runs resolve like bidi neutrals: they
+      // belong to the paragraph, not the reversed run, so they are given
+      // their own class (4) that is shaped in logical (main-axis) order.
+      // Otherwise the space following a run would be reversed to its
+      // visual top. Interior spaces stay part of the run
+      size_t i = 0;
+      while (i < vert_class.size()) {
+        if (vert_class[i] != 1) {
+          ++i;
+          continue;
+        }
+        size_t j = i;
+        while (j < vert_class.size() && vert_class[j] == 1) ++j;
+        size_t lead = i, trail = j;
+        while (lead < j && full_string[lead] == 0x20) ++lead;
+        while (trail > lead && full_string[trail - 1] == 0x20) --trail;
+        for (size_t k = i; k < lead; ++k) vert_class[k] = 4;
+        for (size_t k = trail; k < j; ++k) vert_class[k] = 4;
+        i = j;
+      }
+    }
   } else if (!full_string.empty()) {
     // If we have more than one char we find bidi embeddings
     // We append the direction to the end in the cache so we can read it back
@@ -939,8 +978,15 @@ std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& 
     if (iter->embeddings.empty()) { // avoid shaping spacers
       shape_text_run(*iter, ltr);
     } else {
-      // We adopt the embedding level of the prior embedding for spacers
-      int level = all_embeddings.empty() ? (ltr ? 0 : 1) : all_embeddings.back().embedding_level;
+      // We adopt the embedding level of the prior embedding for spacers,
+      // except in vertical text: there an odd level only arises from
+      // sideways runs with reversed storage order, and adopting it would
+      // reverse the spacer to the wrong side of the run in the rtl merge
+      // below — a spacer must stay in main-axis (logical) order
+      int level = 0;
+      if (vert_class.empty()) {
+        level = all_embeddings.empty() ? (ltr ? 0 : 1) : all_embeddings.back().embedding_level;
+      }
       iter->embeddings[0].embedding_level = level;
     }
     iter->add_index(i++);
@@ -1374,7 +1420,10 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
     }
   }
 
-  if (run_rotation != 0.0 && !req_vertical_script && this->dir == 4) {
+  // Boundary spaces (class 4) are exempt: they belong to the paragraph and
+  // must stay in logical (main-axis) order
+  if (run_rotation != 0.0 && !req_vertical_script && this->dir == 4 &&
+      (vert_class.empty() || vert_class[start] != 4)) {
     // ttb-ltr (e.g. Mongolian) rotates sideways runs counter-clockwise, so
     // they read bottom-to-top — opposite to the upright main axis. Flip the
     // shaping direction to reverse the run's visual order along the
@@ -1425,10 +1474,16 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
   }
 
   shape_info.embeddings.emplace_back();
-  shape_info.embeddings.back().embedding_level = dir;
+  // The embedding level must reflect the storage order of the glyphs, which
+  // follows run_dir, not the bidi level: sideways runs flipped for ttb-ltr
+  // (and RTL-script sideways runs) are stored in reverse reading order, and
+  // an odd level tells line breaking to split the run from the other end.
+  // Vertically-shaped runs (TTB) keep the passed-in level
+  int embed_level = run_dir == HB_DIRECTION_RTL ? 1 : dir;
+  shape_info.embeddings.back().embedding_level = embed_level;
   shape_info.embeddings.back().terminates_paragraph = false;
   shape_info.embeddings.back().full_width = 0;
-  bool embed_is_ltr = dir % 2 == 0;
+  bool embed_is_ltr = embed_level % 2 == 0;
 
   // See if all characters hav been found in the default font
   unsigned int current_font = emoji == 1 ? 1 : 0;
@@ -2507,6 +2562,17 @@ std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::
       size_t break_at = 0;
       size_t from, to;
       bool force = false;
+      // Whitespace at a soft-wrap boundary collapses: blanks that land at
+      // the start of the remaining piece (the main-axis start of the next
+      // line) must not occupy a slot there
+      auto trim_leading_blanks = [](EmbedInfo& rem) {
+        size_t n = 0;
+        while (n < rem.glyph_id.size() && rem.is_blank[n]) {
+          rem.full_width -= rem.x_advance[n];
+          rem.x_advance[n] = 0;
+          ++n;
+        }
+      };
       while (true) {
         --iter;
         cum_width -= iter->full_width;
@@ -2526,6 +2592,7 @@ std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::
           line.splice(line.begin(), all_embeddings, all_embeddings.begin(), iter);
           line.emplace_back();
           iter->split(from, to, line.back());
+          trim_leading_blanks(*iter);
           // A break at the very end of the embedding leaves an empty shell
           // behind. Drop it so it doesn't perturb the layout of what follows
           // (spurious pen reset, phantom line metrics), but keep a paragraph
@@ -2560,6 +2627,7 @@ std::list<EmbedInfo> HarfBuzzShaper::get_next_line_at_width(int32_t width, std::
             line.splice(line.begin(), all_embeddings, all_embeddings.begin(), iter);
             line.emplace_back();
             iter->split(from, to, line.back());
+            trim_leading_blanks(*iter);
             // See above: drop an empty shell left by a break at the very
             // end of the embedding
             if (iter->glyph_id.empty()) {
