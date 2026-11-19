@@ -9,12 +9,23 @@
   in the `shape` output), `"upright"` uses the font's `vert`/`vrt2`
   substitutions, `"tate"` sets short digit runs horizontally within the
   column (tate-chu-yoko), `"combine"` extends this to arbitrary runs of up to
-  4 characters (like CSS `text-combine-upright: all`), and `"sideways"`
+  4 characters (like CSS `text-combine-upright: all`; `"tate2"`/`"tate3"`
+  and `"combine2"`/`"combine3"` cap the run at 2 or 3 digits/characters
+  instead), and `"sideways"`
   shapes the whole string horizontally for rotation into the column (like
   CSS `text-orientation: sideways`). Vertical glyph placement follows the
   font's VORG origins and UAX#50 orientation classes, with Tr-class
   characters (brackets, quotes, dashes) using `vert`/`vrt2` glyphs when
   available. The `metrics` output gains a `direction` column
+* Null glyphs (from `NA` strings, used to reserve advance via `tracking`) in
+  vertical text now sit on the column's cross-axis pen line like their
+  upright neighbours and carry the column em in their em-box width, so their
+  reported origin and metrics are consistent between `"ttb"` and `"ttb-ltr"`
+  and decorations can be anchored to them without special-casing. Their
+  main-axis origin is shifted by its advance so its cell
+  (`[y_offset, y_offset + advance]`) covers exactly the reserved slot, making
+  it a slot-exact up-cell that abuts the advance cells of both upright and
+  rotated neighbours
 * Kinsoku shori (Japanese line-break prohibition) support, driven by UAX#14
   line-break classes and covering inseparable and number-binding sequences
   (¥100, 50%, ‥…). The new `kinsoku` argument of `shape_text()` selects

@@ -410,6 +410,8 @@ bool HarfBuzzShaper::add_spacer(FontSettings2& font_info, double height, double 
   ShapeInfo info;
   info.index = shape_infos.size();
   info.run_start = info.run_end = full_string.size();
+  info.size = height;
+  info.res = cur_res;
 
   // A spacer is encoded as an "unknown glyph" with ascend giving the height and
   //  width/x-advance giving the width
@@ -698,19 +700,10 @@ bool HarfBuzzShaper::finish_string() {
         // designed placement within its em box consistent between ttb and
         // ttb-ltr.
         if (rotation[i] == 0.0) {
-          // Spacer glyphs (inline padding) have no ink and their em_width
-          // is the padding width rather than the column em. When adjacent
-          // to a rotated run they follow the run's placement (no cross-
-          // axis correction) so decorations can group them into a single
-          // span
-          bool spacer = glyph_id[i] == SPACER_CHAR || glyph_id[i] == EMPTY_CHAR;
-          bool near_rotated = spacer && (
-            (i > 0 && rotation[i - 1] != 0.0) ||
-            (i + 1 < rotation.size() && rotation[i + 1] != 0.0)
-          );
-          if (!near_rotated) {
-            x_pos[i] -= em_width[i];
-          }
+          // Spacer glyphs (inline padding) carry the column em in em_width
+          // (assigned at embedding time) so they mirror onto the same
+          // cross-axis line as the upright glyphs around them
+          x_pos[i] -= em_width[i];
         } else {
           // Rotated runs (+90) draw their ink upward from the origin,
           // against the downward main-axis flow, so the origin must sit at
@@ -888,34 +881,42 @@ std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& 
           vert_class[i] = 0;
         }
       }
-      if (seg_mixed == 2 || seg_mixed == 3) {
-        // Tate-chu-yoko: maximal runs of up to 4 characters are set
+      // The tate2/tate3/combine2/combine3 variants (mixed codes 5-8) behave
+      // like tate/combine but cap tate-chu-yoko runs at 2 or 3 characters
+      size_t tate_max = 4;
+      int tate_mode = seg_mixed;
+      if (seg_mixed >= 5) {
+        tate_mode = seg_mixed <= 6 ? 2 : 3;
+        tate_max = seg_mixed % 2 == 1 ? 2 : 3;
+      }
+      if (tate_mode == 2 || tate_mode == 3) {
+        // Tate-chu-yoko: maximal runs of up to tate_max characters are set
         // horizontally, upright in the column. "tate" combines ASCII digit
         // runs only, "combine" any horizontal-only run (text-combine-upright:
         // all). Longer runs stay rotated
         size_t i = seg_start;
         while (i < seg_end) {
-          bool combinable = seg_mixed == 3
+          bool combinable = tate_mode == 3
             ? vert_class[i] == 1
             : (full_string[i] >= 0x30 && full_string[i] <= 0x39);
           if (combinable) {
             size_t j = i;
-            if (seg_mixed == 3) {
+            if (tate_mode == 3) {
               // "combine" treats a maximal horizontal-only run as one
               // cluster candidate. Spaces don't count against the
-              // 4-character cap so e.g. " ABC " combines, while a long
+              // character cap so e.g. " ABC " combines, while a long
               // run like "we need 10 cats" stays rotated as a whole
               size_t n_nonspace = 0;
               while (j < seg_end && vert_class[j] == 1) {
                 if (full_string[j] != 0x20) ++n_nonspace;
                 ++j;
               }
-              if (n_nonspace > 0 && n_nonspace <= 4) {
+              if (n_nonspace > 0 && n_nonspace <= tate_max) {
                 std::fill(vert_class.begin() + i, vert_class.begin() + j, 2);
               }
             } else {
               while (j < seg_end && full_string[j] >= 0x30 && full_string[j] <= 0x39) ++j;
-              if (j - i <= 4) {
+              if (j - i <= tate_max) {
                 std::fill(vert_class.begin() + i, vert_class.begin() + j, 2);
               }
             }
@@ -988,6 +989,27 @@ std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& 
         level = all_embeddings.empty() ? (ltr ? 0 : 1) : all_embeddings.back().embedding_level;
       }
       iter->embeddings[0].embedding_level = level;
+      if (vertical) {
+        // Spacer (null glyph) in vertical text: make it a zero-width-ink
+        // member of the column. Upright glyphs are centred on the column
+        // centreline with y_offset = run_middle - em/2 and carry em_width =
+        // em (see fill_shape_info); giving the spacer the same treatment
+        // puts its cross-axis origin on the column's pen line in ttb and
+        // makes the ttb-ltr cross-axis mirror (x_pos -= em_width) correct.
+        // Its metrics already come from its resolved font's extents.
+        EmbedInfo& spacer = iter->embeddings[0];
+        int32_t em = clamp_i32(iter->size * 64.0 * iter->res / 72.0);
+        int32_t run_middle = (spacer.ascenders[0] + spacer.descenders[0]) / 2;
+        spacer.y_offset[0] = run_middle - em / 2;
+        spacer.em_width[0] = em;
+        // On the main axis the spacer is an up-cell like upright glyphs
+        // (and +90 runs): shift its origin by its advance so the cell
+        // [y_offset, y_offset + advance] covers exactly the reserved slot.
+        // Consumers can then treat all rotation >= 0 glyphs as up-cells
+        // uniformly, and the slot-exact cell abuts the slot-exact advance
+        // cells of rotated runs
+        spacer.x_offset[0] = spacer.x_advance[0];
+      }
     }
     iter->add_index(i++);
     all_embeddings.insert(all_embeddings.end(), std::make_move_iterator(iter->embeddings.begin()), std::make_move_iterator(iter->embeddings.end()));

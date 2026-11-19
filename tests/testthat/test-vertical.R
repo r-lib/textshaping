@@ -558,6 +558,49 @@ test_that("mixed = combine ignores spaces when capping cluster length", {
   expect_true(all(fallback$shape$rotation == -90))
 })
 
+test_that("tate2/tate3/combine2/combine3 cap the combined run length", {
+  skip_if_not(cjk_available())
+
+  # tate2: only 1-2 digit runs combine; 3 digits rotate
+  s2 <- shape_text(
+    "第45巻123",
+    family = cjk_family,
+    direction = "ttb",
+    mixed = "tate2"
+  )
+  expect_true(all(s2$shape$rotation[s2$shape$glyph %in% 2:3] == 0))
+  expect_true(all(s2$shape$rotation[s2$shape$glyph %in% 5:7] == -90))
+
+  # tate3: 3-digit runs combine, 4-digit runs rotate
+  s3 <- shape_text(
+    "第123巻2024",
+    family = cjk_family,
+    direction = "ttb",
+    mixed = "tate3"
+  )
+  expect_true(all(s3$shape$rotation[s3$shape$glyph %in% 2:4] == 0))
+  expect_true(all(s3$shape$rotation[s3$shape$glyph %in% 6:9] == -90))
+
+  # combine2/combine3: the cap applies to non-space characters of the run
+  c3 <- shape_text(
+    "第ABC巻ABCD",
+    family = cjk_family,
+    direction = "ttb",
+    mixed = "combine3"
+  )
+  expect_true(all(c3$shape$rotation[c3$shape$glyph %in% 2:4] == 0))
+  expect_true(all(c3$shape$rotation[c3$shape$glyph %in% 6:9] == -90))
+
+  c2 <- shape_text(
+    "第AB巻ABC",
+    family = cjk_family,
+    direction = "ttb",
+    mixed = "combine2"
+  )
+  expect_true(all(c2$shape$rotation[c2$shape$glyph %in% 2:3] == 0))
+  expect_true(all(c2$shape$rotation[c2$shape$glyph %in% 5:7] == -90))
+})
+
 test_that("UAX#50 Tr characters use vert glyphs or rotate as fallback", {
   skip_if_not(cjk_available())
   # Hiragino provides vert alternates for brackets and dashes: upright
@@ -833,4 +876,86 @@ test_that("vertical shaping with multiple lines and hard breaks", {
   x <- unique(round(shape$shape$x_offset, 1))
   expect_equal(length(x), 2)
   expect_true(x[1] > x[2])
+})
+
+test_that("null (spacer) glyphs follow the column conventions in vertical text", {
+  skip_if_not(cjk_available())
+  for (dir in c("ttb", "ttb-ltr")) {
+    shape <- shape_text(
+      c("縦書き", NA, "のテスト"),
+      id = 1,
+      family = cjk_family,
+      tracking = c(0, 24, 0),
+      direction = dir,
+      size = 12,
+      res = 72
+    )
+    spacer <- shape$shape[is.na(shape$shape$index), ]
+    glyphs <- shape$shape[!is.na(shape$shape$index), ]
+    expect_equal(nrow(spacer), 1)
+    # Cross-axis origin and font metrics match the surrounding run
+    expect_equal(spacer$x_offset, glyphs$x_offset[1])
+    expect_equal(spacer$ascender, glyphs$ascender[1])
+    expect_equal(spacer$descender, glyphs$descender[1])
+    # The reserved advance is honoured along the main axis: the glyphs
+    # bracketing the spacer are pushed apart by exactly the tracking amount
+    expect_equal(spacer$advance, 24)
+    expect_equal(
+      glyphs$y_offset[4] - glyphs$y_offset[3],
+      -(glyphs$advance[3] + 24)
+    )
+    # The spacer is an up-cell covering exactly the reserved slot
+    # ([y_offset, y_offset + advance] = slot): it abuts the slot edges of
+    # its neighbours (upright glyph slots are anchored at y_offset +
+    # descender / y_offset + ascender)
+    expect_equal(
+      spacer$y_offset + spacer$advance,
+      glyphs$y_offset[3] + glyphs$descender[3]
+    )
+    expect_equal(spacer$y_offset, glyphs$y_offset[4] + glyphs$ascender[4])
+  }
+})
+
+test_that("null (spacer) glyphs keep the column origin next to rotated runs", {
+  skip_if_not(cjk_available())
+  for (dir in c("ttb", "ttb-ltr")) {
+    shape <- shape_text(
+      c("縦書き", NA, "ABC", NA, "テスト"),
+      id = 1,
+      family = cjk_family,
+      tracking = c(0, 24, 0, 18, 0),
+      direction = dir,
+      size = 12,
+      res = 72
+    )
+    spacer <- shape$shape[is.na(shape$shape$index), ]
+    upright <- shape$shape[
+      shape$shape$rotation == 0 & !is.na(shape$shape$index),
+    ]
+    rotated <- shape$shape[shape$shape$rotation != 0, ]
+    expect_equal(nrow(spacer), 2)
+    expect_equal(spacer$x_offset, rep(upright$x_offset[1], 2))
+    # Slot-exact up-cells abut the advance cells of the rotated run on both
+    # sides. Rotated runs are down-cells in ttb (-90) and up-cells in
+    # ttb-ltr (+90), so the run's cell edges are taken from the appropriate
+    # side of its first/last glyph
+    first <- rotated[1, ]
+    last <- rotated[nrow(rotated), ]
+    run_top <- if (first$rotation > 0) {
+      first$y_offset + first$advance
+    } else {
+      first$y_offset
+    }
+    run_bottom <- if (last$rotation > 0) {
+      last$y_offset
+    } else {
+      last$y_offset - last$advance
+    }
+    expect_equal(spacer$y_offset[1], run_top, tolerance = 0.1)
+    expect_equal(
+      spacer$y_offset[2] + spacer$advance[2],
+      run_bottom,
+      tolerance = 0.1
+    )
+  }
 })

@@ -81,7 +81,10 @@ features are set explicitly), falling back to scaling down to fit the em
 box. \code{"combine"} generalises tate-chu-yoko to any horizontal-only run of
 up to 4 characters — Latin abbreviations, era names, etc. — equivalent to
 CSS \code{text-combine-upright: all} (narrow digit features are only used for
-all-digit runs). Finally, \code{"sideways"} shapes the entire string
+all-digit runs). \code{"tate2"}/\code{"tate3"} and \code{"combine2"}/\code{"combine3"} are
+like \code{"tate"} and \code{"combine"} but cap the combined run at 2 or 3
+digits/characters instead of 4 (runs longer than the cap stay rotated).
+Finally, \code{"sideways"} shapes the entire string
 horizontally — CJK scripts included — and marks it for rotation,
 equivalent to CSS \code{text-orientation: sideways}. Ignored for horizontal
 text. Can be given per string.}

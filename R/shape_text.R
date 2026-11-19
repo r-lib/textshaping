@@ -55,7 +55,10 @@
 #' box. `"combine"` generalises tate-chu-yoko to any horizontal-only run of
 #' up to 4 characters — Latin abbreviations, era names, etc. — equivalent to
 #' CSS `text-combine-upright: all` (narrow digit features are only used for
-#' all-digit runs). Finally, `"sideways"` shapes the entire string
+#' all-digit runs). `"tate2"`/`"tate3"` and `"combine2"`/`"combine3"` are
+#' like `"tate"` and `"combine"` but cap the combined run at 2 or 3
+#' digits/characters instead of 4 (runs longer than the cap stay rotated).
+#' Finally, `"sideways"` shapes the entire string
 #' horizontally — CJK scripts included — and marks it for rotation,
 #' equivalent to CSS `text-orientation: sideways`. Ignored for horizontal
 #' text. Can be given per string.
@@ -177,9 +180,9 @@ shape_text <- function(
   space_before = 0,
   space_after = 0,
   direction = "auto",
-  mixed = c("rotate", "upright"),
-  kinsoku = c("strict", "loose", "none"),
-  kinsoku_style = c("hang", "push-out", "push-in"),
+  mixed = "rotate",
+  kinsoku = "strict",
+  kinsoku_style = "hang",
   path = NULL,
   index = 0,
   bold = deprecated()
@@ -292,36 +295,47 @@ shape_text <- function(
   }
   direction <- match(direction, c('auto', 'ltr', 'rtl', 'ttb', 'ttb-ltr')) - 1L
   direction <- rep_len(direction, n_strings)[ido]
-  mixed <- if (missing(mixed)) {
-    "rotate"
-  } else {
-    match.arg(
-      mixed,
-      c("rotate", "upright", "tate", "combine", "sideways"),
-      several.ok = TRUE
+  mixed <- match.arg(
+    mixed,
+    c(
+      "rotate",
+      "upright",
+      "tate",
+      "combine",
+      "sideways",
+      "tate2",
+      "tate3",
+      "combine2",
+      "combine3"
+    ),
+    several.ok = TRUE
+  )
+  mixed <- match(
+    mixed,
+    c(
+      'rotate',
+      'upright',
+      'tate',
+      'combine',
+      'sideways',
+      'tate2',
+      'tate3',
+      'combine2',
+      'combine3'
     )
-  }
-  mixed <- match(mixed, c('rotate', 'upright', 'tate', 'combine', 'sideways')) -
+  ) -
     1L
   mixed <- rep_len(mixed, n_strings)[ido]
-  kinsoku <- if (missing(kinsoku)) {
-    "strict"
-  } else {
-    match.arg(kinsoku, c("strict", "loose", "none"), several.ok = TRUE)
-  }
+  kinsoku <- match.arg(kinsoku, c("strict", "loose", "none"), several.ok = TRUE)
   kinsoku <- rep_len(
     match(kinsoku, c("strict", "loose", "none")) - 1L,
     n_strings
   )[ido]
-  kinsoku_style <- if (missing(kinsoku_style)) {
-    "hang"
-  } else {
-    match.arg(
-      kinsoku_style,
-      c("hang", "push-out", "push-in"),
-      several.ok = TRUE
-    )
-  }
+  kinsoku_style <- match.arg(
+    kinsoku_style,
+    c("hang", "push-out", "push-in"),
+    several.ok = TRUE
+  )
   kinsoku_style <- rep_len(
     match(kinsoku_style, c("hang", "push-out", "push-in")) - 1L,
     n_strings
@@ -499,12 +513,36 @@ text_width <- function(
   } else {
     match.arg(
       mixed,
-      c("rotate", "upright", "tate", "combine", "sideways"),
+      c(
+        "rotate",
+        "upright",
+        "tate",
+        "combine",
+        "sideways",
+        "tate2",
+        "tate3",
+        "combine2",
+        "combine3"
+      ),
       several.ok = TRUE
     )
   }
   mixed <- rep_len(
-    match(mixed, c('rotate', 'upright', 'tate', 'combine', 'sideways')) - 1L,
+    match(
+      mixed,
+      c(
+        'rotate',
+        'upright',
+        'tate',
+        'combine',
+        'sideways',
+        'tate2',
+        'tate3',
+        'combine2',
+        'combine3'
+      )
+    ) -
+      1L,
     n_strings
   )
   if (!all(file.exists(path))) {
