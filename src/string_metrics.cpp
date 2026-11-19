@@ -199,6 +199,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
   // Return Columns
   writable::integers glyph, glyph_id, metric_id, string_id, fontindex;
   writable::logicals spacer;
+  writable::doubles cell_x0, cell_y0, cell_x1, cell_y1;
   writable::doubles x_offset, y_offset, widths, heights, left_bearings, right_bearings,
     top_bearings, bottom_bearings, left_border, top_border, pen_x, pen_y, fontsize,
     advance, ascender, descender, rotation;
@@ -287,6 +288,10 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
           ascender.push_back(double(shaper.ascender[j]) / 64.0);
           descender.push_back(double(shaper.descender[j]) / 64.0);
           rotation.push_back(shaper.rotation[j]);
+          cell_x0.push_back(double(shaper.cell_x0[j]) / 64.0);
+          cell_y0.push_back(double(shaper.cell_y0[j]) / 64.0);
+          cell_x1.push_back(double(shaper.cell_x1[j]) / 64.0);
+          cell_y1.push_back(double(shaper.cell_y1[j]) / 64.0);
         }
         widths.push_back(double(shaper.width) / 64.0);
         heights.push_back(double(shaper.height) / 64.0);
@@ -340,7 +345,11 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
     "ascender"_nm = ascender,
     "descender"_nm = descender,
     "rotation"_nm = rotation,
-    "spacer"_nm = spacer
+    "spacer"_nm = spacer,
+    "cell_x0"_nm = cell_x0,
+    "cell_y0"_nm = cell_y0,
+    "cell_x1"_nm = cell_x1,
+    "cell_y1"_nm = cell_y1
   });
   info_df.attr("class") = writable::strings({"tbl_df", "tbl", "data.frame"});
 

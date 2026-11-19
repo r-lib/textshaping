@@ -503,6 +503,8 @@ bool HarfBuzzShaper::finish_string() {
           } else {
             for (size_t j = line_start_index; j < x_pos.size(); ++j) {
               x_pos[j] -= line_left_extra;
+              cell_x0[j] -= line_left_extra;
+              cell_x1[j] -= line_left_extra;
             }
             pen_x = 0;
           }
@@ -551,6 +553,12 @@ bool HarfBuzzShaper::finish_string() {
           string_id.push_back(iter->string_id[i]);
           line_id.push_back(line_width.size() - 1);
           x_pos.push_back(pen_x + iter->x_offset[i]);
+          // Main-axis cell bounds are the advance slot; stored in the
+          // cell_x* vectors for now and rotated into place at the end for
+          // vertical text (cross-axis bounds go into cell_y* below, once the
+          // line height is known)
+          cell_x0.push_back(pen_x);
+          cell_x1.push_back(pen_x + iter->x_advance[i]);
 
           may_stretch.push_back(iter->may_stretch[i]);
         }
@@ -594,6 +602,13 @@ bool HarfBuzzShaper::finish_string() {
       for (size_t i = 0; i < iter->glyph_id.size(); ++i) {
         if (iter->glyph_id[i] != EMPTY_CHAR) { // Avoid adding made up glyph info for empty text runs
           y_pos.push_back(pen_y + iter->y_offset[i]);
+          // Cross-axis cell bounds: upright vertical glyphs (and spacers)
+          // occupy their em box; everything else sits on the baseline and
+          // spans the font extents around it
+          bool vert_upright = (dir == 3 || dir == 4) && iter->rotation[i] == 0.0;
+          int32_t cross_base = pen_y + iter->y_offset[i];
+          cell_y0.push_back(vert_upright ? cross_base : cross_base + iter->descenders[i]);
+          cell_y1.push_back(vert_upright ? cross_base + iter->em_width[i] : cross_base + iter->ascenders[i]);
         }
         previous_line_descend = std::min(previous_line_descend, iter->descenders[i]);
       }
@@ -671,9 +686,13 @@ bool HarfBuzzShaper::finish_string() {
   pen_x += left_border;
   for (size_t i = 0; i < x_pos.size(); ++i) {
     x_pos[i] += left_border;
+    cell_x0[i] += left_border;
+    cell_x1[i] += left_border;
   }
   for (size_t i = 0; i < x_pos.size(); ++i) {
     y_pos[i] += - bottom - cur_vjust * height;
+    cell_y0[i] += - bottom - cur_vjust * height;
+    cell_y1[i] += - bottom - cur_vjust * height;
   }
   top_border += - bottom - cur_vjust * height;
   pen_y += - bottom - cur_vjust * height;
@@ -689,6 +708,22 @@ bool HarfBuzzShaper::finish_string() {
     for (size_t i = 0; i < x_pos.size(); ++i) {
       int32_t tx = x_pos[i];
       int32_t ty = y_pos[i];
+      // Cell corners map point-wise like the glyph origins: the main-axis
+      // slot (stored in cell_x*) flips and descends, the cross-axis span
+      // (stored in cell_y*) stays put for ttb and mirrors for ttb-ltr
+      int32_t cm0 = cell_x0[i];
+      int32_t cm1 = cell_x1[i];
+      int32_t cc0 = cell_y0[i];
+      int32_t cc1 = cell_y1[i];
+      cell_y0[i] = -cm1;
+      cell_y1[i] = -cm0;
+      if (ttb) {
+        cell_x0[i] = cc0;
+        cell_x1[i] = cc1;
+      } else {
+        cell_x0[i] = -cc1;
+        cell_x1[i] = -cc0;
+      }
       if (ttb) {
         x_pos[i] = ty;
         y_pos[i] = -tx;
@@ -759,6 +794,12 @@ bool HarfBuzzShaper::finish_string() {
       top_bearing = t_left_bearing;
       bottom_bearing = t_right_bearing;
     }
+  } else {
+    // RTL pens move left so the advance slot descends; report cell bounds
+    // ordered low-to-high regardless of direction
+    for (size_t i = 0; i < cell_x0.size(); ++i) {
+      if (cell_x1[i] < cell_x0[i]) std::swap(cell_x0[i], cell_x1[i]);
+    }
   }
 
   // Propagate any font/shaping failure recorded while building this
@@ -783,6 +824,10 @@ void HarfBuzzShaper::reset() {
   string_id.clear();
   x_pos.clear();
   y_pos.clear();
+  cell_x0.clear();
+  cell_y0.clear();
+  cell_x1.clear();
+  cell_y1.clear();
   advance.clear();
   ascender.clear();
   descender.clear();
@@ -2694,7 +2739,10 @@ void HarfBuzzShaper::do_alignment(bool ltr) {
     for (size_t i = 0; i < x_pos.size(); ++i) {
       int index = line_id[i];
       int32_t lwd = line_width[index];
-      x_pos[i] = cur_align == 1 ? x_pos[i] + width/2 - lwd/2 : x_pos[i] + width - lwd;
+      int32_t move = cur_align == 1 ? width/2 - lwd/2 : width - lwd;
+      x_pos[i] += move;
+      cell_x0[i] += move;
+      cell_x1[i] += move;
     }
     // Do the same with pen position
     pen_x = cur_align == 1 ? pen_x + width/2 - line_width.back()/2 : pen_x + width - line_width.back();
@@ -2719,11 +2767,10 @@ void HarfBuzzShaper::do_alignment(bool ltr) {
       int32_t lwd = line_width[index];
       if (no_stretch[index] || n_stretches[index] == 0) {
         // If line may not stretch instead move it according to alignment
-        if (cur_align == 4) {
-          x_pos[i] = x_pos[i] + width/2 - lwd/2;
-        } else if (cur_align == 5) {
-          x_pos[i] = x_pos[i] + width - lwd;
-        }
+        int32_t move = cur_align == 4 ? width/2 - lwd/2 : (cur_align == 5 ? width - lwd : 0);
+        x_pos[i] += move;
+        cell_x0[i] += move;
+        cell_x1[i] += move;
         continue;
       }
       if (i == 0 || line_id[i-1] != index) {
@@ -2732,9 +2779,14 @@ void HarfBuzzShaper::do_alignment(bool ltr) {
       }
       // Move x_pos according to the cummulative move counter
       x_pos[i] += cum_move;
+      cell_x0[i] += cum_move;
+      cell_x1[i] += cum_move;
       if (may_stretch[i]) {
-        // If white space the counter gets increased
-        cum_move += (width - line_width[index]) / n_stretches[index];
+        // If white space the counter gets increased; the glyph's own slot
+        // absorbs the stretch so its trailing cell edge moves with it
+        int32_t stretch = (width - line_width[index]) / n_stretches[index];
+        cum_move += stretch;
+        cell_x1[i] += stretch;
       }
     }
     // Update pen_x to match position of last line
@@ -2772,6 +2824,8 @@ void HarfBuzzShaper::do_alignment(bool ltr) {
         cum_move = 0;
       }
       x_pos[i] += cum_move;
+      cell_x0[i] += cum_move;
+      cell_x1[i] += cum_move;
       if (n_glyphs[index] > 1) {
         cum_move += (width - line_width[index]) / int32_t(n_glyphs[index] - 1);
       }

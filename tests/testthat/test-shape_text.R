@@ -105,6 +105,23 @@ test_that("null glyphs are marked and carry their resolved font", {
   )
 })
 
+test_that("cell bounds follow the anchoring convention for horizontal text", {
+  res <- shape_text("hello world")
+  sh <- res$shape
+  # The cell is the advance slot along the line and the font extents across it
+  expect_equal(sh$cell_x0, sh$x_offset)
+  expect_equal(sh$cell_x1 - sh$cell_x0, sh$advance)
+  expect_equal(sh$cell_y0, sh$y_offset + sh$descender)
+  expect_equal(sh$cell_y1, sh$y_offset + sh$ascender)
+  # Cells tile seamlessly
+  expect_equal(sh$cell_x0[-1], sh$cell_x1[-nrow(sh)])
+
+  # RTL cells are reported low-to-high and tile as well
+  rtl <- shape_text("\u05e9\u05dc\u05d5\u05dd", direction = "rtl")$shape
+  expect_true(all(rtl$cell_x1 > rtl$cell_x0))
+  expect_equal(rtl$cell_x0[-1], rtl$cell_x1[-nrow(rtl)])
+})
+
 test_that("shape_text handles RTL text with line breaks and wrapping", {
   rtl_single <- shape_text(
     "\u05e9\u05dc\u05d5\u05dd \u05e2\u05d5\u05dc\u05dd",

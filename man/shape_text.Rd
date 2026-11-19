@@ -168,7 +168,26 @@ about the full strings.
 \item{descender}{The descend of the font used for the glyph. This does not measure the actual glyph}
 \item{rotation}{The rotation in degrees the renderer should apply to the glyph. Non-zero for rotated runs in vertical text: horizontal-only scripts with \code{mixed = "rotate"} (the default), UAX#50 Tr characters when the font lacks \code{vert}/\code{vrt2}, and everything with \code{mixed = "sideways"}; \code{0} otherwise}
 \item{spacer}{Logical. \code{TRUE} for null glyphs created from \code{NA} strings, which reserve advance (given by \code{tracking}) without shaping any characters. \code{FALSE} for all real glyphs}
+\item{cell_x0, cell_y0, cell_x1, cell_y1}{The bounds of the glyph's cell, i.e. its advance slot along the main axis and its em box along the cross axis, in pixels relative to the origin of the textbox (see below for the precise anchoring convention). Cells tile seamlessly: within a run of text the end of one cell coincides with the start of the next, so they can be used directly for backgrounds and other per-cell decorations}
 }
+\subsection{Cell anchoring convention}{
+
+The cell is the glyph's advance slot along the main axis and its em box
+along the cross axis. Deriving it from \code{x_offset}/\code{y_offset} requires
+knowing the anchoring convention, which differs by direction and rotation,
+so prefer the \verb{cell_*} columns. For reference: for horizontal text the
+cell spans \verb{[x_offset, x_offset + advance]} along the line and
+\verb{[y_offset + descender, y_offset + ascender]} across it. For vertical
+text, upright glyphs (and spacers) occupy the advance slot along the
+column and \verb{[x_offset, x_offset + em]} across it — the slot is \emph{not}
+recoverable from \code{y_offset}, which is the font's VORG origin and may sit
+anywhere inside the slot. Rotated runs sit on their baseline: \code{-90} runs
+(in \code{"ttb"}) span \verb{[y_offset - advance, y_offset]} along the column and
+\verb{[x_offset + descender, x_offset + ascender]} across it, while \code{+90} runs
+(only in \code{"ttb-ltr"}) span \verb{[y_offset, y_offset + advance]} (exact only
+when \code{tracking} is 0 for the run) and \verb{[x_offset - ascender, x_offset - descender]}.
+Note that the cross-axis em width is generally not \code{ascender - descender};
+use \code{cell_x0}/\code{cell_x1} rather than deriving it from the font extents.
 
 Null glyphs (\code{spacer == TRUE}) have no glyph to report so \code{index} is \code{NA},
 but they carry the font their span resolved to (\code{font_path}, \code{font_index},
@@ -201,6 +220,7 @@ substitutions when available unless these features are set explicitly.
 \code{max_width} constrains the height of a column, and \code{hjust}/\code{vjust} justify
 along the main axis and across columns respectively. The \code{advance} column
 gives the advance along the main axis.
+}
 }
 \description{
 Performs advanced text shaping of strings including font fallbacks,

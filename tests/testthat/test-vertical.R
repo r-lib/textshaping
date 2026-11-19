@@ -959,3 +959,67 @@ test_that("null (spacer) glyphs keep the column origin next to rotated runs", {
     )
   }
 })
+
+test_that("cell bounds follow the anchoring convention in vertical text", {
+  skip_if_not(cjk_available())
+  for (dir in c("ttb", "ttb-ltr")) {
+    shape <- shape_text(
+      c("テスト", "ABC", NA),
+      id = c(1L, 1L, 1L),
+      family = cjk_family,
+      direction = dir,
+      tracking = c(0, 0, 24)
+    )
+    sh <- shape$shape
+    upright <- sh[!sh$spacer & sh$rotation == 0, ]
+    rotated <- sh[sh$rotation != 0, ]
+    spacer <- sh[sh$spacer, ]
+
+    # Upright cells are the advance slot along the column and
+    # [x_offset, x_offset + em] across it (em is 12 at size 12). The slot is
+    # not derivable from y_offset, which is the font's VORG origin
+    expect_equal(upright$cell_y1 - upright$cell_y0, upright$advance)
+    expect_equal(upright$cell_x0, upright$x_offset)
+    expect_equal(upright$cell_x1 - upright$cell_x0, rep(12, nrow(upright)))
+
+    # Rotated runs sit on their baseline: -90 (ttb) cells extend down from
+    # y_offset, +90 (ttb-ltr) cells extend up; cross-axis they span the run's
+    # extents around the baseline (mirrored for +90)
+    down <- rotated$rotation < 0
+    expect_equal(rotated$cell_y1[down], rotated$y_offset[down])
+    expect_equal(
+      rotated$cell_y0[down],
+      rotated$y_offset[down] - rotated$advance[down]
+    )
+    expect_equal(rotated$cell_y0[!down], rotated$y_offset[!down])
+    expect_equal(
+      rotated$cell_y1[!down],
+      rotated$y_offset[!down] + rotated$advance[!down]
+    )
+    expect_equal(
+      rotated$cell_x0[down],
+      rotated$x_offset[down] + rotated$descender[down]
+    )
+    expect_equal(
+      rotated$cell_x1[down],
+      rotated$x_offset[down] + rotated$ascender[down]
+    )
+    expect_equal(
+      rotated$cell_x0[!down],
+      rotated$x_offset[!down] - rotated$ascender[!down]
+    )
+    expect_equal(
+      rotated$cell_x1[!down],
+      rotated$x_offset[!down] - rotated$descender[!down]
+    )
+
+    # Spacers are slot-exact up-cells with the column em across
+    expect_equal(spacer$cell_y0, spacer$y_offset)
+    expect_equal(spacer$cell_y1, spacer$y_offset + spacer$advance)
+    expect_equal(spacer$cell_x1 - spacer$cell_x0, 12)
+
+    # All cells in the column tile seamlessly along the main axis
+    ord <- order(sh$cell_y1, decreasing = TRUE)
+    expect_equal(sh$cell_y0[ord][-nrow(sh)], sh$cell_y1[ord][-1])
+  }
+})

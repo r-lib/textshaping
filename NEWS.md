@@ -32,6 +32,13 @@
   decorations for the reserved space. Since this removes the `font_path == ""`
   sentinel, the `shape` output gains an explicit logical `spacer` column
   marking null glyphs (`index` remains `NA` for them)
+* The `shape` output gains `cell_x0`, `cell_y0`, `cell_x1`, and `cell_y1`
+  columns giving the bounds of each glyph's cell (its advance slot along the
+  main axis and its em box along the cross axis) in real coordinates, so
+  consumers no longer need to reverse-engineer the direction- and
+  rotation-dependent anchoring convention to draw per-cell decorations. Cells
+  tile seamlessly within a run of text. The convention itself is now also
+  documented in `?shape_text`
 * Kinsoku shori (Japanese line-break prohibition) support, driven by UAX#14
   line-break classes and covering inseparable and number-binding sequences
   (¥100, 50%, ‥…). The new `kinsoku` argument of `shape_text()` selects

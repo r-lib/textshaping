@@ -405,6 +405,11 @@ public:
   std::vector<unsigned int> string_id;
   std::vector<int32_t> x_pos;
   std::vector<int32_t> y_pos;
+  // Per-glyph cell (advance slot x em box) bounds in real coordinates
+  std::vector<int32_t> cell_x0;
+  std::vector<int32_t> cell_y0;
+  std::vector<int32_t> cell_x1;
+  std::vector<int32_t> cell_y1;
   std::vector<int32_t> advance;
   std::vector<int32_t> ascender;
   std::vector<int32_t> descender;

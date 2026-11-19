@@ -102,7 +102,27 @@
 #'   \item{descender}{The descend of the font used for the glyph. This does not measure the actual glyph}
 #'   \item{rotation}{The rotation in degrees the renderer should apply to the glyph. Non-zero for rotated runs in vertical text: horizontal-only scripts with `mixed = "rotate"` (the default), UAX#50 Tr characters when the font lacks `vert`/`vrt2`, and everything with `mixed = "sideways"`; `0` otherwise}
 #'   \item{spacer}{Logical. `TRUE` for null glyphs created from `NA` strings, which reserve advance (given by `tracking`) without shaping any characters. `FALSE` for all real glyphs}
+#'   \item{cell_x0, cell_y0, cell_x1, cell_y1}{The bounds of the glyph's cell, i.e. its advance slot along the main axis and its em box along the cross axis, in pixels relative to the origin of the textbox (see below for the precise anchoring convention). Cells tile seamlessly: within a run of text the end of one cell coincides with the start of the next, so they can be used directly for backgrounds and other per-cell decorations}
 #' }
+#'
+#' ## Cell anchoring convention
+#'
+#' The cell is the glyph's advance slot along the main axis and its em box
+#' along the cross axis. Deriving it from `x_offset`/`y_offset` requires
+#' knowing the anchoring convention, which differs by direction and rotation,
+#' so prefer the `cell_*` columns. For reference: for horizontal text the
+#' cell spans `[x_offset, x_offset + advance]` along the line and
+#' `[y_offset + descender, y_offset + ascender]` across it. For vertical
+#' text, upright glyphs (and spacers) occupy the advance slot along the
+#' column and `[x_offset, x_offset + em]` across it — the slot is *not*
+#' recoverable from `y_offset`, which is the font's VORG origin and may sit
+#' anywhere inside the slot. Rotated runs sit on their baseline: `-90` runs
+#' (in `"ttb"`) span `[y_offset - advance, y_offset]` along the column and
+#' `[x_offset + descender, x_offset + ascender]` across it, while `+90` runs
+#' (only in `"ttb-ltr"`) span `[y_offset, y_offset + advance]` (exact only
+#' when `tracking` is 0 for the run) and `[x_offset - ascender, x_offset - descender]`.
+#' Note that the cross-axis em width is generally not `ascender - descender`;
+#' use `cell_x0`/`cell_x1` rather than deriving it from the font extents.
 #'
 #' Null glyphs (`spacer == TRUE`) have no glyph to report so `index` is `NA`,
 #' but they carry the font their span resolved to (`font_path`, `font_index`,
@@ -419,6 +439,10 @@ shape_text <- function(
   shape$shape$advance <- shape$shape$advance * res_mod
   shape$shape$ascender <- shape$shape$ascender * res_mod
   shape$shape$descender <- shape$shape$descender * res_mod
+  shape$shape$cell_x0 <- shape$shape$cell_x0 * res_mod
+  shape$shape$cell_y0 <- shape$shape$cell_y0 * res_mod
+  shape$shape$cell_x1 <- shape$shape$cell_x1 * res_mod
+  shape$shape$cell_y1 <- shape$shape$cell_y1 * res_mod
   shape
 }
 #' Calculate the width of a string, ignoring new-lines
