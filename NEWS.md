@@ -17,15 +17,6 @@
   font's VORG origins and UAX#50 orientation classes, with Tr-class
   characters (brackets, quotes, dashes) using `vert`/`vrt2` glyphs when
   available. The `metrics` output gains a `direction` column
-* Null glyphs (from `NA` strings, used to reserve advance via `tracking`) in
-  vertical text now sit on the column's cross-axis pen line like their
-  upright neighbours and carry the column em in their em-box width, so their
-  reported origin and metrics are consistent between `"ttb"` and `"ttb-ltr"`
-  and decorations can be anchored to them without special-casing. Their
-  main-axis origin is shifted by its advance so its cell
-  (`[y_offset, y_offset + advance]`) covers exactly the reserved slot, making
-  it a slot-exact up-cell that abuts the advance cells of both upright and
-  rotated neighbours
 * Null glyphs now report the font their span resolved to in `font_path`,
   `font_index`, `font_size`, `ascender`, and `descender` (instead of an empty
   path and fallback metrics), so consumers can compute font-relative
@@ -45,12 +36,6 @@
   engines deriving box sizes from content need no special-casing for empty
   blocks. Blocks containing bare line breaks keep their line height, as they
   represent deliberately empty lines
-* The content box of `"ttb-ltr"` text is now anchored like every other
-  direction: the origin sits at the `vjust` fraction of the box width
-  (`left_border = -vjust * width`), so with default justification the box
-  starts at `x = 0` instead of `x = -width`. Consumers no longer need
-  per-direction corrections to place vertical blocks; the anchoring contract
-  is documented in `?shape_text`
 * Kinsoku shori (Japanese line-break prohibition) support, driven by UAX#14
   line-break classes and covering inseparable and number-binding sequences
   (¥100, 50%, ‥…). The new `kinsoku` argument of `shape_text()` selects
@@ -63,7 +48,7 @@
   leading blank of opening brackets at line start, so reported line widths
   and alignment use the ink edge
 * The bearings reported in the `metrics` output of `shape_text()` now account
-  for glyph offsets (e.g. combining accents, math layout)
+  for glyph offsets (e.g. combining accents)
 * Variation coordinates attached to registered fonts (via
   `systemfonts::register_font()`) are now honoured during shaping
 * Text-presentation-default emoji codepoints without an emoji variation
@@ -88,8 +73,8 @@
 * Fixed use-after-free and double-free bugs in font loading on systems where
   the FreeType versions of systemfonts and textshaping differ
 * Fixed an out-of-bounds read on truncated or invalid UTF-8 input
-* Fixed FreeType face leaks in `get_font_features()` and in math layout, and
-  made font and library handles exception-safe
+* Fixed a FreeType face leak in `get_font_features()`, and made font and
+  library handles exception-safe
 * Fixed a leak of the global shaper after package unload/reload
 * Fixed a leak of the HarfBuzz font when hyphen substitution failed
 * Handle-owning C++ classes can no longer be copied (preventing double frees)
@@ -103,8 +88,8 @@
 * Fixed stale paragraph positions leaking from the shape cache into
   subsequent shaping when the same run appears at different positions in a
   paragraph
-* Cache keys for shaping, bidi, and math layout now compare actual string
-  content, so a hash collision can no longer return another string's result
+* Cache keys for shaping and bidi now compare actual string content, so a
+  hash collision can no longer return another string's result
 * Fixed emoji detection in left-to-right text
 * Fixed an error ("Can't combine embeddings past termination point") when an
   rtl embedding ended a paragraph
