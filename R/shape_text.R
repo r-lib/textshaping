@@ -124,6 +124,19 @@
 #' Note that the cross-axis em width is generally not `ascender - descender`;
 #' use `cell_x0`/`cell_x1` rather than deriving it from the font extents.
 #'
+#' ## Block anchoring
+#'
+#' The whole shaped block is anchored the same way in every direction: the
+#' origin sits at the `hjust`/`vjust` anchor point of the content box, with
+#' `hjust` justifying along the main axis and `vjust` across it. Concretely,
+#' `left_border` is `-vjust * width` for vertical text (`-hjust * width` for
+#' horizontal) and `top_border` marks the block-start edge by `hjust`. With
+#' the default `hjust = vjust = 0` the content box thus always starts at the
+#' origin — its left edge at `x = 0` and its block-start edge at `y = 0` —
+#' whether the text is horizontal, `"ttb"`, or `"ttb-ltr"`; the direction only
+#' affects the order in which lines or columns fill the box. Ink may extend
+#' past the box edges; the bearings report how far.
+#'
 #' Null glyphs (`spacer == TRUE`) have no glyph to report so `index` is `NA`,
 #' but they carry the font their span resolved to (`font_path`, `font_index`,
 #' `font_size`, `ascender`, and `descender`) so consumers can compute

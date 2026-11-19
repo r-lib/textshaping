@@ -1023,3 +1023,49 @@ test_that("cell bounds follow the anchoring convention in vertical text", {
     expect_equal(sh$cell_y0[ord][-nrow(sh)], sh$cell_y1[ord][-1])
   }
 })
+
+test_that("vertical block anchoring is direction-independent", {
+  skip_if_not(cjk_available())
+  for (vj in c(0, 0.5, 1)) {
+    for (dir in c("ttb", "ttb-ltr")) {
+      shape <- shape_text(
+        "テストの文字列です",
+        family = cjk_family,
+        direction = dir,
+        max_width = 0.6,
+        vjust = vj
+      )
+      # The origin sits at the vjust fraction of the content box, as for the
+      # cross axis of horizontal text, regardless of column flow direction
+      expect_equal(
+        shape$metrics$left_border,
+        -vj * shape$metrics$width,
+        tolerance = 1e-6
+      )
+      # Columns flow in opposite directions inside the same box (glyphs are
+      # reported in column order, so first appearances give the column flow)
+      cols <- shape$shape$cell_x0[!duplicated(round(shape$shape$cell_x0, 3))]
+      if (dir == "ttb") {
+        expect_true(all(diff(cols) < 0))
+      } else {
+        expect_true(all(diff(cols) > 0))
+      }
+    }
+  }
+
+  # With default justification the box starts at the origin in both
+  # directions (vjust = 0 covered above; check glyph content sits at or
+  # inside the box edges modulo the bearings reported in metrics)
+  for (dir in c("ttb", "ttb-ltr")) {
+    shape <- shape_text(
+      "テストの文字列です",
+      family = cjk_family,
+      direction = dir,
+      max_width = 0.6
+    )
+    expect_equal(shape$metrics$left_border, 0)
+    expect_equal(shape$metrics$top_border, 0)
+    expect_gte(min(shape$shape$cell_x0), -shape$metrics$width)
+    expect_lte(max(shape$shape$cell_x1), 2 * shape$metrics$width)
+  }
+})

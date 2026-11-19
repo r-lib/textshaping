@@ -39,6 +39,18 @@
   rotation-dependent anchoring convention to draw per-cell decorations. Cells
   tile seamlessly within a run of text. The convention itself is now also
   documented in `?shape_text`
+* Strings producing no glyphs (e.g. empty strings) now report zero `width`,
+  `height`, bearings, and borders in their metrics instead of the full
+  `max_width` constraint extent (plus a phantom line height), so layout
+  engines deriving box sizes from content need no special-casing for empty
+  blocks. Blocks containing bare line breaks keep their line height, as they
+  represent deliberately empty lines
+* The content box of `"ttb-ltr"` text is now anchored like every other
+  direction: the origin sits at the `vjust` fraction of the box width
+  (`left_border = -vjust * width`), so with default justification the box
+  starts at `x = 0` instead of `x = -width`. Consumers no longer need
+  per-direction corrections to place vertical blocks; the anchoring contract
+  is documented in `?shape_text`
 * Kinsoku shori (Japanese line-break prohibition) support, driven by UAX#14
   line-break classes and covering inseparable and number-binding sequences
   (¥100, 50%, ‥…). The new `kinsoku` argument of `shape_text()` selects

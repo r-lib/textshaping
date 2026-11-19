@@ -73,6 +73,16 @@ test_that("shape_text handles multi-run strings and edge-case inputs", {
   empty <- shape_text("")
   expect_shape(empty$shape, nrow = 0L)
   expect_shape(empty$metrics, nrow = 1L)
+  # Glyph-less blocks report zero extent, not the constraint or a phantom
+  # line height
+  expect_equal(empty$metrics$width, 0)
+  expect_equal(empty$metrics$height, 0)
+  empty_constrained <- shape_text("", max_width = 5)
+  expect_equal(empty_constrained$metrics$width, 0)
+  expect_equal(empty_constrained$metrics$height, 0)
+  empty_vertical <- shape_text("", direction = "ttb", max_width = 5)
+  expect_equal(empty_vertical$metrics$width, 0)
+  expect_equal(empty_vertical$metrics$height, 0)
 
   na_res <- shape_text(NA_character_)
   expect_shape(na_res$shape, nrow = 1L)

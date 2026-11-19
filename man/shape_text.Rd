@@ -188,6 +188,20 @@ anywhere inside the slot. Rotated runs sit on their baseline: \code{-90} runs
 when \code{tracking} is 0 for the run) and \verb{[x_offset - ascender, x_offset - descender]}.
 Note that the cross-axis em width is generally not \code{ascender - descender};
 use \code{cell_x0}/\code{cell_x1} rather than deriving it from the font extents.
+}
+
+\subsection{Block anchoring}{
+
+The whole shaped block is anchored the same way in every direction: the
+origin sits at the \code{hjust}/\code{vjust} anchor point of the content box, with
+\code{hjust} justifying along the main axis and \code{vjust} across it. Concretely,
+\code{left_border} is \code{-vjust * width} for vertical text (\code{-hjust * width} for
+horizontal) and \code{top_border} marks the block-start edge by \code{hjust}. With
+the default \code{hjust = vjust = 0} the content box thus always starts at the
+origin — its left edge at \code{x = 0} and its block-start edge at \code{y = 0} —
+whether the text is horizontal, \code{"ttb"}, or \code{"ttb-ltr"}; the direction only
+affects the order in which lines or columns fill the box. Ink may extend
+past the box edges; the bearings report how far.
 
 Null glyphs (\code{spacer == TRUE}) have no glyph to report so \code{index} is \code{NA},
 but they carry the font their span resolved to (\code{font_path}, \code{font_index},

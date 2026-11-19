@@ -793,6 +793,19 @@ bool HarfBuzzShaper::finish_string() {
       right_bearing = t_bottom_bearing;
       top_bearing = t_left_bearing;
       bottom_bearing = t_right_bearing;
+
+      // The mirrored layout anchors the box at its flow-end corner, while
+      // ttb (like horizontal text) anchors it at -vjust * width. Re-anchor
+      // so the origin sits at the same vjust fraction of the content box
+      // regardless of direction, and consumers can place blocks uniformly
+      int32_t x_shift = -(int32_t)(cur_vjust * width) - left_border;
+      for (size_t i = 0; i < x_pos.size(); ++i) {
+        x_pos[i] += x_shift;
+        cell_x0[i] += x_shift;
+        cell_x1[i] += x_shift;
+      }
+      pen_x += x_shift;
+      left_border += x_shift;
     }
   } else {
     // RTL pens move left so the advance slot descends; report cell bounds
@@ -800,6 +813,25 @@ bool HarfBuzzShaper::finish_string() {
     for (size_t i = 0; i < cell_x0.size(); ++i) {
       if (cell_x1[i] < cell_x0[i]) std::swap(cell_x0[i], cell_x1[i]);
     }
+  }
+
+  if (x_pos.empty() && !hard_break) {
+    // A block without any glyphs (e.g. an empty string) has no extent.
+    // Report zero rather than the full constraint extent or a phantom line
+    // height, so layout engines deriving box sizes from content don't need
+    // to special-case empty blocks. Blocks containing line breaks (e.g. a
+    // bare "\n") keep their line height: they are deliberately empty lines,
+    // not absent content
+    width = 0;
+    height = 0;
+    left_bearing = 0;
+    right_bearing = 0;
+    top_bearing = 0;
+    bottom_bearing = 0;
+    left_border = 0;
+    top_border = 0;
+    pen_x = 0;
+    pen_y = 0;
   }
 
   // Propagate any font/shaping failure recorded while building this
