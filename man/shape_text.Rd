@@ -167,7 +167,15 @@ about the full strings.
 \item{ascender}{The ascend of the font used for the glyph. This does not measure the actual glyph}
 \item{descender}{The descend of the font used for the glyph. This does not measure the actual glyph}
 \item{rotation}{The rotation in degrees the renderer should apply to the glyph. Non-zero for rotated runs in vertical text: horizontal-only scripts with \code{mixed = "rotate"} (the default), UAX#50 Tr characters when the font lacks \code{vert}/\code{vrt2}, and everything with \code{mixed = "sideways"}; \code{0} otherwise}
+\item{spacer}{Logical. \code{TRUE} for null glyphs created from \code{NA} strings, which reserve advance (given by \code{tracking}) without shaping any characters. \code{FALSE} for all real glyphs}
 }
+
+Null glyphs (\code{spacer == TRUE}) have no glyph to report so \code{index} is \code{NA},
+but they carry the font their span resolved to (\code{font_path}, \code{font_index},
+\code{font_size}, \code{ascender}, and \code{descender}) so consumers can compute
+font-relative metrics such as underline position for the reserved space. The
+resolved font may legitimately differ from that of neighbouring glyphs when
+the \code{NA} span specifies a different family.
 
 \code{metrics} is a data.frame with the following columns:
 \describe{

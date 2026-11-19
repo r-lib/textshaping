@@ -26,6 +26,12 @@
   (`[y_offset, y_offset + advance]`) covers exactly the reserved slot, making
   it a slot-exact up-cell that abuts the advance cells of both upright and
   rotated neighbours
+* Null glyphs now report the font their span resolved to in `font_path`,
+  `font_index`, `font_size`, `ascender`, and `descender` (instead of an empty
+  path and fallback metrics), so consumers can compute font-relative
+  decorations for the reserved space. Since this removes the `font_path == ""`
+  sentinel, the `shape` output gains an explicit logical `spacer` column
+  marking null glyphs (`index` remains `NA` for them)
 * Kinsoku shori (Japanese line-break prohibition) support, driven by UAX#14
   line-break classes and covering inseparable and number-binding sequences
   (¥100, 50%, ‥…). The new `kinsoku` argument of `shape_text()` selects

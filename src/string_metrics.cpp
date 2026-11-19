@@ -198,6 +198,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
 
   // Return Columns
   writable::integers glyph, glyph_id, metric_id, string_id, fontindex;
+  writable::logicals spacer;
   writable::doubles x_offset, y_offset, widths, heights, left_bearings, right_bearings,
     top_bearings, bottom_bearings, left_border, top_border, pen_x, pen_y, fontsize,
     advance, ascender, descender, rotation;
@@ -273,6 +274,7 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
         int n_glyphs = shaper.glyph_id.size();
         for (int j = 0; j < n_glyphs; j++) {
           glyph.push_back((int) shaper.glyph_cluster[j] + 1);
+          spacer.push_back(shaper.glyph_id[j] == SPACER_CHAR);
           glyph_id.push_back((int) (shaper.glyph_id[j] == SPACER_CHAR ? R_NaInt : shaper.glyph_id[j]));
           metric_id.push_back(pen_x.size() + 1);
           string_id.push_back(shaper.string_id[j] + 1);
@@ -337,7 +339,8 @@ list get_string_shape_c(strings string, integers id, strings path, integers inde
     "advance"_nm = advance,
     "ascender"_nm = ascender,
     "descender"_nm = descender,
-    "rotation"_nm = rotation
+    "rotation"_nm = rotation,
+    "spacer"_nm = spacer
   });
   info_df.attr("class") = writable::strings({"tbl_df", "tbl", "data.frame"});
 

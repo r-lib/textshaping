@@ -101,7 +101,15 @@
 #'   \item{ascender}{The ascend of the font used for the glyph. This does not measure the actual glyph}
 #'   \item{descender}{The descend of the font used for the glyph. This does not measure the actual glyph}
 #'   \item{rotation}{The rotation in degrees the renderer should apply to the glyph. Non-zero for rotated runs in vertical text: horizontal-only scripts with `mixed = "rotate"` (the default), UAX#50 Tr characters when the font lacks `vert`/`vrt2`, and everything with `mixed = "sideways"`; `0` otherwise}
+#'   \item{spacer}{Logical. `TRUE` for null glyphs created from `NA` strings, which reserve advance (given by `tracking`) without shaping any characters. `FALSE` for all real glyphs}
 #' }
+#'
+#' Null glyphs (`spacer == TRUE`) have no glyph to report so `index` is `NA`,
+#' but they carry the font their span resolved to (`font_path`, `font_index`,
+#' `font_size`, `ascender`, and `descender`) so consumers can compute
+#' font-relative metrics such as underline position for the reserved space. The
+#' resolved font may legitimately differ from that of neighbouring glyphs when
+#' the `NA` span specifies a different family.
 #'
 #' `metrics` is a data.frame with the following columns:
 #' \describe{

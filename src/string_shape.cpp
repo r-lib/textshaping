@@ -406,7 +406,6 @@ bool HarfBuzzShaper::add_spacer(FontSettings2& font_info, double height, double 
     FT_Done_Face(face);
   }
 #endif
-  FontSettings2 dummy_font;
   ShapeInfo info;
   info.index = shape_infos.size();
   info.run_start = info.run_end = full_string.size();
@@ -439,7 +438,9 @@ bool HarfBuzzShaper::add_spacer(FontSettings2& font_info, double height, double 
   spacer_embed.may_stretch.push_back(false);
   spacer_embed.space_adjust.push_back(0);
   spacer_embed.font.push_back(0);
-  spacer_embed.fallbacks.push_back(dummy_font);
+  // Report the resolved font rather than a dummy so consumers can query
+  // font-relative metrics for the span
+  spacer_embed.fallbacks.push_back(font_info);
   spacer_embed.fallback_size.push_back(height);
   spacer_embed.fallback_scaling.push_back(-1);
   // embedding_level = 0 (ltr)

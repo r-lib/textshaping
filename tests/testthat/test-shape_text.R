@@ -83,6 +83,28 @@ test_that("shape_text handles multi-run strings and edge-case inputs", {
   expect_shape(zero_res$metrics, nrow = 0L)
 })
 
+test_that("null glyphs are marked and carry their resolved font", {
+  res <- shape_text(c("hello", NA, "world"), tracking = 24)
+  expect_identical(res$shape$spacer, rep(c(FALSE, TRUE, FALSE), c(5L, 1L, 5L)))
+
+  sp <- res$shape[res$shape$spacer, ]
+  expect_identical(sp$index, NA_integer_)
+  # The null glyph reports the font its span resolved to
+  expect_identical(sp$font_path, res$shape$font_path[1])
+  expect_identical(sp$font_index, res$shape$font_index[1])
+  expect_identical(sp$font_size, res$shape$font_size[1])
+  expect_equal(sp$ascender, res$shape$ascender[1])
+  expect_equal(sp$descender, res$shape$descender[1])
+
+  # ... which may differ from neighbouring glyphs when the span specifies
+  # another family
+  res2 <- shape_text(c("hello", NA), family = c("sans", "mono"))
+  expect_identical(
+    res2$shape$font_path[res2$shape$spacer],
+    systemfonts::match_fonts("mono")$path
+  )
+})
+
 test_that("shape_text handles RTL text with line breaks and wrapping", {
   rtl_single <- shape_text(
     "\u05e9\u05dc\u05d5\u05dd \u05e2\u05d5\u05dc\u05dd",
