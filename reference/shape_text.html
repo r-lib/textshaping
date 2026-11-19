@@ -238,15 +238,18 @@ when wrapping is forced past the last valid break opportunity: <code>"strict"</c
 punctuation, small kana, the prolonged sound mark, and iteration marks, and
 from ending with opening brackets; <code>"loose"</code> (like CSS <code>line-break: loose</code>)
 additionally permits lines to start with small kana, the prolonged sound
-mark, iteration marks, and centred punctuation (・：；); <code>"none"</code> disables
+mark, iteration marks, and centred punctuation (・：；);
+<code>"none"</code> disables
 kinsoku processing entirely (the JLREQ spacing collapses of fullwidth
 punctuation blanks are unaffected). Can be given per string.</p></dd>
 
 
 <dt id="arg-kinsoku-style">kinsoku_style<a class="anchor" aria-label="anchor" href="#arg-kinsoku-style"></a></dt>
 <dd><p>How line-break prohibition violations are resolved
-when wrapping is forced: <code>"hang"</code> (ぶら下げ, the default) lets offending
-punctuation hang past the line end; <code>"push-out"</code> (追い出し) moves it to the
+when wrapping is forced: <code>"hang"</code> (ぶら下げ, the
+default) lets offending
+punctuation hang past the line end; <code>"push-out"</code> (追い出し)
+moves it to the
 next line and expands the spacing of the vacated line; <code>"push-in"</code>
 (追い込み) pulls it onto the current line by compressing its spacing
 (punctuation blanks first, then inter-character gaps), falling back to
@@ -478,19 +481,24 @@ gives the advance along the main axis.</p>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Vertical text. CJK scripts stay horizontal with "auto", so request it</span></span></span>
 <span class="r-in"><span><span class="co"># explicitly; runs of horizontal-only scripts are rotated by default</span></span></span>
-<span class="r-in"><span><span class="fu">shape_text</span><span class="op">(</span><span class="st">"日本語ABCです"</span>, direction <span class="op">=</span> <span class="st">"ttb"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># (Japanese strings written with Unicode escapes so they render in the</span></span></span>
+<span class="r-in"><span><span class="co"># PDF manual)</span></span></span>
+<span class="r-in"><span><span class="fu">shape_text</span><span class="op">(</span><span class="st">"\\u65e5\\u672c\\u8a9eABC\\u3067\\u3059"</span>, direction <span class="op">=</span> <span class="st">"ttb"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $shape</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 8 × 18</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   glyph index metric_id string_id x_offset y_offset font_path         font_index</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                  <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>     1 <span style="text-decoration: underline;">13</span>181         1         1     1.34    -<span style="color: #BB0000;">10.0</span> /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>     2 <span style="text-decoration: underline;">13</span>508         1         1     1.34    -<span style="color: #BB0000;">22.3</span> /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>     3 <span style="text-decoration: underline;">22</span>582         1         1     1.34    -<span style="color: #BB0000;">34.3</span> /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>     4    36         1         1     3.19    -<span style="color: #BB0000;">36</span>   /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>     5    37         1         1     3.19    -<span style="color: #BB0000;">44.2</span> /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>     6    38         1         1     3.19    -<span style="color: #BB0000;">52.2</span> /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>     7   154         1         1     1.34    -<span style="color: #BB0000;">70.5</span> /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span>     8   140         1         1     1.34    -<span style="color: #BB0000;">82.9</span> /usr/share/fonts…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 33 × 18</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    glyph index metric_id string_id x_offset y_offset font_path        font_index</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>     1    63         1         1     2.83     0    /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>     2    88         1         1     2.83    -<span style="color: #BB0000;">4.05</span> /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>     3    25         1         1     2.83   -<span style="color: #BB0000;">11.7</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>     4    24         1         1     2.83   -<span style="color: #BB0000;">19.3</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>     5    72         1         1     2.83   -<span style="color: #BB0000;">26.9</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>     6    24         1         1     2.83   -<span style="color: #BB0000;">34.3</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>     7    63         1         1     2.83   -<span style="color: #BB0000;">42.0</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>     8    88         1         1     2.83   -<span style="color: #BB0000;">46.0</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>     9    25         1         1     2.83   -<span style="color: #BB0000;">53.6</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>    10    26         1         1     2.83   -<span style="color: #BB0000;">61.3</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 23 more rows</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 10 more variables: font_size &lt;dbl&gt;, advance &lt;dbl&gt;, ascender &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   descender &lt;dbl&gt;, rotation &lt;dbl&gt;, spacer &lt;lgl&gt;, cell_x0 &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   cell_y0 &lt;dbl&gt;, cell_x1 &lt;dbl&gt;, cell_y1 &lt;dbl&gt;</span></span>
@@ -499,25 +507,28 @@ gives the advance along the main axis.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 13</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   string      width height left_bearing right_bearing top_bearing bottom_bearing</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> 日本語ABCです……  15.7   84.6         1.86          2.92       0.844           0.75</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> <span style="color: #949494;">"</span>\\u65e5\\…  14.0   234.         1.72          2.23           0          0.844</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 6 more variables: left_border &lt;dbl&gt;, top_border &lt;dbl&gt;, pen_x &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   pen_y &lt;dbl&gt;, ltr &lt;lgl&gt;, direction &lt;chr&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># ...or set them upright if the font provides vert/vrt2 substitutions</span></span></span>
-<span class="r-in"><span><span class="fu">shape_text</span><span class="op">(</span><span class="st">"日本語ABCです"</span>, direction <span class="op">=</span> <span class="st">"ttb"</span>, mixed <span class="op">=</span> <span class="st">"upright"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">shape_text</span><span class="op">(</span><span class="st">"\\u65e5\\u672c\\u8a9eABC\\u3067\\u3059"</span>, direction <span class="op">=</span> <span class="st">"ttb"</span>, mixed <span class="op">=</span> <span class="st">"upright"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $shape</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 8 × 18</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   glyph index metric_id string_id x_offset y_offset font_path         font_index</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                  <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>     1 <span style="text-decoration: underline;">13</span>181         1         1     1.34    -<span style="color: #BB0000;">10.0</span> /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>     2 <span style="text-decoration: underline;">13</span>508         1         1     1.34    -<span style="color: #BB0000;">22.3</span> /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>     3 <span style="text-decoration: underline;">22</span>582         1         1     1.34    -<span style="color: #BB0000;">34.3</span> /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>     4    36         1         1     3.19    -<span style="color: #BB0000;">36</span>   /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>     5    37         1         1     3.19    -<span style="color: #BB0000;">44.2</span> /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>     6    38         1         1     3.19    -<span style="color: #BB0000;">52.2</span> /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>     7   154         1         1     1.34    -<span style="color: #BB0000;">70.5</span> /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span>     8   140         1         1     1.34    -<span style="color: #BB0000;">82.9</span> /usr/share/fonts…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 33 × 18</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    glyph index metric_id string_id x_offset y_offset font_path        font_index</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>     1    63         1         1     2.83     0    /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>     2    88         1         1     2.83    -<span style="color: #BB0000;">4.05</span> /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>     3    25         1         1     2.83   -<span style="color: #BB0000;">11.7</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>     4    24         1         1     2.83   -<span style="color: #BB0000;">19.3</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>     5    72         1         1     2.83   -<span style="color: #BB0000;">26.9</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>     6    24         1         1     2.83   -<span style="color: #BB0000;">34.3</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>     7    63         1         1     2.83   -<span style="color: #BB0000;">42.0</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>     8    88         1         1     2.83   -<span style="color: #BB0000;">46.0</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>     9    25         1         1     2.83   -<span style="color: #BB0000;">53.6</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>    10    26         1         1     2.83   -<span style="color: #BB0000;">61.3</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 23 more rows</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 10 more variables: font_size &lt;dbl&gt;, advance &lt;dbl&gt;, ascender &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   descender &lt;dbl&gt;, rotation &lt;dbl&gt;, spacer &lt;lgl&gt;, cell_x0 &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   cell_y0 &lt;dbl&gt;, cell_x1 &lt;dbl&gt;, cell_y1 &lt;dbl&gt;</span></span>
@@ -526,7 +537,7 @@ gives the advance along the main axis.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 13</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   string      width height left_bearing right_bearing top_bearing bottom_bearing</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> 日本語ABCです……  15.7   84.6         1.86          2.92       0.844           0.75</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> <span style="color: #949494;">"</span>\\u65e5\\…  14.0   234.         1.72          2.23           0          0.844</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 6 more variables: left_border &lt;dbl&gt;, top_border &lt;dbl&gt;, pen_x &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   pen_y &lt;dbl&gt;, ltr &lt;lgl&gt;, direction &lt;chr&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
@@ -534,24 +545,22 @@ gives the advance along the main axis.</p>
 <span class="r-in"><span><span class="co"># Digit runs of up to 4 digits can be set horizontally on a single line</span></span></span>
 <span class="r-in"><span><span class="co"># (tate-chu-yoko) with mixed = "tate", using the font's narrow digit</span></span></span>
 <span class="r-in"><span><span class="co"># forms (hwid/twid/qwid) when available</span></span></span>
-<span class="r-in"><span><span class="fu">shape_text</span><span class="op">(</span><span class="st">"2024年12月25日発売"</span>, direction <span class="op">=</span> <span class="st">"ttb"</span>, mixed <span class="op">=</span> <span class="st">"tate"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">shape_text</span><span class="op">(</span><span class="st">"2024\\u5e7412\\u670825\\u65e5\\u767a\\u58f2"</span>, direction <span class="op">=</span> <span class="st">"ttb"</span>, mixed <span class="op">=</span> <span class="st">"tate"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $shape</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 13 × 18</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 38 × 18</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    glyph index metric_id string_id x_offset y_offset font_path        font_index</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>     1    21         1         1     1.34    -<span style="color: #BB0000;">7.62</span> /usr/share/font…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>     2    19         1         1     4.34    -<span style="color: #BB0000;">7.64</span> /usr/share/font…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>     3    21         1         1     7.34    -<span style="color: #BB0000;">7.64</span> /usr/share/font…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>     4    23         1         1    10.3     -<span style="color: #BB0000;">7.64</span> /usr/share/font…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>     5 <span style="text-decoration: underline;">11</span>276         1         1     1.34   -<span style="color: #BB0000;">22.4</span>  /usr/share/font…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>     6    20         1         1     1.34   -<span style="color: #BB0000;">33.2</span>  /usr/share/font…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>     7    21         1         1     7.34   -<span style="color: #BB0000;">33.3</span>  /usr/share/font…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>     8 <span style="text-decoration: underline;">13</span>472         1         1     1.34   -<span style="color: #BB0000;">46.1</span>  /usr/share/font…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>     9    21         1         1     1.34   -<span style="color: #BB0000;">57.2</span>  /usr/share/font…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>    10    24         1         1     7.34   -<span style="color: #BB0000;">57.3</span>  /usr/share/font…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">11</span>    11 <span style="text-decoration: underline;">13</span>181         1         1     1.34   -<span style="color: #BB0000;">70.0</span>  /usr/share/font…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">12</span>    12 <span style="text-decoration: underline;">17</span>426         1         1     1.34   -<span style="color: #BB0000;">82.3</span>  /usr/share/font…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">13</span>    13  <span style="text-decoration: underline;">9</span>866         1         1     1.34   -<span style="color: #BB0000;">96.4</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>     1    21         1         1    0.984    -<span style="color: #BB0000;">7.62</span> /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>     2    19         1         1    3.98     -<span style="color: #BB0000;">7.64</span> /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>     3    21         1         1    6.98     -<span style="color: #BB0000;">7.64</span> /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>     4    23         1         1    9.98     -<span style="color: #BB0000;">7.64</span> /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>     5    63         1         1    2.83    -<span style="color: #BB0000;">12</span>    /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>     6    88         1         1    2.83    -<span style="color: #BB0000;">16.0</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>     7    24         1         1    3.16    -<span style="color: #BB0000;">33.8</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>     8    72         1         1    2.83    -<span style="color: #BB0000;">35.7</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>     9    26         1         1    0.984   -<span style="color: #BB0000;">50.7</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>    10    23         1         1    3.98    -<span style="color: #BB0000;">50.7</span>  /usr/share/font…          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 28 more rows</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 10 more variables: font_size &lt;dbl&gt;, advance &lt;dbl&gt;, ascender &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   descender &lt;dbl&gt;, rotation &lt;dbl&gt;, spacer &lt;lgl&gt;, cell_x0 &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   cell_y0 &lt;dbl&gt;, cell_x1 &lt;dbl&gt;, cell_y1 &lt;dbl&gt;</span></span>
@@ -560,7 +569,7 @@ gives the advance along the main axis.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 13</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   string      width height left_bearing right_bearing top_bearing bottom_bearing</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> 2024年12月25…  15.7     96         1.69          2.62        4.14          -<span style="color: #BB0000;">1.41</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> <span style="color: #949494;">"</span>2024\\u5e…  14.0   226.         1.33          1.25        4.14           1.84</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 6 more variables: left_border &lt;dbl&gt;, top_border &lt;dbl&gt;, pen_x &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   pen_y &lt;dbl&gt;, ltr &lt;lgl&gt;, direction &lt;chr&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
