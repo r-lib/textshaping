@@ -176,6 +176,14 @@ test_that("text-presentation-default emoji prefer text fallback fonts", {
   arrow_font <- font_family(s$shape$font_path[1], s$shape$font_index[1])
   expect_false(grepl("emoji", arrow_font, ignore.case = TRUE))
 
+  # The VS16 part of the test requires an emoji font on the system; some
+  # minimal CI containers (e.g. the r-hub sanitizer images) have none
+  fonts <- systemfonts::system_fonts()
+  skip_if_not(
+    any(grepl("emoji", fonts$family, ignore.case = TRUE)),
+    "No emoji font installed"
+  )
+
   # An explicit emoji variation selector must still pick the emoji font
   s_vs16 <- shape_text(paste0(arrow, "️ text"), family = "sans")
   arrow_font_vs16 <- font_family(
