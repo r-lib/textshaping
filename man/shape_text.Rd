@@ -130,15 +130,18 @@ when wrapping is forced past the last valid break opportunity: \code{"strict"}
 punctuation, small kana, the prolonged sound mark, and iteration marks, and
 from ending with opening brackets; \code{"loose"} (like CSS \code{line-break: loose})
 additionally permits lines to start with small kana, the prolonged sound
-mark, iteration marks, and centred punctuation (・：；); \code{"none"} disables
+mark, iteration marks, and centred punctuation \ifelse{latex}{}{(・：；)};
+\code{"none"} disables
 kinsoku processing entirely (the JLREQ spacing collapses of fullwidth
 punctuation blanks are unaffected). Can be given per string.}
 
 \item{kinsoku_style}{How line-break prohibition violations are resolved
-when wrapping is forced: \code{"hang"} (ぶら下げ, the default) lets offending
-punctuation hang past the line end; \code{"push-out"} (追い出し) moves it to the
+when wrapping is forced: \code{"hang"} \ifelse{latex}{}{(ぶら下げ, }the
+default\ifelse{latex}{}{)} lets offending
+punctuation hang past the line end; \code{"push-out"} \ifelse{latex}{}{(追い出し) }
+moves it to the
 next line and expands the spacing of the vacated line; \code{"push-in"}
-(追い込み) pulls it onto the current line by compressing its spacing
+\ifelse{latex}{}{(追い込み) }pulls it onto the current line by compressing its spacing
 (punctuation blanks first, then inter-character gaps), falling back to
 hanging when the line cannot absorb the overflow. Can be given per string.}
 
@@ -258,14 +261,16 @@ shape_text(string, id = c(1, 1, 1), size = c(12, 24, 12))
 
 # Vertical text. CJK scripts stay horizontal with "auto", so request it
 # explicitly; runs of horizontal-only scripts are rotated by default
-shape_text("日本語ABCです", direction = "ttb")
+# (Japanese strings written with Unicode escapes so they render in the
+# PDF manual)
+shape_text("\\\\u65e5\\\\u672c\\\\u8a9eABC\\\\u3067\\\\u3059", direction = "ttb")
 
 # ...or set them upright if the font provides vert/vrt2 substitutions
-shape_text("日本語ABCです", direction = "ttb", mixed = "upright")
+shape_text("\\\\u65e5\\\\u672c\\\\u8a9eABC\\\\u3067\\\\u3059", direction = "ttb", mixed = "upright")
 
 # Digit runs of up to 4 digits can be set horizontally on a single line
 # (tate-chu-yoko) with mixed = "tate", using the font's narrow digit
 # forms (hwid/twid/qwid) when available
-shape_text("2024年12月25日発売", direction = "ttb", mixed = "tate")
+shape_text("2024\\\\u5e7412\\\\u670825\\\\u65e5\\\\u767a\\\\u58f2", direction = "ttb", mixed = "tate")
 
 }
