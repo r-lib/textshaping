@@ -89,9 +89,9 @@ paragraph level formatting settings.</p>
 <span>  space_before <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  space_after <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  direction <span class="op">=</span> <span class="st">"auto"</span>,</span>
-<span>  mixed <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"rotate"</span>, <span class="st">"upright"</span><span class="op">)</span>,</span>
-<span>  kinsoku <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"strict"</span>, <span class="st">"loose"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
-<span>  kinsoku_style <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"hang"</span>, <span class="st">"push-out"</span>, <span class="st">"push-in"</span><span class="op">)</span>,</span>
+<span>  mixed <span class="op">=</span> <span class="st">"rotate"</span>,</span>
+<span>  kinsoku <span class="op">=</span> <span class="st">"strict"</span>,</span>
+<span>  kinsoku_style <span class="op">=</span> <span class="st">"hang"</span>,</span>
 <span>  path <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  index <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  bold <span class="op">=</span> <span class="fu">deprecated</span><span class="op">(</span><span class="op">)</span></span>
@@ -222,7 +222,10 @@ features are set explicitly), falling back to scaling down to fit the em
 box. <code>"combine"</code> generalises tate-chu-yoko to any horizontal-only run of
 up to 4 characters — Latin abbreviations, era names, etc. — equivalent to
 CSS <code>text-combine-upright: all</code> (narrow digit features are only used for
-all-digit runs). Finally, <code>"sideways"</code> shapes the entire string
+all-digit runs). <code>"tate2"</code>/<code>"tate3"</code> and <code>"combine2"</code>/<code>"combine3"</code> are
+like <code>"tate"</code> and <code>"combine"</code> but cap the combined run at 2 or 3
+digits/characters instead of 4 (runs longer than the cap stay rotated).
+Finally, <code>"sideways"</code> shapes the entire string
 horizontally — CJK scripts included — and marks it for rotation,
 equivalent to CSS <code>text-orientation: sideways</code>. Ignored for horizontal
 text. Can be given per string.</p></dd>
@@ -303,8 +306,56 @@ about the full strings.</p>
 <dt>rotation</dt>
 <dd><p>The rotation in degrees the renderer should apply to the glyph. Non-zero for rotated runs in vertical text: horizontal-only scripts with <code>mixed = "rotate"</code> (the default), UAX#50 Tr characters when the font lacks <code>vert</code>/<code>vrt2</code>, and everything with <code>mixed = "sideways"</code>; <code>0</code> otherwise</p></dd>
 
+<dt>spacer</dt>
+<dd><p>Logical. <code>TRUE</code> for null glyphs created from <code>NA</code> strings, which reserve advance (given by <code>tracking</code>) without shaping any characters. <code>FALSE</code> for all real glyphs</p></dd>
 
-</dl><p><code>metrics</code> is a data.frame with the following columns:</p><dl><dt>string</dt>
+<dt>cell_x0, cell_y0, cell_x1, cell_y1</dt>
+<dd><p>The bounds of the glyph's cell, i.e. its advance slot along the main axis and its em box along the cross axis, in pixels relative to the origin of the textbox (see below for the precise anchoring convention). Cells tile seamlessly: within a run of text the end of one cell coincides with the start of the next, so they can be used directly for backgrounds and other per-cell decorations</p></dd>
+
+
+</dl><div class="section">
+<h3 id="cell-anchoring-convention">Cell anchoring convention<a class="anchor" aria-label="anchor" href="#cell-anchoring-convention"></a></h3>
+
+
+<p>The cell is the glyph's advance slot along the main axis and its em box
+along the cross axis. Deriving it from <code>x_offset</code>/<code>y_offset</code> requires
+knowing the anchoring convention, which differs by direction and rotation,
+so prefer the <code>cell_*</code> columns. For reference: for horizontal text the
+cell spans <code>[x_offset, x_offset + advance]</code> along the line and
+<code>[y_offset + descender, y_offset + ascender]</code> across it. For vertical
+text, upright glyphs (and spacers) occupy the advance slot along the
+column and <code>[x_offset, x_offset + em]</code> across it — the slot is <em>not</em>
+recoverable from <code>y_offset</code>, which is the font's VORG origin and may sit
+anywhere inside the slot. Rotated runs sit on their baseline: <code>-90</code> runs
+(in <code>"ttb"</code>) span <code>[y_offset - advance, y_offset]</code> along the column and
+<code>[x_offset + descender, x_offset + ascender]</code> across it, while <code>+90</code> runs
+(only in <code>"ttb-ltr"</code>) span <code>[y_offset, y_offset + advance]</code> (exact only
+when <code>tracking</code> is 0 for the run) and <code>[x_offset - ascender, x_offset - descender]</code>.
+Note that the cross-axis em width is generally not <code>ascender - descender</code>;
+use <code>cell_x0</code>/<code>cell_x1</code> rather than deriving it from the font extents.</p>
+</div>
+
+<div class="section">
+<h3 id="block-anchoring">Block anchoring<a class="anchor" aria-label="anchor" href="#block-anchoring"></a></h3>
+
+
+<p>The whole shaped block is anchored the same way in every direction: the
+origin sits at the <code>hjust</code>/<code>vjust</code> anchor point of the content box, with
+<code>hjust</code> justifying along the main axis and <code>vjust</code> across it. Concretely,
+<code>left_border</code> is <code>-vjust * width</code> for vertical text (<code>-hjust * width</code> for
+horizontal) and <code>top_border</code> marks the block-start edge by <code>hjust</code>. With
+the default <code>hjust = vjust = 0</code> the content box thus always starts at the
+origin — its left edge at <code>x = 0</code> and its block-start edge at <code>y = 0</code> —
+whether the text is horizontal, <code>"ttb"</code>, or <code>"ttb-ltr"</code>; the direction only
+affects the order in which lines or columns fill the box. Ink may extend
+past the box edges; the bearings report how far.</p>
+<p>Null glyphs (<code>spacer == TRUE</code>) have no glyph to report so <code>index</code> is <code>NA</code>,
+but they carry the font their span resolved to (<code>font_path</code>, <code>font_index</code>,
+<code>font_size</code>, <code>ascender</code>, and <code>descender</code>) so consumers can compute
+font-relative metrics such as underline position for the reserved space. The
+resolved font may legitimately differ from that of neighbouring glyphs when
+the <code>NA</code> span specifies a different family.</p>
+<p><code>metrics</code> is a data.frame with the following columns:</p><dl><dt>string</dt>
 <dd><p>The text the string consist of</p></dd>
 
 <dt>width</dt>
@@ -351,6 +402,8 @@ substitutions when available unless these features are set explicitly.
 <code>max_width</code> constrains the height of a column, and <code>hjust</code>/<code>vjust</code> justify
 along the main axis and across columns respectively. The <code>advance</code> column
 gives the advance along the main axis.</p>
+</div>
+
     </div>
 
     <div id="ref-examples">
@@ -360,7 +413,7 @@ gives the advance along the main axis.</p>
 <span class="r-in"><span><span class="co"># Shape with default settings</span></span></span>
 <span class="r-in"><span><span class="fu">shape_text</span><span class="op">(</span><span class="va">string</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $shape</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 57 × 13</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 57 × 18</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    glyph index metric_id string_id x_offset y_offset font_path        font_index</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>     1    55         1         1     0        30.8 /usr/share/font…          0</span>
@@ -374,8 +427,9 @@ gives the advance along the main axis.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>     9    68         1         1    41.7      30.8 /usr/share/font…          0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>    10     3         1         1    49.1      30.8 /usr/share/font…          0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 47 more rows</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 5 more variables: font_size &lt;dbl&gt;, advance &lt;dbl&gt;, ascender &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   descender &lt;dbl&gt;, rotation &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 10 more variables: font_size &lt;dbl&gt;, advance &lt;dbl&gt;, ascender &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   descender &lt;dbl&gt;, rotation &lt;dbl&gt;, spacer &lt;lgl&gt;, cell_x0 &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   cell_y0 &lt;dbl&gt;, cell_x1 &lt;dbl&gt;, cell_y1 &lt;dbl&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $metrics</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 13</span></span>
@@ -395,7 +449,7 @@ gives the advance along the main axis.</p>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="fu">shape_text</span><span class="op">(</span><span class="va">string</span>, id <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span>, size <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">12</span>, <span class="fl">24</span>, <span class="fl">12</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $shape</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 57 × 13</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 57 × 18</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    glyph index metric_id string_id x_offset y_offset font_path        font_index</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>     1    55         1         1     0        47.6 /usr/share/font…          0</span>
@@ -409,8 +463,9 @@ gives the advance along the main axis.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>     9    76         1         1    44.2      47.6 /usr/share/font…          0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>    10    81         1         1    47.5      47.6 /usr/share/font…          0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 47 more rows</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 5 more variables: font_size &lt;dbl&gt;, advance &lt;dbl&gt;, ascender &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   descender &lt;dbl&gt;, rotation &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 10 more variables: font_size &lt;dbl&gt;, advance &lt;dbl&gt;, ascender &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   descender &lt;dbl&gt;, rotation &lt;dbl&gt;, spacer &lt;lgl&gt;, cell_x0 &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   cell_y0 &lt;dbl&gt;, cell_x1 &lt;dbl&gt;, cell_y1 &lt;dbl&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $metrics</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 13</span></span>
@@ -425,7 +480,7 @@ gives the advance along the main axis.</p>
 <span class="r-in"><span><span class="co"># explicitly; runs of horizontal-only scripts are rotated by default</span></span></span>
 <span class="r-in"><span><span class="fu">shape_text</span><span class="op">(</span><span class="st">"日本語ABCです"</span>, direction <span class="op">=</span> <span class="st">"ttb"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $shape</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 8 × 13</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 8 × 18</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   glyph index metric_id string_id x_offset y_offset font_path         font_index</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                  <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>     1 <span style="text-decoration: underline;">13</span>181         1         1     1.34    -<span style="color: #BB0000;">10.0</span> /usr/share/fonts…          0</span>
@@ -436,8 +491,9 @@ gives the advance along the main axis.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>     6    38         1         1     3.19    -<span style="color: #BB0000;">52.2</span> /usr/share/fonts…          0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>     7   154         1         1     1.34    -<span style="color: #BB0000;">70.5</span> /usr/share/fonts…          0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span>     8   140         1         1     1.34    -<span style="color: #BB0000;">82.9</span> /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 5 more variables: font_size &lt;dbl&gt;, advance &lt;dbl&gt;, ascender &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   descender &lt;dbl&gt;, rotation &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 10 more variables: font_size &lt;dbl&gt;, advance &lt;dbl&gt;, ascender &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   descender &lt;dbl&gt;, rotation &lt;dbl&gt;, spacer &lt;lgl&gt;, cell_x0 &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   cell_y0 &lt;dbl&gt;, cell_x1 &lt;dbl&gt;, cell_y1 &lt;dbl&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $metrics</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 13</span></span>
@@ -451,7 +507,7 @@ gives the advance along the main axis.</p>
 <span class="r-in"><span><span class="co"># ...or set them upright if the font provides vert/vrt2 substitutions</span></span></span>
 <span class="r-in"><span><span class="fu">shape_text</span><span class="op">(</span><span class="st">"日本語ABCです"</span>, direction <span class="op">=</span> <span class="st">"ttb"</span>, mixed <span class="op">=</span> <span class="st">"upright"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $shape</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 8 × 13</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 8 × 18</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   glyph index metric_id string_id x_offset y_offset font_path         font_index</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                  <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>     1 <span style="text-decoration: underline;">13</span>181         1         1     1.34    -<span style="color: #BB0000;">10.0</span> /usr/share/fonts…          0</span>
@@ -462,8 +518,9 @@ gives the advance along the main axis.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>     6    38         1         1     3.19    -<span style="color: #BB0000;">52.2</span> /usr/share/fonts…          0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>     7   154         1         1     1.34    -<span style="color: #BB0000;">70.5</span> /usr/share/fonts…          0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span>     8   140         1         1     1.34    -<span style="color: #BB0000;">82.9</span> /usr/share/fonts…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 5 more variables: font_size &lt;dbl&gt;, advance &lt;dbl&gt;, ascender &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   descender &lt;dbl&gt;, rotation &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 10 more variables: font_size &lt;dbl&gt;, advance &lt;dbl&gt;, ascender &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   descender &lt;dbl&gt;, rotation &lt;dbl&gt;, spacer &lt;lgl&gt;, cell_x0 &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   cell_y0 &lt;dbl&gt;, cell_x1 &lt;dbl&gt;, cell_y1 &lt;dbl&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $metrics</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 13</span></span>
@@ -479,7 +536,7 @@ gives the advance along the main axis.</p>
 <span class="r-in"><span><span class="co"># forms (hwid/twid/qwid) when available</span></span></span>
 <span class="r-in"><span><span class="fu">shape_text</span><span class="op">(</span><span class="st">"2024年12月25日発売"</span>, direction <span class="op">=</span> <span class="st">"ttb"</span>, mixed <span class="op">=</span> <span class="st">"tate"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $shape</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 13 × 13</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 13 × 18</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    glyph index metric_id string_id x_offset y_offset font_path        font_index</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>     1    21         1         1     1.34    -<span style="color: #BB0000;">7.62</span> /usr/share/font…          0</span>
@@ -495,8 +552,9 @@ gives the advance along the main axis.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">11</span>    11 <span style="text-decoration: underline;">13</span>181         1         1     1.34   -<span style="color: #BB0000;">70.0</span>  /usr/share/font…          0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">12</span>    12 <span style="text-decoration: underline;">17</span>426         1         1     1.34   -<span style="color: #BB0000;">82.3</span>  /usr/share/font…          0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">13</span>    13  <span style="text-decoration: underline;">9</span>866         1         1     1.34   -<span style="color: #BB0000;">96.4</span>  /usr/share/font…          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 5 more variables: font_size &lt;dbl&gt;, advance &lt;dbl&gt;, ascender &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   descender &lt;dbl&gt;, rotation &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 10 more variables: font_size &lt;dbl&gt;, advance &lt;dbl&gt;, ascender &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   descender &lt;dbl&gt;, rotation &lt;dbl&gt;, spacer &lt;lgl&gt;, cell_x0 &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   cell_y0 &lt;dbl&gt;, cell_x1 &lt;dbl&gt;, cell_y1 &lt;dbl&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $metrics</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 13</span></span>
