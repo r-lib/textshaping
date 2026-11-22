@@ -1,3 +1,5 @@
+# textshaping (development version)
+
 # textshaping 1.1.0
 
 * Vertical text shaping is now supported through the `direction` argument of
