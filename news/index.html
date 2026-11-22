@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">textshaping</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.1.0.9000</span>
       </span>
     </div>
 
@@ -57,6 +57,9 @@
       <small>Source: <a href="https://github.com/r-lib/textshaping/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="development version" id="textshaping-development-version">textshaping (development version)<a class="anchor" aria-label="anchor" href="#textshaping-development-version"></a></h2>
+</div>
     <div class="section level2">
 <h2 class="page-header" data-toc-text="1.1.0" id="textshaping-110">textshaping 1.1.0<small>2026-11-20</small><a class="anchor" aria-label="anchor" href="#textshaping-110"></a></h2>
 <ul><li>Vertical text shaping is now supported through the <code>direction</code> argument of <code><a href="../reference/shape_text.html">shape_text()</a></code> and <code><a href="../reference/text_width.html">text_width()</a></code>, which now also accepts <code>"ttb"</code> and <code>"ttb-ltr"</code> (columns progressing left-to-right, as in Mongolian; <code>"auto"</code> resolves required-vertical scripts like Mongolian and Phags-pa to it). The new <code>mixed</code> argument controls how horizontal-only runs (e.g. Latin) are set in vertical text: <code>"rotate"</code> shapes them horizontally and marks them for a 90 degree rotation (new <code>rotation</code> column in the <code>shape</code> output), <code>"upright"</code> uses the font’s <code>vert</code>/<code>vrt2</code> substitutions, <code>"tate"</code> sets short digit runs horizontally within the column (tate-chu-yoko), <code>"combine"</code> extends this to arbitrary runs of up to 4 characters (like CSS <code>text-combine-upright: all</code>; <code>"tate2"</code>/<code>"tate3"</code> and <code>"combine2"</code>/<code>"combine3"</code> cap the run at 2 or 3 digits/characters instead), and <code>"sideways"</code> shapes the whole string horizontally for rotation into the column (like CSS <code>text-orientation: sideways</code>). Vertical glyph placement follows the font’s VORG origins and UAX#50 orientation classes, with Tr-class characters (brackets, quotes, dashes) using <code>vert</code>/<code>vrt2</code> glyphs when available. The <code>metrics</code> output gains a <code>direction</code> column</li>
